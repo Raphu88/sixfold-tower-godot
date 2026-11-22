@@ -17,6 +17,8 @@ const Secret := preload("res://scripts/secret.gd")
 const Appearance := preload("res://scripts/appearance.gd")
 const Unbound := preload("res://scripts/unbound.gd")
 const Flow := preload("res://scripts/essence_flow.gd")
+## Marks grow by use, and burns (mark_use.gd).
+const MarkUse := preload("res://scripts/mark_use.gd")
 ## Slot 1's file (main.gd points save_path at the current slot's: slots.gd).
 const SAVE_PATH := "user://climber_1.cfg"
 
@@ -26,21 +28,31 @@ static var FAINT_DEBT := 80.0
 ## A faint mark's usual strength (a fall's chance mark); its debt is
 ## FAINT_DEBT at this strength, and grows as the strength falls.
 const FAINT_POWER := 0.75
-## Growth needed to reach each step (index = step - 1). Only the marks' share
-## of what you bank grows marks (essence_flow.gd SPLIT): each kind goes to the
-## marks of that kind and counts AFFINITY_WEIGHT; a kind no mark is made of
-## spreads over every mark and counts OTHER_WEIGHT. Then STEP_RATE, slowed by
-## how many marks the body already carries (BODY_DRAG). Winning the Proving
-## (floor 6) grows the mark you used most by PROVING_GROWTH, and tinctures
-## steer essence into one mark (essence_flow.gd TINCTURE "mark_boost": a
-## tincture's essence is concentrated). The pace is measured in climbs by
+## The depth of a mark's essence pool each step needs (index = step - 1),
+## kept in profile.bonds part -> "xp". A mark deepens by USE (mark_use.gd):
+## at each stair the marks' share of what you bank (essence_flow.gd SPLIT)
+## refills what each mark's spells drew in the climb, and its depth grows by
+## 0.6 x that use, the growth using up banked essence too; its own kind pays
+## fully, another kind a third; an unused mark takes in only a trickle;
+## what's left condenses into crystals. The body's marks slow it (BODY_DRAG).
+## Winning the Proving (floor 6) deepens the mark you used most by
+## PROVING_GROWTH, and tinctures steer essence into one mark (its own kind
+## counts AFFINITY_WEIGHT, another OTHER_WEIGHT, then STEP_RATE and
+## essence_flow.gd TINCTURE "mark_boost": a tincture's essence is
+## concentrated). The pace is measured in climbs by
 ## tests/progression_measure.gd, and held to the owner's pace by
 ## tests/parts/progression.gd: a typical climber's first mark reaches step 5
 ## after about 5 climbs, step 6 about 8 and step 12 about 22 (about 9 when
 ## summiting its tower every climb), the same pace as the Unbound's Nodes.
 ## Steps 6 to 12 bring the passive's rank IV, three forks of upgrades, the
 ## Apex+, a second Transformation and the Zenith (mark_ascent.gd).
-static var STEP_XP := [0.0, 100.0, 160.0, 210.0, 260.0, 480.0, 560.0, 640.0, 700.0, 780.0, 860.0, 950.0]
+## OLD_STEP_XP: the table before marks grew by use (an old save's marks are
+## converted from it as they load: MarkUse.convert, the same step and as far
+## through it).
+static var STEP_XP := [0.0, 170.0, 300.0, 420.0, 540.0, 820.0, 960.0, 1100.0, 1240.0, 1400.0, 1560.0, 1740.0]
+const OLD_STEP_XP := [0.0, 100.0, 160.0, 210.0, 260.0, 480.0, 560.0, 640.0, 700.0, 780.0, 860.0, 950.0]
+## Saves from before marks grew by use have no profile/mark_depth key.
+const DEPTH_VERSION := 1
 static var AFFINITY_WEIGHT := 2.0
 static var OTHER_WEIGHT := 0.25
 static var STEP_RATE := 0.075
@@ -59,7 +71,7 @@ static var MARK_FULL := 0.9
 static var BODY_DRAG := [1.0, 1.0, 0.7, 0.5, 0.35, 0.25, 0.2]
 
 var regarded := false
-var bonds := {}  # part -> {"id", "xp", "faint", "debt"}
+var bonds := {}  # part -> {"id", "xp" (its pool's depth), "faint", "debt", "power"; "used" (drawn since the last stair), "dark" (a burned-out mark: climbs left), "burnouts": mark_use.gd}
 var soak := {}  # part -> banked soak in unmarked parts
 var tally := {}  # essence kind -> banked since the last mark
 var climbs := 0
@@ -316,6 +328,10 @@ func load_save() -> void:
 	best_floor = int(cfg.get_value("climb", "best_floor", 1))
 	regarded = bool(cfg.get_value("profile", "regarded", false))
 	bonds = cfg.get_value("profile", "bonds", {})
+	if int(cfg.get_value("profile", "mark_depth", 0)) < DEPTH_VERSION:
+		for part in bonds:
+			if bonds[part] is Dictionary and bonds[part].has("xp"):
+				bonds[part]["xp"] = MarkUse.convert(float(bonds[part]["xp"]), OLD_STEP_XP, STEP_XP)  # (an old save: the same step, as far through it)
 	soak = cfg.get_value("profile", "soak", {})
 	tally = cfg.get_value("profile", "tally", {})
 	climbs = int(cfg.get_value("profile", "climbs", 0))
@@ -412,6 +428,7 @@ func save() -> void:
 	cfg.set_value("climb", "best_floor", best_floor)
 	cfg.set_value("profile", "regarded", regarded)
 	cfg.set_value("profile", "bonds", bonds)
+	cfg.set_value("profile", "mark_depth", DEPTH_VERSION)
 	cfg.set_value("profile", "soak", soak)
 	cfg.set_value("profile", "tally", tally)
 	cfg.set_value("profile", "climbs", climbs)
@@ -670,21 +687,27 @@ func add_bond(part: String, id: String, faint: bool, strength := -1.0) -> void:
 ## Banks essence the natural way, with no crystal share (eating a crystal:
 ## main.gd consume_crystal): body and marks share it. `run_soak` is what each
 ## body part did (it spreads the body's share); empty, the way your body has
-## always taken it (natural_style). Returns lines (steps gained, faint marks
-## strengthened).
+## always taken it (natural_style). What the marks can't take (they take
+## what refills and deepens their use, else a trickle) goes to the body.
+## Returns lines (steps gained, faint marks strengthened).
 func bank(essence: Dictionary, run_soak: Dictionary) -> Array:
-	return pour(essence, run_soak, 0.0)["lines"]
+	return pour(essence, run_soak, 0.0, false)["lines"]
 
 
 ## Pours banked essence into you, split three ways (essence_flow.gd): a share
 ## (`crystal_share`, whole essence only) condenses into crystals, and body and
-## marks divide the rest. Returns {"lines", "made" (kind -> crystals), "keep"
-## (kind -> what went into you), "body", "marks", "crystals", "total"}.
-func pour(essence: Dictionary, run_soak: Dictionary, crystal_share := 0.0) -> Dictionary:
+## marks divide the rest. The marks' share refills and deepens each mark by
+## its use (mark_use.gd settle); what they leave condenses into crystals at a
+## stair (`at_stair`), or goes to the body otherwise. Returns {"lines",
+## "made" (kind -> crystals), "keep" (kind -> what went into you), "body",
+## "marks", "crystals", "total", "mark_left" (what the marks' share left, in
+## crystals), "refilled" (part -> essence back in its pool), "deepened"
+## (parts grown by use)}.
+func pour(essence: Dictionary, run_soak: Dictionary, crystal_share := 0.0, at_stair := true) -> Dictionary:
 	var sh: Dictionary = Flow.shares(crystal_share)
 	var unbound := Unbound.is_on(self)
 	var marked := not bonds.is_empty() and not unbound
-	var out := {"lines": [], "made": {}, "keep": {}, "body": 0.0, "marks": 0.0, "crystals": 0.0, "total": 0.0}
+	var out := {"lines": [], "made": {}, "keep": {}, "body": 0.0, "marks": 0.0, "crystals": 0.0, "total": 0.0, "mark_left": 0.0, "refilled": {}, "deepened": []}
 	var to_body := {}
 	var to_marks := {}
 	var bm := float(sh["body"]) + float(sh["marks"])
@@ -708,6 +731,28 @@ func pour(essence: Dictionary, run_soak: Dictionary, crystal_share := 0.0) -> Di
 		to_body[kind] = rest - m
 		out["marks"] += m
 		out["body"] += rest - m
+	# The marks' share: each mark's use refilled and deepened (mark_use.gd).
+	if marked:
+		var settled: Dictionary = MarkUse.settle(self, to_marks, at_stair)
+		out["lines"] = settled["lines"]
+		out["refilled"] = settled["refilled"]
+		out["deepened"] = settled["deepened"]
+		var left_total := 0.0
+		for kind in settled["left"]:
+			var left := float(settled["left"][kind])
+			if at_stair:
+				var cl := floorf(left)
+				if cl >= 1.0:
+					add_crystal(kind, cl)
+					out["made"][kind] = float(out["made"].get(kind, 0.0)) + cl
+					left_total += cl
+			else:
+				to_body[kind] = float(to_body.get(kind, 0.0)) + left
+				out["body"] += left
+				out["marks"] -= left
+		out["mark_left"] = left_total
+		if left_total >= 1.0:
+			out["lines"].append(MarkUse.TEXT["left"] % int(left_total))
 	# The body's share: density, settled in the parts that did the work, and
 	# the unmarked parts' soak (batteries filling toward a new mark).
 	var style := natural_style(run_soak)
@@ -748,8 +793,6 @@ func pour(essence: Dictionary, run_soak: Dictionary, crystal_share := 0.0) -> Di
 				continue
 			var gain := soak_gain(part, float(out["body"]) * maxf(0.0, float(style[part])) / style_total)
 			soak[part] = minf(NEW_MARK_SOAK, float(soak.get(part, 0.0)) + gain)
-	if marked:
-		out["lines"] = feed_marks(to_marks)
 	if unbound:
 		out["lines"].append_array(Unbound.absorb(self))
 		out["lines"].append_array(unbound_levels(levels_before, grown_before))
@@ -822,29 +865,6 @@ func soak_gain(part: String, amount: float, rate := -1.0) -> float:
 	var have := float(soak.get(part, 0.0))
 	var fill := clampf(have / NEW_MARK_SOAK, 0.0, 1.0)
 	return amount * (SOAK_RATE if rate < 0.0 else rate) * (1.0 - fill) * body_drag()
-
-
-## The marks' share, by kind: each kind goes to the marks of that kind
-## (shared between them, counting AFFINITY_WEIGHT), and a kind no mark is made
-## of spreads over every mark (counting OTHER_WEIGHT). Returns lines.
-func feed_marks(per_kind: Dictionary) -> Array:
-	var gains := {}
-	for kind in per_kind:
-		var amount := float(per_kind[kind])
-		if amount <= 0.0 or bonds.is_empty():
-			continue
-		var own: Array = bonds.keys().filter(func(pt): return String(Bonds.BONDS.get(String(bonds[pt]["id"]), {}).get("affinity", "")) == String(kind))
-		if own.is_empty():
-			for part in bonds:
-				gains[part] = float(gains.get(part, 0.0)) + amount / float(bonds.size()) * OTHER_WEIGHT
-		else:
-			for part in own:
-				gains[part] = float(gains.get(part, 0.0)) + amount / float(own.size()) * AFFINITY_WEIGHT
-	var lines: Array = []
-	for part in Bonds.PARTS:
-		if gains.has(part):
-			lines.append_array(grow_mark(part, float(gains[part])))
-	return lines
 
 
 ## A mark takes `gain` (essence already weighted by kind): a faint mark pays

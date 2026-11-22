@@ -263,6 +263,8 @@ static var HELP := {
 	"steps": "Every mark's steps, on the Marks page of your book.",
 	"change_techniques": "Opens the Techniques tab: change each part's technique.",
 	"part": "{words}: this mark's own page.",
+	"mark_depth": "{words}: this mark's own page. Its bar is how deep its pool feels, never in numbers: cast its spells and each stair refills and deepens it.",
+	"mark_depth_bar": "How deep this mark's pool feels, and how near its next step. Cast its spells in a climb: each stair refills what you used and deepens it. A mark you never cast barely grows.",
 	"bud": "A choice on the Tree. Choose it to see it.",
 	"bud_rank4": "Step 6: this mark's passive grows to rank IV. It comes by itself; nothing to choose.",
 	"bud_upgrade": "An upgrade to this mark's spells (step 7, 9 or 11). Choose one of the two, for good; until you do, nothing changes.",

@@ -38,6 +38,7 @@ const Secret := preload("res://scripts/secret.gd")
 const Nav := preload("res://scripts/nav.gd")
 const Abilities := preload("res://scripts/abilities.gd")
 const Wheel := preload("res://scripts/wheel.gd")
+const MarkUse := preload("res://scripts/mark_use.gd")  # (a mark's pool in words, its burns, the forced cast's warning)
 const Anim := preload("res://scripts/anim.gd")
 const Reactions := preload("res://scripts/reactions.gd")
 const Combat := preload("res://scripts/combat.gd")  # (fatigue's words on the stamina bar)
@@ -282,7 +283,7 @@ func _core_signature() -> Array:
 	for part in BondScript.Bonds.PARTS:
 		var b = p.bonds.get(part)
 		if b != null:
-			s.append_array([part, b.id, int(b.essence), b.capacity(), b.essence >= b.cost(), b.burned, b.faint])
+			s.append_array([part, b.id, int(b.essence), b.capacity(), b.essence >= b.cost(), b.burned, b.faint, b.paralyzed])
 	return s
 
 
@@ -295,7 +296,7 @@ func _top_live() -> bool:
 	return main.fade > 0.0 or main.hurt_flash > 0.0 or N.busy() or not N.feed_lines.is_empty() or (N._shift > 0.0 and N._shift < 1.0) \
 		or essence_t > 0.0 or swap_t > 0.0 or floor_t > 0.0 or stair_t > 0.0 or (hints_t > 0.0 and not main.touch_active) \
 		or not main.regard.is_empty() or not main.victory.is_empty() or main.choosing_tower or main.camp_choosing or (p.dead and not main.first_climb) \
-		or p.pick_open or p.ring_open or (main.stair_open and not main.climbing) or _tip_over >= 0 or _boss_alive() \
+		or p.pick_open or p.ring_open or p.force_part != "" or force_rect.size.x > 0.0 or (main.stair_open and not main.climbing) or _tip_over >= 0 or _boss_alive() \
 		or (p.has_bond("hunter") and p.quarry != null) or (main.wings != null and main.wings.challenge_live()) \
 		or (main.door_view != null and not main.door_view.lock_status().is_empty()) \
 		or (main.get("objective") != null and main.objective.active() and not main.climbing) \
@@ -483,7 +484,11 @@ func _draw_core() -> void:
 		var ready: bool = bd.essence >= bd.cost()
 		var mc := Vector2(mx, my)
 		mark_spots[part] = mc  # (in the marks element's own units: mark_xform puts them on screen)
-		UI.seal_into(mb, mc, MARK_R, col if ready else col.darkened(0.45), bd.data()["affinity"], bd.essence / bd.capacity(), ready, bd.faint, bd.burned)
+		UI.seal_into(mb, mc, MARK_R, col if ready and not bd.paralyzed else col.darkened(0.45 if not bd.paralyzed else 0.7), bd.data()["affinity"], bd.essence / bd.capacity(), ready and not bd.paralyzed, bd.faint, bd.burned or bd.paralyzed)
+		if bd.paralyzed:
+			# (paralyzed: a flat red cross over its seal, a warning)
+			mb.line(mc + Vector2(-MARK_R, -MARK_R) * 0.62, mc + Vector2(MARK_R, MARK_R) * 0.62, Color(UI.BAD, 0.9), 2.5)
+			mb.line(mc + Vector2(MARK_R, -MARK_R) * 0.62, mc + Vector2(-MARK_R, MARK_R) * 0.62, Color(UI.BAD, 0.9), 2.5)
 		if bd.has_method("hud_into"):
 			bd.hud_into(mb, mc, MARK_R)  # (an Unbound's technique: its part's strain)
 		var key := _cast_key(part)
@@ -492,10 +497,18 @@ func _draw_core() -> void:
 			tips.append([mr, bd.display_name(), bd.tip_lines(_cast_key(part), main.touch_active)])
 			mx += MARK_R * 2.0 + 8.0
 			continue
+		var state := ""
+		if bd.paralyzed:
+			state = "%s %s" % [BondScript.PART_NAMES[part], MarkUse.TEXT["paralyzed_state"]]
+		elif bd.burned:
+			state = "%s %s" % [BondScript.PART_NAMES[part], MarkUse.TEXT["burned_state"]]
+		else:
+			state = ("Press %s to cast%s" % [key, String(Wheel.TEXT["mark_tip_more"]) if bd.spells().size() > 1 else ""] if not main.touch_active else "Its button is on the right")
 		tips.append([mr, "%s  (%s)" % [bd.display_name(), BondScript.PART_NAMES[part]],
 			["%s: %s" % [bd.spell_name(), bd.spell_desc()],
-			"Essence %d / %d  ·  costs %d" % [int(bd.essence), int(bd.capacity()), int(round(bd.cost()))],
-			("%s burned: overdraw again and it tears (costs health)" % BondScript.PART_NAMES[part]) if bd.burned else ("Press %s to cast%s" % [key, String(Wheel.TEXT["mark_tip_more"]) if bd.spells().size() > 1 else ""] if not main.touch_active else "Its button is on the right"),
+			"Its pool: %s  ·  %s" % [MarkUse.fill_words(bd.essence / maxf(bd.capacity(), 0.01)), "a cast is ready" if bd.essence >= bd.cost() else "not enough for a cast"],
+			MarkUse.depth_words(main.profile, part) + ". " + String(MarkUse.TEXT["use_hint"]),
+			state,
 			Abilities.fill(main, Abilities.TEXT["tip_all"])]])
 		mx += MARK_R * 2.0 + 8.0
 	c.draw_set_transform_matrix(unit * mkx)
@@ -685,7 +698,34 @@ func _draw() -> void:
 		_draw_camp_choice(size, font)
 	_draw_quarry(p, size, font)
 	_draw_stair_arrow(size, font)
+	_draw_force(p, size, font)
 	rings.queue_redraw()  # (the rings: _draw_rings, over the touch buttons)
+
+
+## A paralyzed mark's button held (player.gd force_part): a flat warning
+## across the upper middle, filling as the forced cast comes (mark_use.gd
+## BURN "force_hold"): let go before it fills and nothing happens.
+var force_rect := Rect2()
+
+
+func _draw_force(p, size: Vector2, font: Font) -> void:
+	force_rect = Rect2()
+	if p.force_part == "" or p.force_t <= 0.0:
+		return
+	var k := clampf(p.force_t / maxf(float(MarkUse.BURN["force_hold"]), 0.01), 0.0, 1.0)
+	var w := minf(size.x - 32.0, 520.0)
+	var box := Rect2((size.x - w) * 0.5, size.y * 0.24, w, 78.0)
+	force_rect = box
+	var pulse := 0.75 + 0.25 * sin(Time.get_ticks_msec() / 90.0)
+	draw_rect(box, Color(UI.VOID, 0.82))
+	draw_rect(box, Color(UI.BAD, pulse), false, 2.0)
+	var title := String(MarkUse.TEXT["forcing"]) % String(BondScript.PART_NAMES[p.force_part]).to_upper()
+	draw_string_outline(UI.font("display"), Vector2(box.position.x, box.position.y + 28.0), title, HORIZONTAL_ALIGNMENT_CENTER, w, 22, 5, Color(0, 0, 0, 0.8))
+	draw_string(UI.font("display"), Vector2(box.position.x, box.position.y + 28.0), title, HORIZONTAL_ALIGNMENT_CENTER, w, 22, UI.BAD)
+	draw_string(font, Vector2(box.position.x, box.position.y + 50.0), String(MarkUse.TEXT["forcing_sub"]) % int(MarkUse.BURN["dark_climbs"]), HORIZONTAL_ALIGNMENT_CENTER, w, 15, TEXT)
+	var bar := Rect2(box.position.x + 20.0, box.position.y + 60.0, w - 40.0, 8.0)
+	draw_rect(bar, Color(0, 0, 0, 0.6))
+	draw_rect(Rect2(bar.position, Vector2(bar.size.x * k, bar.size.y)), UI.BAD)
 
 
 ## Swapping weapons: the three slots for a moment, the one in hand lit and named.

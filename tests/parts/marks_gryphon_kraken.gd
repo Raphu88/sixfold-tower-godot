@@ -178,7 +178,7 @@ func _old_saves() -> void:
 	await t._fresh_main()
 	var path := TestRun.path("user://smoke_marks_gk.cfg")
 	var cfg := ConfigFile.new()
-	var xp := float(P.STEP_XP[2])
+	var xp := float(P.OLD_STEP_XP[2])  # (an old save: from before marks grew by use, converted as it loads)
 	cfg.set_value("profile", "regarded", true)
 	cfg.set_value("profile", "bonds", {
 		"hand": {"id": "stormcaller", "xp": xp, "faint": false, "debt": 0.0},
@@ -186,7 +186,7 @@ func _old_saves() -> void:
 		"brow": {"id": "hunter", "xp": xp, "faint": false, "debt": 0.0},
 		"throat": {"id": "tidecaller", "xp": xp, "faint": false, "debt": 0.0},
 		"heart": {"id": "warden", "xp": xp, "faint": false, "debt": 0.0},
-		"back": {"id": "deepcaller", "xp": float(P.STEP_XP[1]), "faint": false, "debt": 0.0},
+		"back": {"id": "deepcaller", "xp": float(P.OLD_STEP_XP[1]), "faint": false, "debt": 0.0},
 	})
 	# A version-1 tree: three marks took today's side at step 3, two the other.
 	cfg.set_value("tree", "state", {"v": 1, "marks": {

@@ -14,6 +14,7 @@ extends Control
 const Bonds := preload("res://scripts/bonds.gd")
 const Synergies := preload("res://scripts/synergies.gd")
 const ProfileScript := preload("res://scripts/profile.gd")
+const MarkUse := preload("res://scripts/mark_use.gd")  # (marks grow by use: how deep a mark feels, its burns)
 const Towers := preload("res://scripts/towers.gd")
 const EnemyScript := preload("res://scripts/enemy.gd")
 const TitleScript := preload("res://scripts/title.gd")
@@ -1975,6 +1976,8 @@ func _climber_marks(prof) -> void:
 		card.main = main
 		card.part = part
 		card.set_meta("part", part)
+		if prof.bonds.has(part):
+			card.set_meta("help", "mark_depth")  # (its bar: how deep its pool feels, mark_use.gd)
 		# (wide enough for its words: on a narrow screen the cards go under
 		# the figure, one to a row if they must: reflow.gd)
 		card.custom_minimum_size = Vector2(196.0 if small else 230.0, 76.0 if small else 104.0)
@@ -2581,6 +2584,15 @@ func _page_mark() -> void:
 	hero.part = mark_part
 	hero.custom_minimum_size = Vector2(0, 136.0 if compact() else 152.0)
 	box.add_child(hero)
+	if not info.is_empty():
+		# (hover it, or hold a finger on it: the Entity says what the depth bar is)
+		var hb := Button.new()
+		for st in ["normal", "hover", "pressed", "focus", "disabled", "hover_pressed"]:
+			hb.add_theme_stylebox_override(st, StyleBoxEmpty.new())
+		hb.focus_mode = Control.FOCUS_NONE
+		hb.set_meta("help", "mark_depth_bar")
+		hb.set_anchors_preset(Control.PRESET_FULL_RECT)
+		hero.add_child(hb)
 	if info.is_empty():
 		_mark_unmarked()
 	else:
@@ -2610,7 +2622,6 @@ func _mark_bond(info: Dictionary) -> void:
 		_spell_card(sp, step, col, data["affinity"], i)
 	_section("Steps")
 	for s in range(1, ProfileScript.STEP_XP.size() + 1):
-		var need := int(ProfileScript.STEP_XP[s - 1])
 		var what: String = Bonds.step_note(info["id"], s) if s > 1 else "the mark takes hold"
 		if what == "":
 			what = "its spells grow stronger"
@@ -2618,7 +2629,7 @@ func _mark_bond(info: Dictionary) -> void:
 		var head := "Step %d" % s
 		var c := GOLD if s == step else (TEXT if reached else FAINT)
 		_rich("[color=#%s]%s[/color]  [color=#%s]%s[/color]  %s" % [c.to_html(false), head, FAINT.to_html(false),
-			"from the start" if s == 1 else "%d essence banked" % need, what], 13, TEXT if reached else FAINT)
+			"from the start" if s == 1 else "as its pool deepens", what], 13, TEXT if reached else FAINT)
 
 
 ## A panel for the body or passive effect.
@@ -3994,6 +4005,7 @@ func _fill() -> void:
 	for b in main.player.bonds.values():
 		b.essence = b.capacity()
 		b.burned = false
+		b.paralyzed = false
 	_say("Every mark is full")
 
 
@@ -5073,6 +5085,7 @@ class BodyView extends Control:
 class MarkCard extends Button:
 	const Bonds := preload("res://scripts/bonds.gd")
 	const ProfileScript := preload("res://scripts/profile.gd")
+	const MarkUse := preload("res://scripts/mark_use.gd")
 	const UI := preload("res://scripts/ui.gd")
 	var main
 	var part := ""
@@ -5139,14 +5152,15 @@ class MarkCard extends Button:
 		var faint: bool = info.get("faint", false)
 		var k := 1.0
 		var grow := "highest step"
-		if faint:
+		if MarkUse.dark(main.profile, part):
+			k = 0.0
+			grow = "burned out: " + MarkUse.dark_words(main.profile, part)
+		elif faint:
 			k = 1.0 - clampf(float(info.get("debt", 0.0)) / ProfileScript.FAINT_DEBT, 0.0, 1.0)
-			grow = "faint: %d more to grow" % int(ceil(float(info.get("debt", 0.0))))
+			grow = "faint: it must take in more before it grows"
 		elif step < ProfileScript.STEP_XP.size():
-			var lo: float = ProfileScript.STEP_XP[step - 1]
-			var hi: float = ProfileScript.STEP_XP[step]
-			k = clampf((xp - lo) / maxf(hi - lo, 1.0), 0.0, 1.0)
-			grow = "%d / %d to step %d" % [int(xp - lo), int(hi - lo), step + 1]
+			k = MarkUse.step_fraction(ProfileScript.STEP_XP, xp)  # (how deep its pool feels: never numbers)
+			grow = MarkUse.depth_words(main.profile, part)
 		UI.draw_medallion(self, mc, r, col, data["affinity"], k, step, 0.0, faint)
 		UI.draw_label(self, Vector2(x, y + 17.0), data["name"], 20, col.lightened(0.12), HORIZONTAL_ALIGNMENT_LEFT, w)
 		var sub := "%s  ·  %s  ·  %s" % [name, "faint" if faint else "step %d" % step, Bonds.passive_at(String(info["id"]), step)["name"]]  # (its passive and rank)
@@ -5176,6 +5190,7 @@ class MarkCard extends Button:
 class MarkHero extends Control:
 	const Bonds := preload("res://scripts/bonds.gd")
 	const ProfileScript := preload("res://scripts/profile.gd")
+	const MarkUse := preload("res://scripts/mark_use.gd")
 	const Essence := preload("res://scripts/essence.gd")
 	const UI := preload("res://scripts/ui.gd")
 	var main
@@ -5216,14 +5231,15 @@ class MarkHero extends Control:
 		var faint: bool = info.get("faint", false)
 		var k := 1.0
 		var grow := "The highest step: every spell learned."
-		if faint:
+		if MarkUse.dark(prof, part):
+			k = 0.0
+			grow = "Burned out, " + MarkUse.dark_words(prof, part) + ". The guardians frown on it."
+		elif faint:
 			k = 1.0 - clampf(float(info.get("debt", 0.0)) / ProfileScript.FAINT_DEBT, 0.0, 1.0)
-			grow = "Faint: %d more essence before it grows" % int(ceil(float(info.get("debt", 0.0))))
+			grow = "Faint: it must take in more essence before it grows"
 		elif step < ProfileScript.STEP_XP.size():
-			var lo: float = ProfileScript.STEP_XP[step - 1]
-			var hi: float = ProfileScript.STEP_XP[step]
-			k = clampf((xp - lo) / maxf(hi - lo, 1.0), 0.0, 1.0)
-			grow = "%d / %d essence to step %d  (%d banked in all)" % [int(xp - lo), int(hi - lo), step + 1, int(xp)]
+			k = MarkUse.step_fraction(ProfileScript.STEP_XP, xp)  # (how deep its pool feels: never numbers)
+			grow = MarkUse.depth_words(prof, part) + ". Cast it to deepen it."
 		var gb := UI.Draw.Batch.new()
 		UI.glow_into(gb, mc, r * 1.3, col, (0.9 if faint else 1.6) * (0.8 + 0.2 * sin(t * 2.0)))
 		gb.flush(self)
@@ -5255,8 +5271,6 @@ class MarkHero extends Control:
 		for s in n_steps:
 			var p := Vector2(x + gap * s, ly)
 			UI.draw_text(self, font, p + Vector2(-8, 4), str(s + 1), HORIZONTAL_ALIGNMENT_CENTER, 16, fs, UI.OUTLINE if s + 1 <= step else UI.DIM)
-			var need := "start" if s == 0 else "%d" % int(ProfileScript.STEP_XP[s])
-			UI.draw_text(self, font, p + Vector2(-30, 23), need, HORIZONTAL_ALIGNMENT_CENTER, 60, 12, UI.FAINT)
 
 
 ## A spell's little badge on a mark's page: the mark's emblem, or a lock
