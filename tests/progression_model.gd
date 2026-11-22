@@ -1,7 +1,8 @@
 extends RefCounted
 ## How fast a mark grows, as climbs: a model of a typical climber that runs
 ## the game's own bookkeeping (profile.gd pour, drink, the Proving's gift,
-## ready_for_mark) over climbs of measured essence. No randomness: the same
+## ready_for_mark; mark_use.gd note_use and settle: a mark deepens by use,
+## refilled from what's banked at each stair) over climbs of measured essence. No randomness: the same
 ## numbers give the same answer, so tests/parts/progression.gd can hold the
 ## pace to its bands, and tests/progression_measure.gd prints the tables.
 ##
@@ -53,14 +54,21 @@ const PATTERNS := {
 ## (the share a typical climber gathers); "bought" more of its kind a climb
 ## (the outfitter, vaults, the Workshop).
 const BOUGHT_TINCTURES := 0.0
+## What a typical climber's marks draw on a floor (mark_use.gd note_use):
+## the first mark about four casts of a dozen essence; a later mark less.
+## (Above what the stair can pay, more use adds nothing: the bank decides.)
+const MARK_USE := 48.0
+const OTHER_MARK_USE := 24.0
+const MarkUse := preload("res://scripts/mark_use.gd")
 
 
 ## Runs `climbs` climbs of `pattern` (PATTERNS key). `earned`: a full part
 ## takes its mark early from the Maker (a sealed wing won by floor 6) instead
-## of waiting for a summit. Returns {"steps": [first mark's step after each
+## of waiting for a summit. `use`: how hard the marks are used (times
+## MARK_USE: 0 never cast, 10 a spammer). Returns {"steps": [first mark's step after each
 ## climb], "second": the climb the second mark came on (0: none),
 ## "xp": [first mark's growth after each climb], "per_climb": growth a climb}.
-static func run(pattern: String, climbs: int, earned := false, bought := BOUGHT_TINCTURES) -> Dictionary:
+static func run(pattern: String, climbs: int, earned := false, bought := BOUGHT_TINCTURES, use := 1.0) -> Dictionary:
 	var prof = Profile.new()
 	var cs: float = Flow.default_crystal_share()
 	# The first climb: bondless, three floors of the mark's tower, then the Regard.
@@ -85,6 +93,8 @@ static func run(pattern: String, climbs: int, earned := false, bought := BOUGHT_
 		var marked := false
 		var tinctures := {}
 		for f in range(1, last + 1):
+			for part in prof.bonds:
+				MarkUse.note_use(prof, part, (MARK_USE if part == FIRST_PART else OTHER_MARK_USE) * use)
 			prof.pour(_essence(tower, f), STYLE, cs)
 			for k in MIX[tower]:
 				tinctures[k] = float(tinctures.get(k, 0.0)) + KILLS[f - 1] * float(MIX[tower][k]) * float(Profile_drops_tincture())

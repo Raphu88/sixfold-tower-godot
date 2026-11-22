@@ -18,6 +18,7 @@ const Guide := preload("res://scripts/guide.gd")
 const Help := preload("res://scripts/entity_help.gd")
 const Talk := preload("res://scripts/entity_talk.gd")
 const PS := preload("res://scripts/profile.gd")
+const MU := preload("res://scripts/mark_use.gd")
 const BANNED := ["attunement", "spire", "trial", "judgment", "mana"]
 
 var t
@@ -85,18 +86,19 @@ func _split() -> void:
 	var out: Dictionary = prof.pour({"air": 100.0, "fire": 50.0}, {"heart": 2.0, "back": 1.0}, 0.3)
 	var total := float(out["body"]) + float(out["marks"]) + float(out["crystals"])
 	_check(is_equal_approx(total, 150.0) and is_equal_approx(float(out["total"]), 150.0), "the split sums to what was banked (%.1f of 150)" % total)
-	_check(float(out["crystals"]) == 45.0 and prof.crystal_total("air") == 30.0 and prof.crystal_total("fire") == 15.0, "30%% condenses into crystals, per kind (%s)" % [prof.crystals])
+	_check(float(out["crystals"]) == 45.0 and prof.crystal_total("air") == 30.0 + floorf(40.0 - 40.0 * float(MU.USE["trickle"]) * prof.body_drag() * 2.0)
+		and prof.crystal_total("fire") == 15.0 + 20.0, "30%% condenses into crystals, per kind, and what the unused marks leave of their share with it (%s)" % [prof.crystals])
 	_check(is_equal_approx(float(out["body"]), 45.0) and is_equal_approx(float(out["marks"]), 60.0), "body and marks share the rest, 3 to 4 (%.1f, %.1f)" % [out["body"], out["marks"]])
 	_check(is_equal_approx(_sum(prof.density), 45.0), "only the body's share settles as density (%.1f)" % _sum(prof.density))
 	_check(float(prof.soak.get("heart", 0.0)) > float(prof.soak.get("back", 0.0)) and float(prof.soak.get("back", 0.0)) > 0.0 and not prof.soak.has("hand"),
 		"the body's share soaks into the unmarked parts by what each did (%s)" % prof.soak)
 	var xp1 := float(prof.bonds["hand"]["xp"]) + float(prof.bonds["legs"]["xp"])
-	_check(xp1 > xp0, "the marks' share grows the marks")
-	# Each kind to the marks of that kind: two Air marks share the Air; the
-	# Fire (no Fire mark) spreads thin over both.
-	_check(is_equal_approx(float(prof.bonds["hand"]["xp"]), float(prof.bonds["legs"]["xp"])), "two marks of one kind share it evenly")
-	var want: float = (70.0 * 4.0 / 7.0 * PS.AFFINITY_WEIGHT * 0.5 + 35.0 * 4.0 / 7.0 * PS.OTHER_WEIGHT * 0.5) * PS.STEP_RATE * prof.body_drag()
-	_check(absf(float(prof.bonds["hand"]["xp"]) - want) < 0.01, "a mark grows from its share: own kind %sx, others %sx (%.2f, want %.2f)" % [PS.AFFINITY_WEIGHT, PS.OTHER_WEIGHT, prof.bonds["hand"]["xp"], want])
+	_check(xp1 > xp0, "the marks' share grows the marks, a little even unused")
+	# Unused, each mark takes only a trickle of its own kind (mark_use.gd):
+	# two Air marks the same; the Fire (no Fire mark) none of it.
+	_check(is_equal_approx(float(prof.bonds["hand"]["xp"]), float(prof.bonds["legs"]["xp"])), "two unused marks of one kind take the same trickle")
+	var want: float = 70.0 * 4.0 / 7.0 * float(MU.USE["trickle"]) * prof.body_drag()
+	_check(absf(float(prof.bonds["hand"]["xp"]) - want) < 0.01, "an unused mark takes in only a trickle of its own kind (%.2f, want %.2f)" % [prof.bonds["hand"]["xp"], want])
 	# No mark to take it (the first climb): the marks' share goes to the body.
 	await _fresh(false)
 	prof = t.main.profile
@@ -131,7 +133,7 @@ func _stair_line() -> void:
 	var want: String = Flow.TEXT["split"] % [50, 15, 20, 15]
 	var lines: Array = main.banner.get("lines", [])
 	_check(lines.has(want), "the stair's line shows the three shares: \"%s\" (%s)" % [want, lines])
-	_check(main.profile.crystal_total("air") == 15.0, "...and the crystals' share is there in your crystals")
+	_check(main.profile.crystal_total("air") >= 15.0, "...and the crystals' share is there in your crystals (with what the unused marks left: mark_use.gd)")
 	M.settings["condense"] = "0"
 	main.floor_num = 4
 	main.run_essence = {"air": 70.0}
@@ -183,13 +185,15 @@ func _eat() -> void:
 	var prof = main.profile
 	prof.add_crystal("air", 25.0)
 	var xp0 := float(prof.bonds["hand"]["xp"])
+	MU.note_use(prof, "hand", 4.0)  # (the hand was cast: the marks' share refills and deepens it, mark_use.gd)
 	var lines: Array = main.consume_crystal("air")
 	var step := float(Items.CRYSTAL["step"])
+	var took: float = 4.0 + 4.0 * float(MU.USE["deepen"]) * prof.body_drag()  # (the legs, unused, take a trickle of what's left: almost nothing)
 	_check(prof.crystal_total("air") == 25.0 - step, "eating takes %d from the crystal" % int(step))
-	_check(not lines.is_empty() and String(lines[0]) == Flow.TEXT["ate"] % [int(step), "air", int(round(step * 3.0 / 7.0)), int(round(step * 4.0 / 7.0))],
+	_check(not lines.is_empty() and String(lines[0]) == Flow.TEXT["ate"] % [int(step), "air", int(round(step - took)), int(round(took))],
 		"it says where it went: %s" % [lines])
-	_check(is_equal_approx(_sum(prof.density), step * 3.0 / 7.0), "the natural way: the body's share settles (%.2f)" % _sum(prof.density))
-	_check(float(prof.bonds["hand"]["xp"]) > xp0, "...and the marks' share grows the marks")
+	_check(absf(_sum(prof.density) - (step - took)) < 0.05, "the natural way: what the marks don't take settles in the body (%.2f)" % _sum(prof.density))
+	_check(float(prof.bonds["hand"]["xp"]) > xp0, "...and the marks' share refills and deepens a mark that was used")
 	_check(prof.crystals_held() == 25.0 - step, "none of it condenses again (no crystal share)")
 	_check(float(prof.soak.get("heart", 0.0)) > 0.0 and is_equal_approx(float(prof.soak.get("heart", 0.0)), float(prof.soak.get("back", 0.0))),
 		"with nothing done, it soaks into the body evenly (no steering): %s" % prof.soak)
@@ -477,6 +481,7 @@ func _old_saves() -> void:
 	old.set_value("train", "store", {"outfit": [], "today": ""})
 	old.save(prof.save_path)
 	prof.load_save()
-	_check(float(prof.bonds["hand"]["xp"]) == 300.0 and float(prof.soak["back"]) == 120.0 and prof.crystal_total("air") == 40.0, "an old climber loads with its marks, soak and crystals")
+	var depth := float(prof.bonds["hand"]["xp"])  # (an old mark's progress becomes depth, the same step: mark_use.gd convert)
+	_check(PS.step_for_xp(depth) == 5 and absf(depth - MU.convert(300.0, PS.OLD_STEP_XP, PS.STEP_XP)) < 0.01 and float(prof.soak["back"]) == 120.0 and prof.crystal_total("air") == 40.0, "an old climber loads with its marks (as depth, step 5 kept), soak and crystals")
 	_check(Train.store_tinctures(prof).size() == int(Flow.TINCTURE["store_kinds"]), "an old store stocks its tinctures when first opened")
 	DirAccess.remove_absolute(ProjectSettings.globalize_path(prof.save_path))

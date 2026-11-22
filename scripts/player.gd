@@ -188,6 +188,14 @@ var pick_spent := false  # chosen already (a click or a number key) while the ke
 ## letting go casts nothing.
 const PEEK_HOLD := 0.45
 var pick_peeked := false
+## A paralyzed mark's button held: the forced cast (mark_use.gd BURN
+## "force_hold" seconds) that burns it out. force_part is the mark being
+## forced ("" for none), force_t how long it has been held (the HUD and its
+## touch button show the warning); forced_part the one whose cast is under way.
+var force_part := ""
+var force_t := 0.0
+var forced_part := ""
+const MarkUse := preload("res://scripts/mark_use.gd")
 # Bond effects on the climber
 var thunderhead_t := 0.0  # Stormcaller's Thunderhead
 var thunderhead_bolt := 0.0  # its Apex: a strike you land calls a bolt this strong
@@ -645,7 +653,7 @@ func _knows(spell_type: String) -> bool:
 
 func _burned(part: String) -> bool:
 	var b = bonds.get(part)
-	return b != null and b.burned
+	return b != null and (b.burned or b.paralyzed)  # (a paralyzed mark still weakens its part)
 
 
 ## A burned heart caps your health lower until the next stair; the
@@ -870,6 +878,27 @@ func _update_pick(delta: float) -> void:
 		cancel_wheels()
 		return
 	var held := Input.is_action_pressed("cast_" + pick_part)
+	if b.paralyzed and not pick_spent:
+		# A paralyzed mark: holding its button forces a cast (a warning shows
+		# while it fills); letting go sooner casts nothing.
+		if held:
+			force_part = pick_part
+			force_t += delta / maxf(Engine.time_scale, 0.01)
+			main.tip("mark_force")
+			if force_t >= float(MarkUse.BURN["force_hold"]):
+				forced_part = pick_part
+				buffered = "cast_" + pick_part
+				buffer_t = BUFFER_TIME
+				pick_spent = true
+				force_part = ""
+				force_t = 0.0
+			return
+		main.fx_text(global_position + Vector2(0, -40), String(MarkUse.TEXT["paralyzed_tap"]) % BondScript.PART_NAMES[pick_part], Color(1.0, 0.35, 0.3))
+		main.tip("mark_paralyzed")
+		force_part = ""
+		force_t = 0.0
+		_reset_pick()
+		return
 	if pick_spent:
 		# Chosen while still held: letting go now does nothing more.
 		if not held:
@@ -922,6 +951,8 @@ func _choose_spell(b) -> void:
 func _reset_pick() -> void:
 	if pick_open:
 		_wheel_closed(false)
+	force_part = ""
+	force_t = 0.0
 	pick_open = false
 	pick_spent = false
 	pick_dir_override = Vector2.ZERO
@@ -1156,6 +1187,9 @@ func _read_buffer() -> void:
 			pick_t = 0.0
 			pick_open = false
 			pick_peeked = false
+			force_t = 0.0
+		elif Input.is_action_just_pressed("cast_" + part) and not bonds.has(part):
+			_try_cast(part)  # (a dark mark says so: mark_use.gd)
 	if pressed != "":
 		buffered = pressed
 		buffer_t = BUFFER_TIME
@@ -2178,12 +2212,19 @@ func _nearest_threat() -> Vector2:
 func _try_cast(part: String) -> bool:
 	var b = bonds.get(part)
 	if b == null:
+		if main.profile != null and MarkUse.dark(main.profile, part):  # (a burned-out mark: dark, mark_use.gd)
+			main.fx_text(global_position + Vector2(0, -40), String(MarkUse.TEXT["dark_tap"]) % [BondScript.PART_NAMES[part], MarkUse.dark_words(main.profile, part)], Color(0.6, 0.6, 0.65))
+			main.tip("mark_burnout")
 		return true
 	if b.has_method("blocked") and b.blocked():  # (an Unbound's part gone dark: unbound_run.gd)
 		main.fx_text(global_position + Vector2(0, -40), main.unbound.TEXT["dark"] % BondScript.PART_NAMES[b.tech_part()], Color(0.6, 0.6, 0.65))
 		return true
 	if attack_cd > 0.0 or drawing:
 		return false
+	if b.paralyzed and forced_part != part:
+		main.fx_text(global_position + Vector2(0, -40), String(MarkUse.TEXT["paralyzed_tap"]) % BondScript.PART_NAMES[part], Color(1.0, 0.35, 0.3))
+		main.tip("mark_paralyzed")
+		return true  # (only a forced cast: hold its button)
 	if bool(b.spell().get("passive", false)):  # (Phoenix Heart: it waits in the mark, never cast)
 		main.fx_text(global_position + Vector2(0, -40), PHOENIX_TEXT["passive"] if phoenix_ready() else PHOENIX_TEXT["not_ready"], b.color())
 		return true
@@ -2209,10 +2250,17 @@ func _release_cast() -> void:
 		main.fx_text(global_position + Vector2(0, -52), "Spellweave", Color(0.85, 0.55, 0.95))
 	if "cost_mult" in b:
 		b.cost_mult = 1.0 - BondScript.wyvern().circle_thrift(self)  # (Runesmith III: inside your circles)
+	var forcing: bool = forced_part == cast_part and b.paralyzed
+	forced_part = ""
+	b.forcing = forcing
 	var paid: String = b.pay(free)
+	b.forcing = false
 	if "cost_mult" in b:
 		b.cost_mult = 1.0
 	var part_name: String = BondScript.PART_NAMES[cast_part]
+	var burn_out := ""
+	if not b.has_method("tech_part"):
+		MarkUse.note_use(main.profile, cast_part, b.drawn + b.missing)  # (what it drew, and what it pushed past its pool: mark_use.gd)
 	# Ring of the Overdrawn: the first overdraw each floor doesn't burn.
 	if paid == "burned" and gfx("overdraw_guard") > 0.0 and once_a_floor("overdraw"):
 		b.burned = false
@@ -2225,10 +2273,17 @@ func _release_cast() -> void:
 		main.sfx("burn")
 		main.light_flash(global_position, Color(1.0, 0.4, 0.2), 1.2, 1.6, 0.4)
 		main.shake(5.0)
-	elif paid == "torn":
-		# Overdrawing a burned mark tears it: the missing essence comes out of you.
+	elif paid == "burnout":
+		burn_out = cast_part  # (after the cast: it goes dark, main.gd mark_burned_out)
+		main.fx_burst(global_position, Vector2.ZERO, Color(0.55, 0.2, 0.25), 24, 280.0)
+		main.sfx("burn", 0.6)
+		main.light_flash(global_position, Color(0.9, 0.2, 0.15), 1.5, 2.0, 0.5)
+		main.shake(8.0)
+	elif paid == "paralyzed":
+		# Overdrawing a burned mark: the missing essence tears out of you, and the mark seizes up.
 		var cost_hp: float = maxf(4.0, b.missing * b.TEAR_HEALTH)
-		main.fx_text(global_position + Vector2(0, -40), "%s mark tears! -%d" % [part_name, int(cost_hp)], Color(1.0, 0.25, 0.2))
+		main.fx_text(global_position + Vector2(0, -40), String(MarkUse.TEXT["paralyzed"]) % [part_name, int(cost_hp)], Color(1.0, 0.25, 0.2))
+		main.tip("mark_paralyzed")
 		main.fx_burst(global_position, Vector2.ZERO, Color(0.9, 0.15, 0.12), 18, 260.0)
 		main.sfx("burn", 0.8)
 		main.sfx("hurt", 0.9, -4.0)
@@ -2261,6 +2316,8 @@ func _release_cast() -> void:
 	b.overdraw_mult = 1.0
 	if main.cast_hits > 1:
 		_part_action("throat", 2.0 * (main.cast_hits - 1), 8.0 * (main.cast_hits - 1))
+	if burn_out != "" and main.has_method("mark_burned_out"):
+		main.mark_burned_out(burn_out)
 
 
 var fire_t := 0.0  # time spent standing in fire, ticking toward the next burn

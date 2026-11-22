@@ -195,11 +195,11 @@ func _old_saves() -> void:
 	var cfg := ConfigFile.new()
 	cfg.set_value("profile", "regarded", true)
 	cfg.set_value("profile", "bonds", {
-		"hand": {"id": "hunter", "xp": float(load("res://scripts/profile.gd").STEP_XP[4]), "faint": false, "debt": 0.0},
-		"legs": {"id": "windwalker", "xp": float(load("res://scripts/profile.gd").STEP_XP[3]), "faint": false, "debt": 0.0},
-		"heart": {"id": "deepcaller", "xp": float(load("res://scripts/profile.gd").STEP_XP[2]), "faint": false, "debt": 0.0},
-		"throat": {"id": "tidecaller", "xp": float(load("res://scripts/profile.gd").STEP_XP[4]), "faint": false, "debt": 0.0},
-		"brow": {"id": "warden", "xp": float(load("res://scripts/profile.gd").STEP_XP[1]), "faint": false, "debt": 0.0},
+		"hand": {"id": "hunter", "xp": float(load("res://scripts/profile.gd").OLD_STEP_XP[4]), "faint": false, "debt": 0.0},
+		"legs": {"id": "windwalker", "xp": float(load("res://scripts/profile.gd").OLD_STEP_XP[3]), "faint": false, "debt": 0.0},
+		"heart": {"id": "deepcaller", "xp": float(load("res://scripts/profile.gd").OLD_STEP_XP[2]), "faint": false, "debt": 0.0},
+		"throat": {"id": "tidecaller", "xp": float(load("res://scripts/profile.gd").OLD_STEP_XP[4]), "faint": false, "debt": 0.0},
+		"brow": {"id": "warden", "xp": float(load("res://scripts/profile.gd").OLD_STEP_XP[1]), "faint": false, "debt": 0.0},
 	})
 	cfg.save(path)
 	var old = P.new()

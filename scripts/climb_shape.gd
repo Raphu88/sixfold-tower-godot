@@ -214,7 +214,19 @@ func after_arrive() -> void:
 	if main.first_climb and main.floor_num == regard_floor() and main.regard.is_empty() and not main.in_camp:
 		main._begin_regard(false)
 		return
+	if maker_owed():
+		main.profile.record["maker_owed"] = 0.0
+		main.profile.save()
+		confront()  # (a burned-out mark brought the third slip: mark_use.gd burn_out)
+		return
 	_offer_lethal()
+
+
+## True when a Maker is owed a visit at this stair: a burned-out mark counted
+## as the third slip (mark_use.gd burn_out), and nothing else is under way.
+func maker_owed() -> bool:
+	var prof = main.profile
+	return prof != null and prof.count("maker_owed") > 0 and not main.first_climb and not Unbound.is_on(prof) and not main.in_camp and main.regard.is_empty()
 
 
 ## main.gd end_regard asks first: true if this handled it (the guardian's

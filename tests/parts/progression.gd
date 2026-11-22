@@ -1,6 +1,8 @@
 extends RefCounted
-## The pace of a mark (profile.gd STEP_XP, STEP_RATE, PROVING_GROWTH,
-## SOAK_RATE; essence_flow.gd SPLIT and TINCTURE "mark_boost"), in climbs:
+## The pace of a mark (profile.gd STEP_XP: the depth each step needs;
+## mark_use.gd USE: a mark deepens by use, refilled from what's banked at
+## each stair; PROVING_GROWTH, SOAK_RATE; essence_flow.gd SPLIT and TINCTURE
+## "mark_boost"), in climbs:
 ## tests/progression_model.gd runs the game's own bookkeeping over climbs of
 ## measured essence (no randomness), and the climbs a typical climber needs
 ## for each step of a first mark, and for a second mark, stay in their bands.
@@ -46,6 +48,13 @@ func run(smoke) -> void:
 	t._check(earned >= SECOND[0], "the Maker's earned mark doesn't come sooner than %d climbs (%d)" % [SECOND[0], earned])
 	var fastest := int(Model.run("summits", 50, true)["second"])
 	t._check(fastest >= SECOND_FASTEST, "even summiting every climb, a second mark takes %d climbs or more (%d)" % [SECOND_FASTEST, fastest])
+	# Use grows a mark: a climber who never casts takes only the trickle; one
+	# who casts ten times as hard grows no faster than the bank pays.
+	var none: Array = Model.run("typical", 30, false, Model.BOUGHT_TINCTURES, 0.0)["xp"]
+	var typ_xp: Array = typ["xp"]
+	t._check(float(none[9]) < float(typ_xp[9]) * 0.5, "a mark that is never cast grows far slower: only the trickle, its tinctures and the Proving's gift (%d against %d after 10 climbs)" % [int(none[9]), int(typ_xp[9])])
+	var spam: Array = Model.run("typical", 30, false, Model.BOUGHT_TINCTURES, 10.0)["xp"]
+	t._check(float(spam[9]) <= float(typ_xp[9]) * 1.25, "casting ten times as hard adds little beyond what the bank pays (%d against %d after 10 climbs)" % [int(spam[9]), int(typ_xp[9])])
 	# A tincture is a noticeable push: a good part of a step early on, never trivial.
 	var push: Dictionary = Model.tincture_push()
 	t._check(float(push[1]) >= 0.08 and float(push[1]) <= 0.3, "a tincture of its own kind takes a mark %d%% of the way from step 1 to 2" % roundi(float(push[1]) * 100.0))

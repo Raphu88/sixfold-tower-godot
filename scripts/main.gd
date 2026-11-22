@@ -78,6 +78,7 @@ const RoomRewardsScript := preload("res://scripts/room_rewards.gd")
 const InscriptionsScript := preload("res://scripts/inscriptions.gd")
 const GlimpsesScript := preload("res://scripts/glimpses.gd")
 const ClimbShapeScript := preload("res://scripts/climb_shape.gd")
+const MarkUse := preload("res://scripts/mark_use.gd")  # (marks grow by use, and burns)
 const Flow := preload("res://scripts/essence_flow.gd")
 const RivalsScript := preload("res://scripts/rivals.gd")
 const ContractsScript := preload("res://scripts/contracts.gd")
@@ -1624,9 +1625,17 @@ func _arrive() -> void:
 	if player.dead:
 		return  # (can't happen with the stair's grace, but never wake up dead)
 	var lines: Array = []
-	# Rest at the stair: burns heal, some health and all stamina return.
+	# Rest at the stair: burns heal a rung (paralyzed -> burned -> healed:
+	# mark_use.gd), some health and all stamina return.
 	var burned := false
-	for b in player.bonds.values():
+	var stirred: Array = []
+	for part in player.bonds:
+		var b = player.bonds[part]
+		if b.paralyzed:
+			b.paralyzed = false
+			b.burned = true
+			stirred.append(part)
+			continue
 		burned = burned or b.burned
 		b.burned = false
 	player.poison_t = 0.0  # the rest at the stair cures poison too
@@ -1638,6 +1647,8 @@ func _arrive() -> void:
 	player.sta = player.sta_cap()  # (all stamina, but not fatigue: a Stamina Vial or a camp's rest)
 	if burned:
 		lines.append("Your burns heal")
+	for part in stirred:
+		lines.append(MarkUse.TEXT["healed_one"] % BondScript.PART_NAMES[part])
 	if healed >= 1.0:
 		lines.append("Rested: +%d health" % int(healed))
 	# Bank the essence gathered on this floor, split three ways
@@ -1646,6 +1657,12 @@ func _arrive() -> void:
 	var poured: Dictionary = profile.pour(run_essence, run_soak, Train.condense_share(MenuScript.settings))
 	var keep: Dictionary = poured["keep"]
 	var banked := float(poured["body"]) + float(poured["marks"])
+	for part in poured.get("refilled", {}):
+		if player.bonds.has(part):  # (what each mark used comes back into its pool: mark_use.gd)
+			var rb = player.bonds[part]
+			rb.essence = minf(rb.capacity(), rb.essence + float(poured["refilled"][part]))
+	if not Array(poured.get("deepened", [])).is_empty():
+		tip("mark_deepen")  # (the first time a mark deepens by use: the Entity explains)
 	if float(poured["total"]) > 0.0:
 		var said := split_line(poured)
 		lines.append(said)
@@ -1889,7 +1906,8 @@ func _enter_camp(lines: Array) -> void:
 	player.poison_t = 0.0
 	player.states.clear()
 	for b in player.bonds.values():
-		b.burned = false
+		b.burned = b.paralyzed  # (the camp's rest heals a rung too: a paralyzed mark is only burned now, mark_use.gd)
+		b.paralyzed = false
 	var said: Array = [Items.CAMP["sub"]]
 	said.append_array(lines.filter(func(l): return not String(l).begins_with("Rested")))
 	var choices: Array = Items.camp_choices(not player.bonds.is_empty(), tower)
@@ -2111,12 +2129,12 @@ func consume_crystal(kind: String) -> Array:
 	var amount: float = profile.take_crystal(kind, float(Items.CRYSTAL["step"]))
 	if amount <= 0.0:
 		return []
-	var poured: Dictionary = profile.pour({kind: amount}, {}, 0.0)
+	var poured: Dictionary = profile.pour({kind: amount}, {}, 0.0, false)  # (not a stair: what the marks leave goes to the body)
 	var name := Essence.display(kind).to_lower()
 	var lines: Array = []
 	if UnboundRun.Unbound.is_on(profile):
 		lines.append(Flow.TEXT["ate_raw"] % [int(amount), name, UnboundRun.Unbound.node_name(UnboundRun.Unbound.part_for(profile, kind))])
-	elif float(poured["marks"]) > 0.0:
+	elif float(poured["marks"]) >= 0.5:  # (what the marks took: what refills and deepens their use, else a trickle)
 		lines.append(Flow.TEXT["ate"] % [int(amount), name, int(round(float(poured["body"]))), int(round(float(poured["marks"])))])
 	else:
 		lines.append(Flow.TEXT["ate_body"] % [int(amount), name])
@@ -2335,13 +2353,24 @@ func _note_climb_start() -> void:
 	noticed = []
 	if climb_shape != null:
 		climb_shape.new_climb()
+	var woke: Array = []
 	if UnboundRun.Unbound.is_on(profile):
 		UnboundRun.Unbound.new_climb(profile)  # (the Nodes' growth by use starts again: unbound.gd USE climb_cap)
+	else:
+		woke = MarkUse.new_climb(profile)  # (a burned-out mark is a climb nearer waking: mark_use.gd)
+		if player != null:
+			for b in player.bonds.values():
+				b.paralyzed = false  # (a new climb: every burn has healed)
+				b.burned = false
+		if not woke.is_empty():
+			_give_bonds()
 	if summit_blades != null:
 		summit_blades.new_climb()  # (a Summit Blade carried up last time is back in its hiding place)
 	if player != null:
 		player.rest_fatigue()  # (every climb starts with max stamina whole)
 	notices.new_climb()  # (the feed and the Entity's log start empty)
+	for part in woke:
+		note_event("mark", String(MarkUse.TEXT["lit"]) % BondScript.PART_NAMES[part])
 	if entity != null:
 		entity.new_climb()
 
@@ -2884,13 +2913,17 @@ func _give_bonds() -> void:
 	player.bonds.clear()
 	for part in profile.bonds:
 		var info: Dictionary = profile.bonds[part]
+		if MarkUse.dark(profile, part):
+			continue  # (burned out: dark, no casting and no passive, mark_use.gd)
 		var b = BondScript.new(info["id"], part)
 		b.step = ProfileScript.step_for_xp(float(info["xp"]))
+		b.depth_k = MarkUse.step_fraction(ProfileScript.STEP_XP, float(info["xp"]))  # (a deeper pool holds more)
 		b.faint = bool(info["faint"])
 		b.faint_power = float(info.get("power", 0.75))  # (a death mark's strength: climb_shape.gd DEATH_MARK)
 		if old.has(part) and old[part].id == b.id:
 			b.essence = minf(old[part].essence, b.capacity())
 			b.burned = old[part].burned
+			b.paralyzed = old[part].paralyzed
 			b.selected = old[part].selected
 		b.tunes = SecretBonds.active_tunes(profile)  # the Developer's Tune (secret_bonds.gd)
 		b.edits = SecretBonds.active_edits(profile)  # ...and its Edit
@@ -2912,6 +2945,25 @@ func _give_bonds() -> void:
 	if unbound != null:
 		unbound.give()  # (the Unbound carry techniques in the marks' places)
 	Synergies.announce(self)  # (two marks that answer each other: a named synergy, announced the first time)
+
+
+## A forced cast burned a paralyzed mark out (player.gd): it goes dark
+## (mark_use.gd burn_out: some depth lost, never erased; a slip toward a
+## Maker), the banner says so, and the guardians frown.
+func mark_burned_out(part: String) -> void:
+	if not profile.bonds.has(part):
+		return
+	var out: Dictionary = MarkUse.burn_out(profile, part)
+	profile.save()
+	var lines: Array = out["lines"]
+	banner = {"title": String(MarkUse.TEXT["burnout_title"]), "lines": lines, "t": 4.5, "pri": 2, "long": true}
+	for l in lines:
+		note_event("mark", String(l), null, false)
+	if player != null and is_instance_valid(player):
+		fx_burst(player.global_position, Vector2.UP, Color(0.35, 0.3, 0.38), 20, 160.0)
+	sfx("regard", 0.6, -6.0, 0.0)
+	tip("mark_burnout")
+	_give_bonds()
 
 
 # --- essence and the Regard ----------------------------------------------------
@@ -3764,6 +3816,7 @@ func dev_beast(id: String) -> void:
 	for b in player.bonds.values():
 		b.essence = b.capacity()
 		b.burned = false
+		b.paralyzed = false
 
 
 func dev_floor(n: int) -> void:

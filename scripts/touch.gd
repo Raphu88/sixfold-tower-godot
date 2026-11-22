@@ -30,6 +30,7 @@ const HOLD_TAP := ["item", "tools"]
 const TOP_BAR := ["menu", "fullscreen", "climber", "inventory", "map"]
 const Items := preload("res://scripts/items.gd")
 const UI := preload("res://scripts/ui.gd")
+const MarkUse := preload("res://scripts/mark_use.gd")  # (a paralyzed mark's button: hold to force it)
 const Draw := preload("res://scripts/draw_util.gd")
 const Abilities := preload("res://scripts/abilities.gd")
 const Layout := preload("res://scripts/layout.gd")
@@ -447,7 +448,14 @@ func _draw() -> void:
 				label = "Parry"
 			"cast_hand", "cast_legs", "cast_heart", "cast_brow", "cast_throat", "cast_back":
 				var bond = p.bonds.get(b["part"]) if p != null else null
-				if bond != null:
+				if bond != null and bond.paralyzed:
+					# Paralyzed (mark_use.gd): a red warning; held, it fills as the
+					# forced cast comes, and the cast burns the mark out.
+					col = UI.BAD
+					var forcing: bool = p.force_part == b["part"]
+					fill = clampf(p.force_t / maxf(float(MarkUse.BURN["force_hold"]), 0.01), 0.0, 1.0) if forcing else 0.0
+					label = String(MarkUse.TEXT["forcing_touch"])
+				elif bond != null:
 					col = bond.color()
 					fill = bond.essence / bond.capacity()
 					label = Abilities.spell_name(bond)  # (the whole name, in one or two lines: below)

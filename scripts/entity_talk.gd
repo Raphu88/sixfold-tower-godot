@@ -42,6 +42,7 @@ const Train := preload("res://scripts/train.gd")
 const Gear := preload("res://scripts/gear.gd")
 const Unbound := preload("res://scripts/unbound.gd")
 const ProfileScript := preload("res://scripts/profile.gd")
+const MarkUse := preload("res://scripts/mark_use.gd")  # (marks grow by use, and burns)
 const Notices := preload("res://scripts/notices.gd")
 const Flow := preload("res://scripts/essence_flow.gd")
 const Combat := preload("res://scripts/combat.gd")
@@ -72,7 +73,7 @@ static var DIALOGUE := {
 	# to "how"'s choices.
 	"how": {"ask": "How do things work here?",
 		"lines": ["Which part? I'll keep it short.", "Ask. The rules are simpler than they look. Mostly."],
-		"choices": ["how_controls", "how_start", "how_grace", "how_training", "how_stamina", "how_essence", "how_marks", "how_new_mark", "how_synergies", "how_renown", "how_travel", "how_titles", "how_contracts", "how_tourney", "how_manager", "how_climb", "how_first_mark", "how_barrier", "how_fall", "how_belt", "how_wheel", "how_states", "how_handy", "how_charms", "how_workshop", "how_offhand", "how_gear", "how_summit", "how_deeds", "how_bags", "how_shop", "how_ward", "how_secret", "how_portals", "how_aura", "how_unbound", "how_nodes", "how_unbound_words", "how_unbound_techniques", "how_bestiary", "how_rivals", "how_dining", "how_bets", "how_duels", "how_glows", "how_ways_down", "how_foes", "start", "bye"]},
+		"choices": ["how_controls", "how_start", "how_grace", "how_training", "how_stamina", "how_essence", "how_marks", "how_burns", "how_new_mark", "how_synergies", "how_renown", "how_travel", "how_titles", "how_contracts", "how_tourney", "how_manager", "how_climb", "how_first_mark", "how_barrier", "how_fall", "how_belt", "how_wheel", "how_states", "how_handy", "how_charms", "how_workshop", "how_offhand", "how_gear", "how_summit", "how_deeds", "how_bags", "how_shop", "how_ward", "how_secret", "how_portals", "how_aura", "how_unbound", "how_nodes", "how_unbound_words", "how_unbound_techniques", "how_bestiary", "how_rivals", "how_dining", "how_bets", "how_duels", "how_glows", "how_ways_down", "how_foes", "start", "bye"]},
 	"how_controls": {"ask": "What are the controls?", "fact": "controls",
 		"lines": ["{controls_how}", "{controls_list}", "Press H any time to show or hide this list in the corner of the screen. Settings & Controls lets you change any key."],
 		"choices": ["how", "bye"]},
@@ -86,14 +87,17 @@ static var DIALOGUE := {
 		"lines": ["Monsters, caches and finished tasks give essence. You carry it until a stair banks it, and a fall loses what you carry. At a stair it splits three ways: {body} to your body, {marks} to your marks, {condense} into crystals, the train's money."],
 		"choices": ["how_flow", "how_tinctures", "how_marks", "how", "bye"]},
 	"how_flow": {"ask": "How does essence flow?", "fact": "rules",
-		"lines": ["Divided, never copied. Of what you bank at a stair, {body} soaks into your body, spread by what each part did: unmarked parts fill toward a new mark. {marks} goes to your marks, each kind to the marks of that kind; a kind none of them is made of spreads thinly over all. {condense} becomes crystals; To crystals, in Settings, sets that share, and body and marks share the rest. Eat a crystal and it flows the same way, without the crystals' share. Only a tincture lets you steer."],
+		"lines": ["Divided, never copied. Of what you bank at a stair, {body} soaks into your body, spread by what each part did: unmarked parts fill toward a new mark. {marks} goes to your marks: it refills what each one's spells used and deepens it, and what they can't take condenses into crystals. {condense} becomes crystals; To crystals, in Settings, sets that share, and body and marks share the rest. Eat a crystal and it flows the same way, without the crystals' share. Only a tincture lets you steer."],
 		"choices": ["how_tinctures", "how_marks", "how", "bye"]},
 	"how_tinctures": {"ask": "What are tinctures?", "fact": "rules",
 		"lines": ["A vial of {tincture} essence of one kind. Drink it and you choose where it goes: one mark, where its own kind counts {own}x and any other {other}x, and it's concentrated, {boost}x what banked essence gives, or one unmarked part, toward a new mark there. Vaults and secret rooms hold them, now and then a monster drops one, the outfitter stocks {store_kinds} each visit, and the Workshop crafts one from {craft} crystals of its kind."],
 		"choices": ["how_flow", "how_new_mark", "how", "bye"]},
 	"how_marks": {"ask": "How do marks grow?", "fact": "rules",
-		"lines": ["Across climbs, never during one: from your marks' share of what you bank, {marks} of it. Each kind goes to the marks of that kind and counts {own}x; a kind none of them is made of counts {other}x, spread over all. The more marks you carry, the slower each grows. Each has {steps} steps. Steps 1 to 5 bring its spells and their first changes. Step 6 raises its passive to rank IV; steps 7, 9 and 11 each let you choose one of two upgrades to its spells; step 8 strengthens its great spell; step 10 is a second Transformation of your first spell, one of two; and step 12 is its Zenith, its greatest power, when every one of its spells does something more. Your tree shows every step. It's slow on purpose: a mark keeps you company for many climbs, about as long as the towers do. A tincture steers essence into one mark, {boost}x as strong as banked essence, and winning the Proving, on floor six, grows the mark you used most by {proving}."],
-		"choices": ["how_new_mark", "how_synergies", "how", "bye"]},
+		"lines": ["By use. Each mark holds a pool of essence, and its depth carries it up its steps. Cast its spells in a climb, and at each stair your marks' share of what you bank, {marks} of it, refills what each one used, then deepens its pool by {deepen} of that use, using up banked essence too. Its own kind pays fully; another kind pays {use_other}. A mark you never cast takes in only a trickle, and what your marks can't take condenses into crystals. Cast more than you bank and the extra adds nothing. The more marks you carry, the slower each grows. Each has {steps} steps. Steps 1 to 5 bring its spells and their first changes. Step 6 raises its passive to rank IV; steps 7, 9 and 11 each let you choose one of two upgrades to its spells; step 8 strengthens its great spell; step 10 is a second Transformation of your first spell, one of two; and step 12 is its Zenith, its greatest power, when every one of its spells does something more. Your tree shows every step. It's slow on purpose: a mark keeps you company for many climbs, about as long as the towers do. A tincture steers essence into one mark, {boost}x as strong as banked essence, and winning the Proving, on floor six, grows the mark you used most by {proving}."],
+		"choices": ["how_burns", "how_new_mark", "how_synergies", "how", "bye"]},
+	"how_burns": {"ask": "What if I overdraw a mark?", "fact": "rules",
+		"lines": ["Cast with too little essence and the spell still fires, weaker, but the mark burns and its body part is weaker. Overdraw it again while it's burned and it tears health from you and seizes: paralyzed, it can't be cast. Each stair heals one rung, paralyzed to burned to healed. Hold a paralyzed mark's button to force it and it fires, but it burns out: dark for this climb and the next {dark}, a little shallower (never more than a step back), never erased. The guardians frown on it, and the Makers count it as a slip past a barrier."],
+		"choices": ["how_marks", "how", "bye"]},
 	"how_synergies": {"ask": "How do synergies work?",
 		"lines": ["Marks you carry together answer each other. Any two lend each other one trait, about a quarter as strong as the real thing: Stormcaller lends a little charge, Tidecaller a little soak, Warden a thin barrier when you cast, and so on. So every mark's spells pick up a touch of the others'. Twelve pairs go further and make a named synergy instead, like Tempest or Scald. A teammate's marks count while they fight beside you. Your book's Marks section lists them all."],
 		"choices": ["how_marks", "how_states", "how", "bye"]},
@@ -242,7 +246,7 @@ static var DIALOGUE := {
 		"lines": ["As I have them. {marks}"],
 		"choices": ["marks_grow", "marks_new", "start", "bye"]},
 	"marks_grow": {"ask": "How do marks grow?", "fact": "money",
-		"lines": ["From essence you bank at a stair, never in the middle of a climb: {marks} of it goes to your marks, each kind to the marks of that kind. {condense} becomes crystals: To crystals, in Settings. A tincture puts its essence into the one mark you choose."],
+		"lines": ["By use, refilled from essence you bank at a stair: {marks} of it goes to your marks, refilling what each one's spells used and deepening it. A mark you never cast barely grows. {condense} becomes crystals: To crystals, in Settings. A tincture puts its essence into the one mark you choose."],
 		"choices": ["marks_new", "start", "bye"]},
 	"marks_new": {"ask": "Will I get another mark?", "fact": "soak",
 		"lines": ["{soak}"],
@@ -300,7 +304,7 @@ static var HINTS := {
 	"stash_full": "Your stash is full. Sell to the outfitter, or break pieces down at the Workshop.",
 	"title_ready": "The Noble at a station would grant you a title: {title}. Read what it gives.",
 	"lessons": "A station's Training has {n} short lessons you haven't done. Each is a minute, and I talk you through it.",
-	"mark_close": "{mark} is {pct}% of the way to step {step}. Bank its essence at a stair.",
+	"mark_close": "{mark} feels nearly deep enough for step {step}. Cast it, and bank at a stair.",
 	"climb": "Choose a tower at the Engine and pull the lever. Your best: floor {best}, in {tower}.",
 	"climb_play": "Up. The stair is somewhere on this floor.",
 	"none": "Nothing else. Climb.",
@@ -324,10 +328,11 @@ static var TEXT := {
 	"once": "once",
 	"times": "%d times",
 	"mark": "{mark} on your {part}, step {step}: {body}.",
-	"mark_next": "It's {pct}% of the way to step {next}{brings}.",
+	"mark_next": "It feels {feel} for step {next}{brings}.",
 	"mark_brings": ", which brings {spell}",
 	"mark_top": "It has grown as far as it goes.",
-	"mark_faint": "It's faint: {debt} more banked essence before it grows.",
+	"mark_faint": "It's faint: it must take in more essence before it grows.",
+	"mark_dark": "It burned out and is dark: {dark}.",
 	"soak_part": "Your {part} is {pct}% full. When a part is full, a summit can mark it, or a sealed wing won early. One new mark a climb, at most.",
 	"soak_ready": "Your {part} is full. Reach a summit and it takes a mark, or win a sealed wing early keeping its rule.",
 	"soak_none": "Every part already carries a mark.",
@@ -600,20 +605,21 @@ static func _fact_marks(main) -> Dictionary:
 		var body: Dictionary = bd.get("body", {})
 		var s := fill(String(TEXT["mark"]), {"mark": bd.get("name", ""), "part": String(Bonds.PART_NAMES[part]).to_lower(), "step": step,
 			"body": "%s, %s" % [body.get("name", ""), body.get("desc", "")] if not body.is_empty() else ""})
-		if bool(info.get("faint", false)) and float(info.get("debt", 0.0)) > 0.0:
-			s += " " + fill(String(TEXT["mark_faint"]), {"debt": int(ceil(float(info["debt"])))})
+		if MarkUse.dark(prof, part):
+			s += " " + fill(String(TEXT["mark_dark"]), {"dark": MarkUse.dark_words(prof, part)})
+		elif bool(info.get("faint", false)) and float(info.get("debt", 0.0)) > 0.0:
+			s += " " + String(TEXT["mark_faint"])
 		elif step >= ProfileScript.STEP_XP.size():
 			s += " " + String(TEXT["mark_top"])
 		else:
-			var lo: float = ProfileScript.STEP_XP[step - 1]
-			var hi: float = ProfileScript.STEP_XP[step]
-			var pct := clampi(int(floor((xp - lo) / maxf(hi - lo, 1.0) * 100.0)), 0, 99)
+			var words: Array = MarkUse.TEXT["depth"]
+			var feel := String(words[clampi(int(MarkUse.step_fraction(ProfileScript.STEP_XP, xp) * words.size()), 0, words.size() - 1)])
 			var spell := ""
 			for sp in bd.get("spells", []):
 				if int(sp.get("learn", 0)) == step + 1:
 					spell = String(sp.get("name", ""))
 			var brings := fill(String(TEXT["mark_brings"]), {"spell": spell}) if spell != "" else ""
-			s += " " + fill(String(TEXT["mark_next"]), {"next": step + 1, "pct": pct, "brings": brings})
+			s += " " + fill(String(TEXT["mark_next"]), {"next": step + 1, "feel": feel, "brings": brings})
 		parts.append(s)
 	return {"marks": " ".join(parts)}
 
@@ -717,6 +723,7 @@ static func _fact_rules() -> Dictionary:
 			ranks.append("%s at %d" % [r[1], int(r[2])])
 	var f := _fact_money(null)
 	f.merge({
+		"deepen": _num(float(MarkUse.USE["deepen"])) + "x", "use_other": "a third" if is_equal_approx(float(MarkUse.USE["other"]), 1.0 / 3.0) else _num(float(MarkUse.USE["other"])) + "x", "dark": int(MarkUse.BURN["dark_climbs"]),
 		"own": _num(ProfileScript.AFFINITY_WEIGHT), "other": _num(ProfileScript.OTHER_WEIGHT), "boost": _num(float(Flow.TINCTURE.get("mark_boost", 1.0))), "proving": int(ProfileScript.PROVING_GROWTH), "steps": ProfileScript.STEP_XP.size(),
 		"full": "%d%%" % int(round(ProfileScript.MARK_FULL * 100.0)), "faint": int(ProfileScript.FAINT_DEBT),
 		"per_floor": int(R.CLIMB.get("floor", 0)), "per_best": int(R.CLIMB.get("best", 0)), "beast": int(R.CLIMB.get("beast", 0)),
@@ -928,10 +935,8 @@ static func hints(main) -> Array:
 		var step := ProfileScript.step_for_xp(xp)
 		if step >= ProfileScript.STEP_XP.size():
 			continue
-		var lo: float = ProfileScript.STEP_XP[step - 1]
-		var hi: float = ProfileScript.STEP_XP[step]
-		var pct := int(floor((xp - lo) / maxf(hi - lo, 1.0) * 100.0))
-		if pct >= 50 and pct > int(close.get("pct", -1)):
+		var pct := int(floor(MarkUse.step_fraction(ProfileScript.STEP_XP, xp) * 100.0))
+		if pct >= 75 and pct > int(close.get("pct", -1)) and not MarkUse.dark(prof, part):
 			close = {"mark": Bonds.BONDS.get(String(info.get("id", "")), {}).get("name", ""), "pct": pct, "step": step + 1}
 	if not close.is_empty():
 		out.append(fill(String(HINTS["mark_close"]), close))
