@@ -66,9 +66,18 @@ static var PROVING_GROWTH := 36.0
 ## mark at a summit, or earlier from a Maker for a sealed wing won early
 ## (essence_flow.gd EARNED); at most one new mark a climb (main.gd).
 static var NEW_MARK_SOAK := 250.0
-static var SOAK_RATE := 1.2
+static var SOAK_RATE := 1.4  # (1.2 until the parts filled evenly, part_soak.gd: an even spread gives the leading part a smaller share, so this keeps the second mark as slow as it was; FORMING_OTHERS keeps the later ones apart: tests/parts/part_soak.gd, progression.gd)
 static var MARK_FULL := 0.9
 static var BODY_DRAG := [1.0, 1.0, 0.7, 0.5, 0.35, 0.25, 0.2]
+## The next mark forms in one place at a time: only the fullest unmarked
+## part (soak_leader) fills all the way; the others fill up to FORMING_OTHERS
+## of NEW_MARK_SOAK and wait there (what they'd soak past it is gone, never
+## what they hold). Parts fill from a fairly even mix of what you do
+## (part_soak.gd), so without this they'd fill side by side and every mark
+## after the second would come one a summit; with it each new mark starts
+## its last stretch only once the one before has taken, at that mark's
+## BODY_DRAG.
+static var FORMING_OTHERS := 0.8
 
 var regarded := false
 var bonds := {}  # part -> {"id", "xp" (its pool's depth), "faint", "debt", "power"; "used" (drawn since the last stair), "dark" (a burned-out mark: climbs left), "burnouts": mark_use.gd}
@@ -788,11 +797,12 @@ func pour(essence: Dictionary, run_soak: Dictionary, crystal_share := 0.0, at_st
 				pd[kind] = float(pd.get(kind, 0.0)) + b * maxf(0.0, float(style[part])) / style_total
 				part_density[part] = pd
 	if not unbound and style_total > 0.0 and float(out["body"]) > 0.0:
+		var gains := {}
 		for part in style:
 			if bonds.has(part) or not part in Bonds.PARTS:
 				continue
-			var gain := soak_gain(part, float(out["body"]) * maxf(0.0, float(style[part])) / style_total)
-			soak[part] = minf(NEW_MARK_SOAK, float(soak.get(part, 0.0)) + gain)
+			gains[part] = soak_gain(part, float(out["body"]) * maxf(0.0, float(style[part])) / style_total)
+		settle_soak(gains)
 	if unbound:
 		out["lines"].append_array(Unbound.absorb(self))
 		out["lines"].append_array(unbound_levels(levels_before, grown_before))
@@ -854,6 +864,45 @@ func natural_style(style: Dictionary) -> Dictionary:
 		for part in Bonds.PARTS:
 			out[part] = 1.0
 	return out
+
+
+## Adds `gains` (part -> soak) to the unmarked parts: the one that leads
+## after it fills all the way, the others only up to FORMING_OTHERS (never
+## losing what they hold).
+func settle_soak(gains: Dictionary) -> void:
+	var after := {}
+	for part in gains:
+		after[part] = float(soak.get(part, 0.0)) + float(gains[part])
+	var lead := ""
+	for part in Bonds.PARTS:
+		if bonds.has(part):
+			continue
+		var v := float(after.get(part, soak.get(part, 0.0)))
+		if v > 0.0 and (lead == "" or v > float(after.get(lead, soak.get(lead, 0.0)))):
+			lead = part
+	for part in after:
+		var cap := NEW_MARK_SOAK if part == lead else maxf(NEW_MARK_SOAK * FORMING_OTHERS, float(soak.get(part, 0.0)))
+		soak[part] = minf(cap, float(after[part]))
+
+
+## The unmarked part whose mark is forming: the fullest ("" if none has soaked).
+func soak_leader() -> String:
+	var lead := ""
+	for part in Bonds.PARTS:
+		if bonds.has(part):
+			continue
+		var v := float(soak.get(part, 0.0))
+		if v > 0.0 and (lead == "" or v > float(soak.get(lead, 0.0))):
+			lead = part
+	return lead
+
+
+## How far a part's soak can go now: all the way for the leading part, else
+## FORMING_OTHERS (or what it already holds).
+func soak_cap(part: String) -> float:
+	if part == soak_leader():
+		return NEW_MARK_SOAK
+	return maxf(NEW_MARK_SOAK * FORMING_OTHERS, float(soak.get(part, 0.0)))
 
 
 ## What `amount` of the body's essence adds to an unmarked part's soak: a

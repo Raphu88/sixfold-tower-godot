@@ -197,6 +197,7 @@ var force_part := ""
 var force_t := 0.0
 var forced_part := ""
 const MarkUse := preload("res://scripts/mark_use.gd")
+const PartSoak := preload("res://scripts/part_soak.gd")  # (what each body part does toward its next mark)
 # Bond effects on the climber
 var thunderhead_t := 0.0  # Stormcaller's Thunderhead
 var thunderhead_bolt := 0.0  # its Apex: a strike you land calls a bolt this strong
@@ -631,6 +632,17 @@ func _break_gear(slot: String) -> void:
 	refresh_gear()
 
 
+## A body part did `action` (part_soak.gd SOAK, `units` times): it soaks
+## toward a mark (faded by what it already did on this floor), and fills the
+## bond on it for casting.
+func _act(action: String, units := 1.0) -> void:
+	var part := PartSoak.part_of(action)
+	if part == "" or units <= 0.0 or main == null:
+		return
+	var worn = main.get("soak_worn")
+	_part_action(part, PartSoak.take(worn if worn is Dictionary else {}, action, units), PartSoak.fill_of(action, units))
+
+
 ## A body part did its thing: it soaks up essence toward a mark, and fills
 ## the bond on it (if it has one) for casting.
 func _part_action(part: String, soak: float, fill: float) -> void:
@@ -741,6 +753,7 @@ func _physics_process(delta: float) -> void:
 		queue_redraw()
 		return
 	_tick_timers(delta)
+	_tick_clear(delta)
 	var mouse := get_global_mouse_position()
 	if parry_t > 0.0:
 		pass  # a parry keeps facing the threat it turned toward
@@ -1376,6 +1389,8 @@ func _try_jump(input: Vector2) -> bool:
 	glide_left = 0.8 if has_bond("flamewing") else 0.0
 	drawing = false
 	main.sfx("roll", 1.35, -6.0)
+	_leapt = false
+	_watch_clear("jump_clear")  # (a jump clear of a coming blow fills the legs)
 	return true
 
 
@@ -1388,6 +1403,8 @@ func _tick_jump(delta: float) -> void:
 	else:
 		jump_t -= delta
 	velocity = jump_vel
+	if not _leapt and main.has_method("in_chasm") and main.in_chasm(global_position):
+		on_leap()  # (over a gap: the legs fill)
 	if jump_t <= 0.0:
 		jump_t = 0.0
 		squash = 0.5
@@ -1528,6 +1545,7 @@ func _try_roll(input: Vector2) -> bool:
 		reload_t = 0.0  # rolling breaks off a pistol's reload (it starts again after the roll)
 		main.fx_text(global_position + Vector2(0, -34), Weapons.GUN_TEXT["broken_off"], Color(0.75, 0.72, 0.8))
 	main.sfx("roll")
+	_watch_clear("roll_clear")  # (a roll clear of a coming blow fills the legs)
 	if wind:
 		main.sfx("gust", 1.3, -6.0)
 		if passive_rank("windwalker") >= 3:  # Featherweight III: the roll leaves a gust
@@ -1671,9 +1689,9 @@ func _melee() -> bool:
 	# The hand fills when your weapon strikes land; the throat when one
 	# swing catches several foes.
 	if hits > 0:
-		_part_action("hand", 0.5 * hits, 6.0 * hits)
+		_act("strike", hits)
 	if hits > 1:
-		_part_action("throat", 2.0 * (hits - 1), 8.0 * (hits - 1))
+		_act("cleave", hits - 1)
 	if hits > 0:
 		_strikes_landed(hits)
 		BondScript.wyvern().strike_landed(self)  # (Weapon Memory III: every 5th throws a blade)
@@ -1887,7 +1905,7 @@ func ranged_hit(e, dmg: float, dir: Vector2, force: float, heavy: bool, weapon :
 	if not weapon:
 		return
 	if fills:
-		_part_action("hand", 0.5, 6.0)
+		_act("shot")
 	if shot != "":
 		_essence_shot_hit(e, dmg, dir, shot)
 	# of Embers on a bow or pistol: a hit may set the foe burning.
@@ -2017,7 +2035,7 @@ func _strike(e, dmg: float, dir: Vector2, force: float, heavy: bool, hit_sound :
 		if not _burned("back"):
 			dmg *= BACKSTAB_MULT + 0.5 * graft("back") + backstab_bonus
 		main.fx_text(e.global_position + Vector2(0, -e.radius - 40.0), "Backstab", Color(0.95, 0.6, 0.45))
-		_part_action("back", 3.0, 10.0)
+		_act("backstab")
 	# Stormcaller passive, Static: striking a charged foe arcs to another.
 	if has_bond("stormcaller") and e.charged > 0.0:
 		for other in main.targets():
@@ -2102,7 +2120,7 @@ func _strike(e, dmg: float, dir: Vector2, force: float, heavy: bool, hit_sound :
 		e.add_venom(1)
 	# A finishing blow fills the back too.
 	if e.dead:
-		_part_action("back", 2.0, 6.0)
+		_act("finisher")
 		_on_kill()
 	elif stagger > 0.0:
 		e.stagger(stagger * (0.5 if e.is_boss() else 1.0))
@@ -2318,7 +2336,7 @@ func _release_cast() -> void:
 		main.climb_shape.offer(String(b.data().get("affinity", "")), global_position, aim, "bond")
 	b.overdraw_mult = 1.0
 	if main.cast_hits > 1:
-		_part_action("throat", 2.0 * (main.cast_hits - 1), 8.0 * (main.cast_hits - 1))
+		_act("multi_cast", main.cast_hits - 1)
 	if burn_out != "" and main.has_method("mark_burned_out"):
 		main.mark_burned_out(burn_out)
 
@@ -2726,6 +2744,8 @@ func _tick_poison(delta: float) -> void:
 
 ## Standing on burning floor: a small burn every half second (rolling through is free).
 func stand_in_fire(delta: float) -> void:
+	if jump_t > 0.0 and not _leapt:
+		on_leap()  # (leaping burning floor fills the legs)
 	if iframes > 0.0 or dead or in_air() or has_bond("flamewing") or phoenix_t > 0.0:  # Fireproof; Phoenix Heart
 		return
 	_burn_floor(delta)
@@ -2879,6 +2899,7 @@ func receive_attack(dmg: float, source, unblockable := false) -> void:
 		source.chill_t = maxf(source.chill_t, gfx("grasp"))  # Deepcoil Coat: gripped
 	wear_gear("hit")
 	hits_taken += 1  # (a sealed wing's "take no hit" counts these)
+	_clear_watch.clear()  # (a roll or jump that didn't carry you clear: part_soak.gd)
 	Makers.feed(main, "wound", dmg / maxf(max_health(), 1.0))
 	hurt_t = float(Combat.CLIMBER["grace"])  # longer grace after a hit, so a crowd can't chain-hit you
 	squash = 1.0
@@ -2909,7 +2930,7 @@ func receive_attack(dmg: float, source, unblockable := false) -> void:
 		main.on_player_died()
 	else:
 		# The heart fills when you take a hit and survive.
-		_part_action("heart", 4.0, 8.0)
+		_act("hit_taken")
 		_low_health_rules()
 		_charm_struck()  # (a Gale Charm's gust)
 
@@ -3183,7 +3204,7 @@ func _on_parry(source, perfect := false) -> void:
 	if gfx("watch") > 0.0 and source is Node and is_instance_valid(source):
 		source.set_meta("watched", Time.get_ticks_msec() * 0.001 + 3.0)
 	# The brow fills when you parry.
-	_part_action("brow", 9.0 if perfect else 6.0, 18.0 if perfect else 12.0)
+	_act("perfect_parry" if perfect else "parry")
 	GuardianLessons.note_parry(main, source)  # (a guardian notes how it's fought)
 	if source.has_method("on_parried"):
 		source.on_parried(perfect)
@@ -3194,7 +3215,8 @@ func on_dodge() -> void:
 	if dodge_cd > 0.0:
 		return
 	dodge_cd = 0.3
-	_part_action("legs", 4.0, 10.0)
+	_clear_watch.clear()  # (this blow counts here, not again when it's spent)
+	_legs("roll_through")
 	GuardianLessons.note_roll(main)  # (a guardian notes how it's fought)
 	if gfx("dodge_haste") > 0.0:
 		dodge_haste_t = 2.0  # Phantom Treads
@@ -3202,6 +3224,92 @@ func on_dodge() -> void:
 	main.fx_ring(global_position, Color(0.75, 0.9, 1.0), 34.0, 0.25, 2.0)
 	main.sfx("dodge")
 	main.hitstop(0.04)
+
+
+## LEGS: rolls and jumps that carry you clear (part_soak.gd). A roll or a
+## jump begun while a blow is coming (a foe winding up within CLEAR_REACH of
+## you, or a shot flying at you) is watched; once that blow is spent and you
+## took no hit, the legs soak. Rolls at nothing never count, and two leg
+## soaks are at least part_soak.gd LEGS_GAP apart.
+const CLEAR_REACH := 150.0  # past a foe's edge: a wind-up this near is a blow coming
+const CLEAR_SHOT := 240.0  # a shot this near, flying at you
+const CLEAR_WATCH := 1.6  # seconds a watch lasts
+var _clear_watch: Array = []  # {"node", "action", "t", "shot"}
+var legs_cd := 0.0
+var _leapt := false  # this jump already filled the legs
+
+
+## The blows coming at you now, watched for a roll or jump (`action`).
+func _watch_clear(action: String) -> void:
+	_clear_watch.clear()
+	if main == null or not main.has_method("enemies"):
+		return
+	for e in main.enemies():
+		if not is_instance_valid(e) or e.dead or e.get("ally") == true or not e.has_method("is_attacking"):
+			continue
+		if e.is_attacking() and e.global_position.distance_to(global_position) - float(e.get("radius")) <= CLEAR_REACH:
+			_clear_watch.append({"node": e, "action": action, "t": CLEAR_WATCH, "shot": false})
+	for c in main.get_children():
+		if not (c is Node2D) or not ("friendly" in c) or not ("vel" in c) or not ("reflected" in c):
+			continue
+		if c.friendly or c.reflected or c.is_queued_for_deletion():
+			continue
+		var to: Vector2 = global_position - c.global_position
+		var v: Vector2 = c.vel
+		if to.length() <= CLEAR_SHOT and v.length() > 1.0 and v.normalized().dot(to.normalized()) > 0.85:
+			_clear_watch.append({"node": c, "action": action, "t": CLEAR_WATCH, "shot": true})
+
+
+## Watches spent: a foe's attack over, a shot gone or past you, and no hit
+## taken meanwhile (a hit clears the watch): the legs soak.
+func _tick_clear(delta: float) -> void:
+	legs_cd -= delta
+	if _clear_watch.is_empty():
+		return
+	for w in _clear_watch.duplicate():
+		w["t"] -= delta
+		var n = w["node"]
+		var spent := false
+		if w["shot"]:
+			if not is_instance_valid(n) or n.is_queued_for_deletion():
+				spent = true
+			else:
+				var past: bool = (global_position - n.global_position).dot(n.vel) < 0.0
+				spent = past and n.global_position.distance_to(global_position) > radius + 12.0
+		elif not is_instance_valid(n) or n.is_queued_for_deletion() or n.dead:
+			_clear_watch.erase(w)  # (felled mid-blow: no blow came)
+			continue
+		else:
+			spent = not n.is_attacking()
+		if spent:
+			var action := String(w["action"])
+			_clear_watch.clear()
+			if _legs(action):
+				main.fx_text(global_position + Vector2(0, -30), "Clear" if action == "roll_clear" else "Leapt", Color(0.75, 0.9, 1.0, 0.85))
+			return
+		if float(w["t"]) <= 0.0:
+			_clear_watch.erase(w)
+
+
+## A jump carried you over what would have caught you on the ground: a gap,
+## burning floor, a trap or a low sweep. The legs soak, once a jump.
+func on_leap() -> void:
+	if _leapt or jump_t <= 0.0:
+		return
+	_leapt = true
+	_clear_watch.clear()
+	if _legs("jump_clear"):
+		main.fx_text(global_position + Vector2(0, -34), "Leapt", Color(0.75, 0.9, 1.0))
+		main.tip("leap")  # (the first time: the Entity says a jump counts)
+
+
+## The legs soak for `action`, at most once every part_soak.gd LEGS_GAP.
+func _legs(action: String) -> bool:
+	if legs_cd > 0.0:
+		return false
+	legs_cd = PartSoak.LEGS_GAP
+	_act(action)
+	return true
 
 
 # Drawing-only state (never read by gameplay): a walk cycle that eases in

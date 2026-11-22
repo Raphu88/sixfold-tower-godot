@@ -33,10 +33,11 @@ const MIX := {
 	"firebird": {"fire": 0.88, "water": 0.03, "air": 0.05, "iron": 0.04},
 	"chimera": {"blade": 0.80, "water": 0.12, "iron": 0.04, "air": 0.04},
 }
-## What a typical climber's body parts do (strikes most, then takes hits,
-## rolls, backstabs, parries, cleaves): it spreads the body's share. The
-## first mark takes the hand.
-const STYLE := {"hand": 35.0, "heart": 20.0, "legs": 15.0, "back": 15.0, "brow": 10.0, "throat": 5.0}
+## What a typical climber's body parts do (scripts/part_soak.gd: a floor of
+## tests/parts/part_soak.gd's typical climber, out of 100; that test keeps
+## the two alike): it spreads the body's share. Nearly even, with fading.
+## The first mark takes the hand.
+const STYLE := {"hand": 18.0, "legs": 17.0, "back": 17.0, "throat": 16.5, "heart": 16.0, "brow": 15.5}
 const FIRST_PART := "hand"
 const FIRST_BOND := "stormcaller"
 const OWN_TOWER := "gryphon"
@@ -67,7 +68,8 @@ const MarkUse := preload("res://scripts/mark_use.gd")
 ## of waiting for a summit. `use`: how hard the marks are used (times
 ## MARK_USE: 0 never cast, 10 a spammer). Returns {"steps": [first mark's step after each
 ## climb], "second": the climb the second mark came on (0: none),
-## "xp": [first mark's growth after each climb], "per_climb": growth a climb}.
+## "marks_at": [the climb each new mark came on], "xp": [first mark's growth
+## after each climb], "per_climb": growth a climb}.
 static func run(pattern: String, climbs: int, earned := false, bought := BOUGHT_TINCTURES, use := 1.0) -> Dictionary:
 	var prof = Profile.new()
 	var cs: float = Flow.default_crystal_share()
@@ -79,6 +81,7 @@ static func run(pattern: String, climbs: int, earned := false, bought := BOUGHT_
 	var steps: Array = []
 	var xps: Array = []
 	var second := 0
+	var marks_at: Array = []
 	var others: Array = Towers.ORDER.filter(func(t): return t != OWN_TOWER)
 	var oi := 0
 	var list: Array = PATTERNS[pattern]
@@ -104,10 +107,12 @@ static func run(pattern: String, climbs: int, earned := false, bought := BOUGHT_
 			if earned and not marked and f + 1 <= int(Flow.EARNED["last_floor"]) and f + 1 <= last and prof.ready_for_mark() != "":
 				_new_mark(prof)
 				marked = true
+				marks_at.append(c + 1)
 				if second == 0:
 					second = c + 1
 		if top >= Towers.SUMMIT and not marked and prof.ready_for_mark() != "":
 			_new_mark(prof)
+			marks_at.append(c + 1)
 			if second == 0:
 				second = c + 1
 		# The tinctures found on banked floors (and bought ones) go into the first mark.
@@ -117,7 +122,7 @@ static func run(pattern: String, climbs: int, earned := false, bought := BOUGHT_
 			prof.drink(String(Towers.TOWERS[OWN_TOWER]["essence"]), float(Flow.TINCTURE["essence"]) * bought, FIRST_PART)
 		xps.append(float(prof.bonds[FIRST_PART]["xp"]))
 		steps.append(Profile.step_for_xp(float(prof.bonds[FIRST_PART]["xp"])))
-	return {"steps": steps, "second": second, "xp": xps}
+	return {"steps": steps, "second": second, "marks_at": marks_at, "xp": xps}
 
 
 ## The chance a slain monster leaves a tincture (items.gd DROPS).

@@ -1767,6 +1767,9 @@ func _hurt_inside(tr: Dictionary) -> void:
 					tr["dodged"] = true
 					p.on_dodge()
 					Makers.feed(main, "trap_dodged")
+				elif p.in_air() and "jump" in avoid and not tr.get("dodged", false) and p.has_method("on_leap"):
+					tr["dodged"] = true  # (leaping it feeds the legs too, once per trap)
+					p.on_leap()
 			else:
 				_catch_player(tr, k)
 	for e in _foes():
