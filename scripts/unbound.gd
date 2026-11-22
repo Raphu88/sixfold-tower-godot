@@ -106,17 +106,24 @@ static var GROW_COST := [60.0, 90.0, 120.0, 145.0, 182.0, 250.0, 360.0, 505.0, 6
 ## times as use, a boost's essence "boost" times; before the Node has a
 ## technique, its own action (what would fill one: player.gd _part_action)
 ## counts "action" times. No cap a climb: banked essence and strain hold the pace.
-static var USE := {"cast": 2.0, "boost": 2.0, "action": 0.5}
+## ONE RULE for marks and Nodes (mark_use.gd USE "other" is the same): a
+## Node's refill is paid in full by its own kinds (its natural kind, and the
+## essence that leads it); any other kind banked into it
+## (routed there, or flowing on from a sealed Node) pays only "other" of its
+## amount: three of another kind refill what one of its own would, as for
+## marks. (A sleeping Node soaks any kind in full: routing wakes Nodes.)
+static var USE := {"cast": 2.0, "boost": 2.0, "action": 0.5, "other": 1.0 / 3.0}
 ## Sealing: each sealed Node makes every open Node's growth from refilled use
 ## "growth" faster and its techniques "power" stronger (adding up: two
 ## sealed, twice that). Banked essence that would pool in a sealed Node
-## flows on to an open one, but only "flow" of it gets through; the rest
-## condenses into crystals on the way (essence is never lost). A focused
+## flows on to an open one ("flow" of it), where as another kind it pays
+## only USE "other" of a refill (the one rule); what no Node can take
+## condenses into crystals. A focused
 ## Unbound trades breadth for depth, not speed: one open Node reaches level
 ## 12 a little sooner than a broad climber's main Node, not drastically
 ## (tests/progression_model.gd run_unbound with `sealed`; held by
 ## tests/parts/sealing.gd).
-static var SEAL := {"growth": 0.04, "power": 0.06, "flow": 0.1}
+static var SEAL := {"growth": 0.04, "power": 0.06, "flow": 1.0}
 ## Attributes from the Nodes' sizes: an attribute's bonus is half its cap
 ## (profile.gd ATTRIBUTE_CAP) at "half" size counted for its essence.
 static var ATTR := {"half": 60.0}
@@ -804,7 +811,8 @@ static func settle(prof, kind: String, banked: float) -> float:
 
 
 ## True when a kind would pool in a sealed Node (its natural Node, or where
-## it's routed) and flows on to an open one instead (SEAL "flow" of it; the
+## it's routed) and flows on to an open one instead (SEAL "flow" of it, paying
+## a third there as another kind; the
 ## rest condenses into crystals on the way).
 static func diverted(prof, kind: String) -> bool:
 	var to := String(state(prof)["routes"].get(kind, ""))
@@ -831,13 +839,23 @@ static func settle_into(prof, part: String, kind: String, banked: float) -> floa
 	var want := used(prof, part)
 	if want > 0.0001 and left > 0.0001:
 		var s0 := size(prof, part)
-		var spent := _grow(prof, part, minf(want, left), Core.CAP, growth_mult(prof))
+		var r := pay_rate(prof, part, kind)  # (the one rule: another kind pays a third)
+		var spent := _grow(prof, part, minf(want, left * r), Core.CAP, growth_mult(prof))
 		st["used"][part] = maxf(0.0, want - spent)
 		st["grown"][part] = float(st["grown"].get(part, 0.0)) + size(prof, part) - s0
-		left -= spent
+		left -= spent / r
 		left -= put(prof, part, kind, minf(left, take_limit(prof, part, kind)))
 	Core.sync(prof)
 	return maxf(0.0, left)
+
+
+## How much of a refill one banked essence of `kind` pays in this Node: all
+## of it for the Node's own kinds (its natural kind, and the essence that
+## leads it), USE "other" for any other kind (the one rule).
+static func pay_rate(prof, part: String, kind: String) -> float:
+	if kind == String(PART_KIND.get(part, "")) or kind == lead(prof, part):
+		return 1.0
+	return clampf(float(USE.get("other", 1.0)), 0.01, 1.0)
 
 
 ## Feeds `amt` of a kind to a sleeping Node (moving essence into it): it

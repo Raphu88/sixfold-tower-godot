@@ -24,7 +24,7 @@ const UI := preload("res://scripts/ui.gd")
 
 static var TEXT := {
 	"title": "Seal or open: %s",
-	"open_note": "Sealing gives this Node up so the others grow deeper. Each sealed Node makes your open Nodes grow %d%% faster from use and hit %d%% harder. Essence that would pool in a sealed Node mostly condenses into crystals; a little reaches your open Nodes.",
+	"open_note": "Sealing gives this Node up so the others grow deeper. Each sealed Node makes your open Nodes grow %d%% faster from use and hit %d%% harder. Essence that would pool in a sealed Node flows on to your biggest open Node, where, not being its own kind, it refills only a third as much.",
 	"warn": "Sealing your %s gives it up: what it holds (%s) condenses into crystals, and its size (%s), technique, gift, minor ability and attributes are gone. Unsealed later, it starts again asleep, at size 0.",
 	"warn_asleep": "Sealing your sleeping %s gives up what has soaked into it. Unsealed later, it starts again asleep, at size 0.",
 	"seal": "Seal the %s",

@@ -223,6 +223,8 @@ static func run_unbound(pattern: String, climbs: int, use := "typical", routing 
 		if not bool(how["own"]):
 			tower = others[oi % others.size()]
 			oi += 1
+			if routing == "spread":
+				tower = _ub_journey(prof, U, tower)  # (growing them all: climb the tower that feeds the smallest Node)
 		var last := int(how["top"]) if int(how["top"]) >= Towers.SUMMIT else int(how["top"]) - 1
 		U.new_climb(prof)
 		if routing == "spread":
@@ -257,6 +259,23 @@ static func run_unbound(pattern: String, climbs: int, use := "typical", routing 
 		if not top.has(part):
 			top[part] = 0
 	return {"sizes": sizes, "awake": woke, "top": top}
+
+
+## A climber growing all six Nodes travels: away from their own tower they
+## climb the one whose essence is the natural kind of their smallest Node
+## not yet full (the one rule: a Node refills best from its own kinds).
+static func _ub_journey(prof, U, fallback: String) -> String:
+	var small := ""
+	for part in U.PARTS:
+		if U.size(prof, part) < 119.99 and (small == "" or U.size(prof, part) < U.size(prof, small)):
+			small = part
+	if small == "":
+		return fallback
+	var want := String(U.PART_KIND.get(small, ""))
+	for t in Towers.ORDER:
+		if String(Towers.TOWERS[t]["essence"]) == want:
+			return t
+	return fallback
 
 
 ## "spread" routing, before a climb in a tower of `climb_kind`.

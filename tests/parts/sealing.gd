@@ -76,9 +76,10 @@ func _rules() -> void:
 	var legs0: float = U.size(p, "legs")
 	U.note_use(p, "legs", 40.0, "cast")
 	var left: float = U.settle(p, "blade", 100.0)
-	_check(U.diverted(p, "blade") and left >= 100.0 * (1.0 - float(U.SEAL["flow"])) - 0.01 and U.size(p, "legs") > legs0, "most of it condenses on the way (%.0f of 100 left over for crystals); a little reaches the open Node" % left)
+	_check(U.diverted(p, "blade") and U.size(p, "legs") > legs0 and U.pay_rate(p, "legs", "blade") < 1.0, "it flows on to the open Node, where as another kind it pays only a third of a refill (%.0f of 100 left over)" % left)
+	U.end_stair(p)
 	p.pour({"blade": 60.0}, {}, 0.0)
-	_check(p.crystal_total("blade") > cb + 40.0, "banked at a stair, a sealed Node's kind condenses into crystals instead of pooling there")
+	_check(p.crystal_total("blade") > cb, "banked at a stair with no use to refill, a sealed Node's kind condenses into crystals instead of pooling there")
 	# The figure, the Techniques tab: the move control skips it.
 	_check(not U.awake(p, "hand") and not ("hand" in BM.targets(p, "legs", "air")), "moving essence never targets a sealed Node")
 	_check(U.why_not(p, "hand", "air").contains("sealed") and U.move(p, "air", "legs", "hand")["ok"] == false, "...and says why: %s" % U.why_not(p, "hand", "air"))
@@ -117,7 +118,7 @@ func _bonus() -> void:
 	U.settle_into(a, "legs", "air", 400.0)
 	U.settle_into(b, "legs", "air", 400.0)
 	_check(U.size(b, "legs") > U.size(a, "legs") + 0.1, "the same refilled use grows a focused Node more (%.1f against %.1f)" % [U.size(b, "legs"), U.size(a, "legs")])
-	_check(float(U.SEAL["growth"]) > 0.0 and float(U.SEAL["power"]) > 0.0 and float(U.SEAL["flow"]) < 0.5, "the sealing numbers live in unbound.gd SEAL (%s)" % str(U.SEAL))
+	_check(float(U.SEAL["growth"]) > 0.0 and float(U.SEAL["power"]) > 0.0 and float(U.USE["other"]) < 1.0, "the sealing numbers live in unbound.gd SEAL (%s), the one rule in USE \"other\"" % str(U.SEAL))
 
 
 func _save_load() -> void:
