@@ -101,7 +101,7 @@ static var LEVELS := [30.0, 38.0, 46.0, 54.0, 62.0, 70.0, 78.0, 86.0, 94.0, 102.
 ## (With no cap a climb, banked essence alone holds the pace:
 ## tests/progression_model.gd run_unbound, held to its bands by
 ## tests/parts/unbound_cup.gd.)
-static var GROW_COST := [60.0, 90.0, 120.0, 145.0, 182.0, 250.0, 360.0, 505.0, 697.0, 965.0, 1350.0, 1900.0]
+static var GROW_COST := [60.0, 90.0, 120.0, 143.0, 179.0, 246.0, 355.0, 497.0, 687.0, 950.0, 1330.0, 1871.0]
 ## Growth by use. Essence a Node's technique spends on a cast counts "cast"
 ## times as use, a boost's essence "boost" times; before the Node has a
 ## technique, its own action (what would fill one: player.gd _part_action)
