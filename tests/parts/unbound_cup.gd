@@ -2,8 +2,8 @@ extends RefCounted
 ## The Unbound's Nodes (unbound.gd), core essence (core.gd) and the aura
 ## (secret.gd): six Nodes asleep at size 0, soaking up routed essence until
 ## they wake at 30; awake, what they hold (up to their size) and their size,
-## grown only by use refilled at the stair (never past the climb's cap, and
-## casting more than you bank adds nothing); a level every 10 of size (12),
+## grown only by use refilled at the stair (no cap a climb: casting more than
+## you bank adds nothing); a level every 10 of size (12),
 ## the primary kept at least half and three kinds at most, the minor ability
 ## at 3 (waking), a technique at 6, the capstone and a pure Node's
 ## signature at 12 (Blink); attributes from the Nodes' sizes; moving
@@ -127,7 +127,7 @@ func _cups() -> void:
 
 
 ## The Nodes: asleep, soaking, waking; holding up to their size; growing
-## only by use, at most the climb's cap; attributes from their sizes.
+## only by use (no cap a climb); attributes from their sizes.
 func _nodes() -> void:
 	var p = _prof()
 	_check(U.PARTS.all(func(pt): return not U.awake(p, pt) and U.size(p, pt) == 0.0 and U.fill(p, pt) == 0.0), "a new Unbound's six Nodes all sleep, at size 0, holding nothing")
@@ -150,18 +150,20 @@ func _nodes() -> void:
 	U.end_stair(p)
 	U.settle_into(p, "legs", "air", 99999.0)
 	_check(is_equal_approx(U.size(p, "legs"), s1), "use not refilled at its stair is gone: casting more than you bank adds nothing")
+	_check(not U.USE.has("climb_cap"), "no cap a climb on growth by use: banked essence and strain hold the pace")
 	var q = _prof()
 	U.set_size(q, "hand", 40.0)
-	for i in 30:
-		U.note_use(q, "hand", 99999.0, "cast")
-		U.settle_into(q, "hand", "blade", 99999.0)
-		U.end_stair(q)
-	_check(U.size(q, "hand") <= 40.0 + float(U.USE["climb_cap"]) + 0.01, "spamming casts on every floor grows a Node at most %d size a climb (%.1f)" % [int(U.USE["climb_cap"]), U.size(q, "hand") - 40.0])
-	U.new_climb(q)
+	U.put(q, "hand", "blade", 40.0)
+	U.note_use(q, "hand", 99999.0, "cast")
+	var bank := 200.0
+	U.settle_into(q, "hand", "blade", bank)
+	var grew: float = U.size(q, "hand") - 40.0
+	_check(grew > 0.0 and grew <= bank * U.LEVEL_SIZE / float(U.GROW_COST[4]) + 0.01, "spamming casts grows a Node only as far as the essence banked into it refills (%.1f size from %d banked)" % [grew, int(bank)])
+	U.end_stair(q)
 	U.note_use(q, "hand", 99999.0, "cast")
 	var s2: float = U.size(q, "hand")
 	U.settle_into(q, "hand", "blade", 99999.0)
-	_check(U.size(q, "hand") > s2, "...and the next climb it can grow again")
+	_check(U.size(q, "hand") > s2 + 18.0, "...with essence enough, it grows past the old 18 a climb (%.1f to %.1f)" % [s2, U.size(q, "hand")])
 	U.note_use(q, "heart", 100.0, "cast")
 	_check(U.used(q, "heart") == 0.0, "a sleeping Node isn't used")
 	# Attributes from the Nodes' sizes.

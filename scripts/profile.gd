@@ -185,6 +185,9 @@ var dining := {}
 var summit_blades := {}
 ## Deeds (deeds.gd): the deeds done and their counters. {} for an old save.
 var deeds := {}
+## What the guardians learned from each other's deaths (guardian_lessons.gd):
+## tower -> the lesson its guardian taught when it fell. {} for an old save.
+var guardians := {}
 
 static var ATTRIBUTES := {
 	"air": {"name": "Agility", "bonus": "move speed"},
@@ -391,6 +394,8 @@ func load_save() -> void:
 	summit_blades = sb if sb is Dictionary else {}
 	var dd = cfg.get_value("deeds", "state", {})
 	deeds = dd if dd is Dictionary else {}
+	var gl = cfg.get_value("guardians", "lessons", {})
+	guardians = gl if gl is Dictionary else {}
 	var tr = cfg.get_value("tree", "state", {}) if cfg.has_section_key("tree", "state") else null
 	if tr is Dictionary:
 		tree = tr
@@ -450,6 +455,7 @@ func save() -> void:
 	cfg.set_value("dining", "state", dining)
 	cfg.set_value("summit", "blades", summit_blades)
 	cfg.set_value("deeds", "state", deeds)
+	cfg.set_value("guardians", "lessons", guardians)
 	cfg.set_value("slot", "played", int(Time.get_unix_time_from_system()))  # (the climber picker: when last played)
 	cfg.save(save_path)
 
@@ -727,7 +733,10 @@ func pour(essence: Dictionary, run_soak: Dictionary, crystal_share := 0.0) -> Di
 			if spill >= 1.0:
 				add_crystal(kind, spill)
 				out["made"][kind] = float(out["made"].get(kind, 0.0)) + spill
-				out["lines"].append(Unbound.TEXT["spill"] % [Unbound.node_name(Unbound.part_for(self, kind)), Flow.Essence.display(kind), int(spill)])
+				if Unbound.diverted(self, kind):
+					out["lines"].append(Unbound.TEXT["spill_sealed"] % [Flow.Essence.display(kind), int(spill)])  # (its Node is sealed: most condenses on the way)
+				else:
+					out["lines"].append(Unbound.TEXT["spill"] % [Unbound.node_name(Unbound.part_for(self, kind)), Flow.Essence.display(kind), int(spill)])
 		elif style_total > 0.0:
 			for part in style:
 				var pd: Dictionary = part_density.get(part, {})

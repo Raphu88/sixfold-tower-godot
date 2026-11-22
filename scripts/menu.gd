@@ -1989,6 +1989,7 @@ func _climber_marks(prof) -> void:
 		_climber_synergies(small)
 	else:
 		TechniquePage.node_levels(self, BodyMove.picked(self))  # (the chosen Node: what its levels bring)
+		load("res://scripts/node_seal.gd").build(self, BodyMove.picked(self))  # (on the train: seal or open the chosen Node)
 		TechniquePage.attributes(self)  # (Agility, Strength...: from the Nodes' sizes)
 		BodyMove.build(self)  # (moving essence from one Node to another: body_move.gd)
 	if small:
@@ -4948,7 +4949,7 @@ class BodyView extends Control:
 			var sub_col := UI.FAINT
 			if UnboundRef.is_on(prof):
 				# (a Node: its level once awake; a sleeping one shows no numbers)
-				sub = ("level %d" % UnboundRef.level(prof, part)) if UnboundRef.awake(prof, part) else "asleep"
+				sub = ("level %d" % UnboundRef.level(prof, part)) if UnboundRef.awake(prof, part) else (String(UnboundRef.TEXT["sealed"]) if UnboundRef.sealed(prof, part) else "asleep")
 				sub_col = _vein_col(part, t) if UnboundRef.awake(prof, part) else UI.FAINT
 			elif not info.is_empty():
 				var data: Dictionary = Bonds.BONDS[info["id"]]
@@ -5002,6 +5003,9 @@ class BodyView extends Control:
 	func _veins(b, part: String, t: float) -> void:
 		var prof = main.profile
 		var at: Vector2 = SPOTS[part]
+		if UnboundRef.sealed(prof, part):
+			load("res://scripts/node_seal.gd").draw_seal(b, at)  # (a sealed Node: an iron seal over it)
+			return
 		if not UnboundRef.awake(prof, part):
 			b.dot(at, 3.0, Color(0.7, 0.68, 0.8, 0.25))  # (a sleeping Node: a faint dim seed)
 			return

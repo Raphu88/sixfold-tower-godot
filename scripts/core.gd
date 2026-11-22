@@ -68,8 +68,10 @@ static func own(prof, part: String) -> float:
 
 ## What one body part can hold, its own essence and core together (CAP:
 ## the same for everyone; an Unbound's own essence is also kept within its
-## Node's size, unbound.gd room).
-static func cap_of(_prof, _part: String) -> float:
+## Node's size, unbound.gd room). An Unbound's sealed Node holds no core.
+static func cap_of(prof, part: String) -> float:
+	if prof != null and _unbound().sealed(prof, part):
+		return 0.0
 	return CAP
 
 
