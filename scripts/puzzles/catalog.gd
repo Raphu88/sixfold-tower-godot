@@ -113,3 +113,11 @@ static func finish(spec: Dictionary, infos: Array, gi: int, torches: Array, door
 	if String(spec.get("type", "")) == "memory":
 		return TYPES["memory"].place_murals(spec, infos, gi, torches, doors)
 	return spec
+
+
+## The rock a finished test needs left whole (Rect2s): the wall each of the
+## Hall of Pedestals' murals hangs on. Cracked walls keep off it (floors.gd).
+static func solid_walls(spec: Dictionary) -> Array:
+	if String(spec.get("type", "")) == "memory":
+		return TYPES["memory"].mural_walls(spec)
+	return []

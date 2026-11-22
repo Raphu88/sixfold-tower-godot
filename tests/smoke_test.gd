@@ -2789,6 +2789,17 @@ func _memory_puzzle_tests() -> void:
 		rooms_used[m["room"]] = true
 		ok_m = ok_m and m["room"] != pz.room and m["n"] == i + 1 and m["sign"] == M.order[i] and main.is_solid(m["pos"]) and not main.is_solid(m["pos"] + Vector2(0, 30))
 	_check(ok_m and rooms_used.size() == 3, "each mural is set in the north wall of a different room (never the hall), numbering a sign")
+	# Cracked walls keep off the rock a mural hangs on (a stub corridor once
+	# carved through it: cracks.gd plan's `avoid`).
+	var walls: Array = load("res://scripts/puzzles/catalog.gd").solid_walls(main.floor_plan.get("puzzle", {}))
+	var crack_on_wall := false
+	for c in main.floor_plan.get("cracks", []):
+		var areas: Array = c["walk"].duplicate()
+		for t in c["tiles"]:
+			areas.append(Rect2(main.Floors.ORIGIN + Vector2(t) * 40.0, Vector2(40, 40)))
+		crack_on_wall = crack_on_wall or areas.any(func(r): return walls.any(func(w): return r.intersects(w.grow(-2.0))))
+	_check(walls.size() == 3 and walls.all(func(w): return main.is_solid(w.get_center())) and not crack_on_wall,
+		"no cracked wall or stub corridor cuts into the rock a mural hangs on")
 	_check(M.murals.all(func(m): return m["seen"] == m["room"].has_point(p.global_position) or not m["seen"]) and M.murals.any(func(m): return not m["seen"]),
 		"murals in rooms you haven't been to are not seen yet")
 	await _wait(0.35)  # (quiet: the pedestals wake once no guard stands in the hall)
