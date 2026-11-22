@@ -153,6 +153,17 @@ static func place_murals(spec: Dictionary, infos: Array, gi: int, torches: Array
 	return s
 
 
+## The rock each mural hangs on (Rect2s: the wall tile over its spot and
+## the one either side, where the tablet is set), for cracked walls to keep
+## off (a stub corridor or a broken crack there would leave it hanging in air).
+static func mural_walls(spec: Dictionary) -> Array:
+	var out: Array = []
+	for m in spec.get("murals", []):
+		var top: float = m["pos"].y + 16.0 - CELL  # (pos: 16px up into the wall tile)
+		out.append(Rect2(m["pos"].x - 1.5 * CELL, top, 3.0 * CELL, CELL))
+	return out
+
+
 func _build() -> void:
 	for q in spec.get("pedestals", []):
 		pedestals.append({"pos": q["pos"], "sign": q["sign"], "lit": false})

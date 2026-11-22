@@ -660,7 +660,7 @@ static func _build(infos: Array, themes: Array, floor_num: int, tower: Dictionar
 	# Cracked walls (cracks.gd): into rock nothing else uses, inside the arena.
 	var cracks: Array = []
 	if not style.is_empty():
-		cracks = Cracks.plan(infos, loops, walk, wings + secrets, arena, floor_num, style, doors)
+		cracks = Cracks.plan(infos, loops, walk, wings + secrets, arena, floor_num, style, doors, Catalog.solid_walls(puzzle))  # (never through the wall a mural hangs on)
 		for c in cracks:
 			walk.append_array(c["walk"])
 	# What must stay clear and reachable (traps, chasms and cover keep off it).
