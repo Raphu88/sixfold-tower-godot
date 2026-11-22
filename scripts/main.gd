@@ -2336,7 +2336,7 @@ func _note_climb_start() -> void:
 	if climb_shape != null:
 		climb_shape.new_climb()
 	if UnboundRun.Unbound.is_on(profile):
-		UnboundRun.Unbound.new_climb(profile)  # (the Nodes' growth by use starts again: unbound.gd USE climb_cap)
+		UnboundRun.Unbound.new_climb(profile)  # (use left from the last climb is gone: unbound.gd new_climb)
 	if summit_blades != null:
 		summit_blades.new_climb()  # (a Summit Blade carried up last time is back in its hiding place)
 	if player != null:
