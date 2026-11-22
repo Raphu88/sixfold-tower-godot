@@ -8,9 +8,10 @@ extends RefCounted
 ##   body      soaks into your body parts, by what each part did on the
 ##             floor (unmarked parts fill toward a new mark; every part
 ##             settles it as density, your attributes)
-##   marks     goes to your marks: each kind to the marks of that kind (shared
-##             if two are), and a kind no mark is made of spreads thinly over
-##             all of them (profile.gd AFFINITY_WEIGHT, OTHER_WEIGHT)
+##   marks     goes to your marks: it refills what each mark's spells drew
+##             on the floor and deepens it by that use (mark_use.gd: own
+##             kind pays fully, others a third; an unused mark takes only a
+##             trickle); what they leave condenses into crystals too
 ##   crystals  condenses into essence crystals, the train's money
 ## The crystal share is the "To crystals" setting (train.gd CONDENSE_*); the
 ## body and the marks share what's left in SPLIT's proportions. With no mark
@@ -18,7 +19,8 @@ extends RefCounted
 ## Unbound send everything but the crystals to their Nodes (unbound.gd).
 ##
 ## CRYSTALS can be eaten (the climber's book, the Inventory, Your Car): their
-## essence flows the same natural way, minus the crystal share. No steering.
+## essence flows the same natural way, minus the crystal share (what the marks
+## don't take soaks into the body instead). No steering.
 ##
 ## TINCTURES (items.gd, the tincture block) are the only way the marked
 ## steer essence: drink one and choose a mark (its xp; its own kind counts
@@ -86,7 +88,7 @@ static var TEXT := {
 	"tinctures_none": "No tinctures. Vaults and secret rooms hold them, the outfitter sells one kind each visit, and the Workshop crafts them from crystals.",
 	"tinctures_none_play": "No tinctures on your belt. Vaults and secret rooms hold them, and now and then a monster leaves one.",
 	"crystal_card": "%d %s essence in your crystal.",
-	"crystal_flow": "Eaten, %d flows the natural way: %d%% to your body, %d%% to your marks. You can't steer it.",
+	"crystal_flow": "Eaten, %d flows the natural way: %d%% to your body, %d%% offered to your marks (they take what refills and deepens what you cast; the rest soaks into your body). You can't steer it.",
 	"crystal_flow_body": "Eaten, %d soaks into your body the natural way. You can't steer it.",
 	"crystal_flow_raw": "Eaten, %d flows to your %s, as banked essence does.",
 	"eat": "Eat %d",

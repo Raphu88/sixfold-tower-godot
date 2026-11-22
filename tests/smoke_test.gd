@@ -7122,17 +7122,20 @@ func _run() -> void:
 		await _wait(0.6)
 		_check(p.bonds[part].burned, "%s overdraw burns" % part)
 		await _settle()
-	# Overdrawing an already-burned mark tears it: it costs health.
+	# Overdrawing an already-burned mark paralyzes it: it costs health too
+	# (tests/parts/mark_use.gd has the rest of the burn ladder).
 	var hp_before: float = p.hp
 	p.bonds["hand"].essence = 0.0
 	var paid: String = p.bonds["hand"].pay()
-	_check(paid == "torn" and p.bonds["hand"].overdraw_mult < 1.0, "overdrawing a burned mark tears it, and the cast is weaker")
+	_check(paid == "paralyzed" and p.bonds["hand"].paralyzed and p.bonds["hand"].overdraw_mult < 1.0, "overdrawing a burned mark paralyzes it, and the cast is weaker")
+	p.bonds["hand"].paralyzed = false
 	p.bonds["hand"].essence = 0.0
 	p.attack_cd = 0.0
 	p._try_cast("hand")
 	await _wait(0.6)
-	_check(p.hp < hp_before, "a torn mark costs health (%.0f -> %.0f)" % [hp_before, p.hp])
+	_check(p.hp < hp_before and p.bonds["hand"].paralyzed, "a mark overdrawn while burned costs health and seizes up (%.0f -> %.0f)" % [hp_before, p.hp])
 	_check(p.bonds["hand"].overdraw_mult == 1.0, "only the overdrawn cast is weakened")
+	p.bonds["hand"].paralyzed = false
 	p.hp = p.MAX_HP
 	await _settle()
 
@@ -7340,6 +7343,7 @@ func _run() -> void:
 		unbanked += main.run_essence[k]
 	_check(unbanked > 0.0, "slain monsters leave essence (%d unbanked)" % int(unbanked))
 	var xp0: float = main.profile.bonds["hand"]["xp"]
+	main.MarkUse.note_use(main.profile, "hand", 20.0)  # (a mark grows by use: mark_use.gd)
 	p.dead = false
 	p.hp = 20.0
 	p.set_physics_process(true)
@@ -7354,7 +7358,7 @@ func _run() -> void:
 	_check(main.enemies().size() >= 3, "floor 2 has monsters (%d)" % main.enemies().size())
 	_check(main.best_floor >= 2, "best floor recorded")
 	_check(main.run_essence.is_empty(), "the stair banks your essence")
-	_check(main.profile.bonds["hand"]["xp"] > xp0, "banked essence strengthens your marks")
+	_check(main.profile.bonds["hand"]["xp"] > xp0, "banked essence deepens a mark you used")
 	# Skip ahead a few floors (floor 3's stair leads to the camp first).
 	for i in 3:
 		main._arrive()
@@ -8668,10 +8672,14 @@ func _economy_tests() -> void:
 	main.floor_num = 2
 	main.run_essence = {"water": 50.0, "air": 7.0}
 	main.run_soak = {}
+	var twin_stair = PS.new()  # (what the marks' share leaves condenses too: mark_use.gd)
+	twin_stair.saving = false
+	twin_stair.bonds = prof.bonds.duplicate(true)
 	main._arrive()
 	var cw := floorf(50.0 * share)
 	var ca := floorf(7.0 * share)
-	_check(prof.crystal_total("water") == cw and prof.crystal_total("air") == ca and prof.crystal_count("water") == 1, "a stair condenses %d%% of each kind into crystals (%s)" % [int(share * 100.0), prof.crystals])
+	twin_stair.pour({"water": 50.0 - cw, "air": 7.0 - ca}, {}, 0.0)
+	_check(prof.crystal_total("water") == cw + twin_stair.crystal_total("water") and prof.crystal_total("air") == ca + twin_stair.crystal_total("air") and prof.crystal_count("water") == 1, "a stair condenses %d%% of each kind into crystals, and what the marks leave (%s)" % [int(share * 100.0), prof.crystals])
 	_check(is_equal_approx(float(prof.density.get("water", 0.0)) - dens0, (50.0 - cw) * 3.0 / 7.0), "...and of the rest only the body's share settles as density")
 	twin.bank({"water": 50.0 - cw, "air": 7.0 - ca}, {})
 	_check(is_equal_approx(prof.bonds["hand"]["xp"], twin.bonds["hand"]["xp"]) and is_equal_approx(prof.bonds["legs"]["xp"], twin.bonds["legs"]["xp"]) and prof.bonds["legs"]["xp"] > 0.0, "marks grow from the banked part only")
@@ -8709,7 +8717,9 @@ func _economy_tests() -> void:
 	main.floor_num = 4
 	main.run_essence = {"water": 30.0}
 	main._arrive()
-	_check(prof.crystals.is_empty(), "at 0% nothing condenses")
+	var m0 := roundi(30.0 * 4.0 / 7.0)
+	var want0: String = main.Flow.TEXT["split"] % [30, 30 - m0, m0, 0]
+	_check(main.banner.get("lines", []).has(want0), "at 0%% none of the stair's essence goes to crystals (only what the marks can't take condenses): %s" % str(main.banner.get("lines", [])))
 	M.settings["condense"] = T.CONDENSE_DEFAULT
 	# The outfitter pays for a fall: per floor reached, more past your best.
 	await _fresh_main()

@@ -21,7 +21,7 @@ func _init() -> void:
 
 static func report() -> void:
 	var P = load("res://scripts/profile.gd")
-	print("STEP_XP %s  STEP_RATE %.3f  AFFINITY %.2f  OTHER %.2f" % [P.STEP_XP, P.STEP_RATE, P.AFFINITY_WEIGHT, P.OTHER_WEIGHT])
+	print("STEP_XP (depth) %s  use %s  burn %s  (tinctures: STEP_RATE %.3f  AFFINITY %.2f  OTHER %.2f)" % [P.STEP_XP, load("res://scripts/mark_use.gd").USE, load("res://scripts/mark_use.gd").BURN, P.STEP_RATE, P.AFFINITY_WEIGHT, P.OTHER_WEIGHT])
 	print("pattern    earned | step2 step3 step4 step5 step6 step12 | 2nd mark | growth after climbs 1,3,5,10,20,30")
 	for pat in Model.PATTERNS:
 		for earned in [false, true]:

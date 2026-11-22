@@ -49,6 +49,7 @@ const Draw := preload("res://scripts/draw_util.gd")
 const Palette := preload("res://scripts/palette.gd")
 const UI := preload("res://scripts/ui.gd")
 const Particles := preload("res://scripts/particles.gd")
+const Lessons := preload("res://scripts/guardian_lessons.gd")
 
 const HOT := 70.0
 const ERUPT := 100.0
@@ -431,13 +432,13 @@ func _new_floor() -> void:
 ## dictionary the volley's bolts share: each that strikes a foe the volley
 ## already struck hits `focus` harder for every earlier hit).
 func add_bolt(pos: Vector2, vel: Vector2, reach: float, dmg: float, w: Dictionary, power: float, col: Color, extra := {}) -> void:
-	var b := {"pos": pos, "vel": vel, "left": reach, "dmg": dmg, "w": w, "power": power, "col": col, "trail": [pos]}
+	var b := {"pos": pos, "vel": vel, "left": reach, "dmg": dmg, "w": w, "power": power, "col": col, "trail": [pos], "ctx": Lessons.as_shot(main.blow_ctx)}
 	b.merge(extra)
 	bolts.append(b)
 
 
 func add_landing(after: float, r: float, dmg: float, w: Dictionary, power: float, col: Color) -> void:
-	landings.append({"t": after, "r": r, "dmg": dmg, "w": w, "power": power, "col": col})
+	landings.append({"t": after, "r": r, "dmg": dmg, "w": w, "power": power, "col": col, "ctx": main.blow_ctx.duplicate(true)})
 
 
 ## `state`: the foe holds it while the dot lasts (a blade's cut: "bleeding",
@@ -471,7 +472,10 @@ func _tick_bolts(delta: float) -> void:
 						var before: int = int(b["struck"].get(e.get_instance_id(), 0))
 						dmg *= 1.0 + float(b.get("focus", 0.0)) * before
 						b["struck"][e.get_instance_id()] = before + 1
+					var was_ctx: Dictionary = main.blow_ctx
+					main.blow_ctx = b.get("ctx", {})  # (a bolt is a shot, for a guardian's lessons)
 					Tech.hit(p, e, dmg, b["vel"].normalized(), b["w"], b["power"], self)
+					main.blow_ctx = was_ctx
 					gone = true
 					break
 		if gone:
@@ -511,7 +515,10 @@ func _tick_landings(delta: float, p) -> void:
 		for e in main.targets():
 			var to: Vector2 = e.global_position - at
 			if to.length() <= l["r"] + e.radius:
+				var was_ctx: Dictionary = main.blow_ctx
+				main.blow_ctx = l.get("ctx", {})  # (a landing is its cast's, for a guardian's lessons)
 				Tech.hit(p, e, l["dmg"], to.normalized() if to.length() > 0.1 else Vector2.RIGHT, l["w"], l["power"], self)
+				main.blow_ctx = was_ctx
 		main.fx_ring(at, l["col"], l["r"], 0.4, 5.0)
 		main.fx_burst(at, Vector2.ZERO, l["col"], 16, 220.0)
 		main.shake(5.0)
@@ -769,7 +776,7 @@ func offer_summit(kind: String, lines: Array) -> void:
 	if kind != "condense":
 		return
 	var ess := String(main.tower_data().get("essence", "air"))
-	main.camp = {"stage": "condense", "choices": Unbound.PARTS.map(func(pt): return "condense:" + pt), "title": Unbound.TEXT["condense_title"],
+	main.camp = {"stage": "condense", "choices": Unbound.open_parts(main.profile).map(func(pt): return "condense:" + pt), "title": Unbound.TEXT["condense_title"],
 		"lines": [Unbound.TEXT["condense_sub"] % Tech.display(ess)], "kind": ess, "victory_lines": lines, "t": 0.0}
 	main.tip("unbound_condense")
 	_open_cards()

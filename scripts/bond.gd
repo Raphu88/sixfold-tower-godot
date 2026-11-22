@@ -46,6 +46,13 @@ var part: String
 var step := 1
 var essence := 0.0
 var burned := false
+## Overdrawn while burned: it can't be cast, except by a forced cast (held:
+## player.gd), which burns it out (mark_use.gd). It still weakens its body
+## part. The stair heals one rung: paralyzed -> burned -> healed.
+var paralyzed := false
+## How deep its pool is toward the next step (0..1, mark_use.gd
+## step_fraction; main.gd sets it): a deeper pool holds more (capacity).
+var depth_k := 0.0
 var faint := false  # a mark taken in defeat: weaker until it catches up
 var faint_power := 0.75  # how strong a faint mark is (a first mark from a death: by the floor reached, climb_shape.gd)
 var overdraw_mult := 1.0  # set for an overdrawn cast: desperate casts are weaker
@@ -55,7 +62,7 @@ var gear_power := 1.0  # an Ember Charm and the like: spells hit a little harder
 var flow_power := 1.0  # Unmaking's flow: spells deal more damage (player.set_flow)
 
 ## How strong an overdrawn cast is, and how much health per missing essence
-## overdrawing an already-burned mark tears out of you.
+## overdrawing an already-burned mark tears out of you (it is paralyzed too).
 const OVERDRAW_POWER := 0.7
 const TEAR_HEALTH := 1.0
 
@@ -206,9 +213,17 @@ func color() -> Color:
 	return data()["color"]
 
 
-## A mark holds 10 more essence a step up to step 5, then 5 more a step.
+## A mark holds 10 more essence a step up to step 5, then 5 more a step;
+## between steps, its pool's depth (depth_k) adds its share of the next.
 func capacity() -> float:
-	return 30.0 + 10.0 * mini(step, 5) + 5.0 * maxi(step - 5, 0)
+	var here := _cap_at(step)
+	if step >= MAX_STEP or depth_k <= 0.0:
+		return here
+	return here + (_cap_at(step + 1) - here) * clampf(depth_k, 0.0, 1.0)
+
+
+static func _cap_at(s: int) -> float:
+	return 30.0 + 10.0 * mini(s, 5) + 5.0 * maxi(s - 5, 0)
 
 
 func cost() -> float:
@@ -266,13 +281,27 @@ func fill(amount: float) -> void:
 	essence = minf(capacity(), essence + amount * attr_fill)
 
 
-## Pays for a cast. Returns "paid", "burned" (overdrawn: the body part burns)
-## or "torn" (overdrawn again while burned: it costs health instead), and
-## sets overdraw_mult for the cast. `missing` is how much essence was short.
+## Pays for a cast. Returns "paid", "burned" (overdrawn: the body part
+## burns), "paralyzed" (overdrawn again while burned: it costs health and the
+## mark seizes) or, for a forced cast of a paralyzed mark (`forcing`, set by
+## player.gd for the cast), "burnout" (it
+## burns out: mark_use.gd), and sets overdraw_mult for the cast. `missing` is
+## how much essence was short (what the cast pushed past the pool), `drawn`
+## what it took from the pool.
 var missing := 0.0
+var drawn := 0.0
+var forcing := false
 
 
 func pay(free := false) -> String:
+	drawn = 0.0
+	if paralyzed and forcing:
+		var short := maxf(0.0, cost() - essence)
+		drawn = minf(essence, cost())
+		essence -= drawn
+		missing = short
+		overdraw_mult = OVERDRAW_POWER if short > 0.0 else 1.0
+		return "burnout"
 	if refund and is_changed_spell(spell()):
 		refund = false  # Static III: refunded
 		free = true
@@ -282,14 +311,17 @@ func pay(free := false) -> String:
 		return "paid"
 	if essence >= cost():
 		essence -= cost()
+		drawn = cost()
 		overdraw_mult = 1.0
 		missing = 0.0
 		return "paid"
 	missing = cost() - essence
+	drawn = essence
 	essence = 0.0
 	overdraw_mult = OVERDRAW_POWER
 	if burned:
-		return "torn"
+		paralyzed = true
+		return "paralyzed"
 	burned = true
 	return "burned"
 

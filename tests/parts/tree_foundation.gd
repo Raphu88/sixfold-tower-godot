@@ -186,10 +186,10 @@ func _saves() -> void:
 	var P = load("res://scripts/profile.gd")
 	var TR = load("res://scripts/tree.gd")
 	var path := TestRun.path("user://smoke_tree.cfg")
-	# An old save: a Stormcaller at step 3 and a Warden at step 4, no tree.
+	# An old save (from before marks grew by use: OLD_STEP_XP, converted as it loads): a Stormcaller at step 3 and a Warden at step 4, no tree.
 	var cfg := ConfigFile.new()
 	cfg.set_value("profile", "regarded", true)
-	cfg.set_value("profile", "bonds", {"hand": {"id": "stormcaller", "xp": float(load("res://scripts/profile.gd").STEP_XP[2]), "faint": false, "debt": 0.0}, "brow": {"id": "warden", "xp": float(load("res://scripts/profile.gd").STEP_XP[3]), "faint": false, "debt": 0.0},
+	cfg.set_value("profile", "bonds", {"hand": {"id": "stormcaller", "xp": float(P.OLD_STEP_XP[2]), "faint": false, "debt": 0.0}, "brow": {"id": "warden", "xp": float(P.OLD_STEP_XP[3]), "faint": false, "debt": 0.0},
 		"legs": {"id": "windwalker", "xp": 0.0, "faint": false, "debt": 0.0}})
 	cfg.save(path)
 	var old = P.new()

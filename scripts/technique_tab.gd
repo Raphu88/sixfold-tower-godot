@@ -60,6 +60,9 @@ static var TEXT := {
 	"slot": "%s  %s",
 	"slot_sleep": "%s · level %d",
 	"slot_asleep": "%s · asleep",
+	"slot_sealed": "%s · sealed",
+	"sealed": "This Node is sealed: it takes no essence and carries no technique. Unseal it on the train, on the Body tab, and it starts again asleep.",
+	"gift_sealed": "%s: sealed. No minor ability or gift while it stays sealed.",
 	"locked": "You can look here anywhere. Techniques change only on the train, between climbs.",
 	"title": "%s  ·  %s",
 	"level": "%s: level %d of %d  ·  size %s of %d",
@@ -85,7 +88,7 @@ static var TEXT := {
 	"none": "None",
 	"routes": "Where banked essence pools",
 	"route": "%s  →  %s",
-	"route_note": "Tap a kind to send it to another Node from now on (a sleeping Node soaks it in and wakes sooner). Its natural Node is marked *.",
+	"route_note": "Tap a kind to send it to another Node from now on (a sleeping Node soaks it in and wakes sooner; a sealed Node is skipped). Its natural Node is marked *.",
 	"note": "Every press changes the technique at once: there's nothing to set and nothing to lose. Its essences come from the part itself; the form, each essence's effect and the variation are yours.",
 	"set": "%s now casts %s.",
 	"set_echo": "%s now casts %s. Found an echo: %s",
@@ -292,12 +295,15 @@ static func build(menu) -> void:
 		var part: String = Unbound.PARTS[i]
 		var t := Unbound.tech_of(prof, i)
 		var key := _key(menu, i)
-		var label: String = Tech.title(t) if Tech.valid(t) else (TEXT["slot_sleep"] % [Unbound.node_name(part), Unbound.level(prof, part)] if Unbound.awake(prof, part) else TEXT["slot_asleep"] % Unbound.node_name(part))
+		var label: String = Tech.title(t) if Tech.valid(t) else (TEXT["slot_sleep"] % [Unbound.node_name(part), Unbound.level(prof, part)] if Unbound.awake(prof, part) else (TEXT["slot_sealed"] if Unbound.sealed(prof, part) else TEXT["slot_asleep"]) % Unbound.node_name(part))
 		var b: Button = menu._button(TEXT["slot"] % [key, label] if key != "" else label, _pick_slot.bind(menu, i), grid)
 		UI.keep_text(b)  # (its words whole: smaller, then wrapped, never cut)
 		b.custom_minimum_size.x = 0
 		b.set_meta("tech_slot", i)
 		b.set_meta("help", "tech_slot")
+		if Unbound.sealed(prof, part):
+			b.set_meta("tech_sealed", true)
+			b.add_theme_color_override("font_color", menu.FAINT)
 		if Tech.valid(t):
 			b.add_theme_color_override("font_color", Tech.color(Tech.lead(t)).lightened(0.15))
 		if i == sel:
@@ -354,7 +360,10 @@ static func _gifts(menu) -> void:
 	for part in Unbound.PARTS:
 		var line := ""
 		var col: Color = menu.DIM
-		if not Unbound.awake(prof, part):
+		if Unbound.sealed(prof, part):
+			line = TEXT["gift_sealed"] % Unbound.node_name(part)
+			col = menu.FAINT
+		elif not Unbound.awake(prof, part):
 			line = TEXT["gift_asleep"] % Unbound.node_name(part)
 			col = menu.FAINT
 		else:
@@ -431,7 +440,9 @@ static func _card(menu, part: String, t: Dictionary) -> void:
 	hl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	hl.set_meta("tech_title", true)
 	col.add_child(hl)
-	if t.is_empty() and not Unbound.awake(prof, part):
+	if t.is_empty() and Unbound.sealed(prof, part):
+		_line(col, TEXT["sealed"], menu.TEXT, 15).set_meta("tech_sealed", true)
+	elif t.is_empty() and not Unbound.awake(prof, part):
 		_line(col, TEXT["sleeping"] % Unbound.TECH_LEVEL, menu.TEXT, 15).set_meta("tech_asleep", true)  # (no numbers while it sleeps)
 	elif t.is_empty():
 		var need := maxf(0.0, float(Unbound.LEVELS[Unbound.TECH_LEVEL - 1]) - Unbound.size(prof, part))
@@ -707,7 +718,11 @@ static func _route(menu, kind: String) -> void:
 		return
 	var prof = menu.main.profile
 	var at := Unbound.PARTS.find(Unbound.part_for(prof, kind))
-	Unbound.route(prof, kind, Unbound.PARTS[(at + 1) % Unbound.PARTS.size()])
+	for i in range(1, Unbound.PARTS.size() + 1):
+		var to: String = Unbound.PARTS[(at + i) % Unbound.PARTS.size()]
+		if not Unbound.sealed(prof, to):  # (a sealed Node takes no essence: skipped)
+			Unbound.route(prof, kind, to)
+			break
 	prof.save()
 	_redraw(menu, "route", kind)
 

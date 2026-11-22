@@ -110,6 +110,7 @@ static var LINES := {
 ## below returns the blanks, or {} when it has nothing true to say), and
 ## the words to say it with. A monster's weakness fills that Bestiary line.
 static var RUMORS := [
+	{"id": "guardians", "fact": "guardians", "lines": ["{rumour}"]},  # (what the guardians learned from each other's deaths: guardian_lessons.gd)
 	{"id": "handy", "fact": "handy", "lines": ["\"Going up {tower}? Carry {item}: {why}.\""]},
 	{"id": "weakness", "fact": "weakness", "lines": ["\"{monster}? {weak}. Learned that the hard way.\""]},
 	{"id": "beast", "fact": "beast", "lines": ["\"{beast} waits at the top of {tower}. {hint}\""]},
@@ -523,7 +524,15 @@ static func fact(prof, name: String, tower: String, who := "") -> Dictionary:
 			return fact_wing(prof, tower)
 		"best_bet":
 			return fact_best_bet(prof, tower)
+		"guardians":
+			return fact_guardians(prof)
 	return {}
+
+
+## What the guardians have learned from each other's deaths (guardian_lessons.gd): {} before any has fallen.
+static func fact_guardians(prof) -> Dictionary:
+	var r: String = load("res://scripts/guardian_lessons.gd").rumour(prof)
+	return {"type": "guardians", "rumour": r} if r != "" else {}
 
 
 static func _tower_or_last(prof, tower: String) -> String:

@@ -97,6 +97,7 @@ func _fill_all() -> void:
 	for b in p.bonds.values():
 		b.essence = b.capacity()
 		b.burned = false
+		b.paralyzed = false
 	_wait.clear()
 
 
@@ -149,6 +150,7 @@ func _physics_process(delta: float) -> void:
 		if w <= 0.0:
 			b.essence = minf(b.capacity(), b.essence + b.capacity() * REFILL * delta)
 		b.burned = false
+		b.paralyzed = false
 	p.sta = minf(p.sta_cap(), p.sta + 30.0 * delta)
 	if p.hp < p.max_hp:
 		p.hp = minf(p.max_hp, p.hp + 20.0 * delta)

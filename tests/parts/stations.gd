@@ -464,7 +464,7 @@ func _tourney(main) -> void:
 	await _wait_done(main)
 	t._check(Stations.bracket_won(prof, "novice") and Stations.best_rounds(prof, "novice") == rounds.size(), "beating all three wins the bracket")
 	var gain := int(b["round_renown"]) * rounds.size() + int(pz["renown"])
-	t._check(Renown.points(prof) == pts + gain and prof.crystal_total(String(pz["kind"])) == k0 + float(pz["crystals"]), "...for renown (+%d) and crystals (+%d)" % [gain, int(pz["crystals"])])
+	t._check(Renown.points(prof) == pts + gain and prof.crystal_total(String(pz["kind"])) >= k0 + float(pz["crystals"]), "...for renown (+%d) and crystals (+%d, and what the marks couldn't take of the essence gathered condenses too): got +%d renown, +%.1f crystals" % [gain, int(pz["crystals"]), Renown.points(prof) - pts, prof.crystal_total(String(pz["kind"])) - k0])
 	t._check(menu.station_page.lines.any(func(l): return String(l).contains(String(b["name"]))) and Renown.on_offer(prof).has("contender"), "the win is said on its card, and the Noble has a title for it")
 	# Knocked down: you yield, never die, and the bracket ends.
 	pts = Renown.points(prof)

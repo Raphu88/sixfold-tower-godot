@@ -31,6 +31,7 @@ var weapon := false  # the climber's own bow, crossbow or pistol shot (spells' s
 var fills := true  # a weapon shot fills the hand's mark (an enchanted pistol's essence shot doesn't)
 var shot := ""  # an enchanted pistol's essence shot: its essence (weapons.gd ESSENCE_SHOT)
 var splice := {}  # the Developer's Splice: a spliced spell's shot carries its behaviour (secret_tools.gd)
+var ctx := {}  # a cast's shot: its essences, form and Node or mark, for a guardian's lessons (guardian_lessons.gd)
 ## Marks' spells (scripts/spells/): fn(shot, foe) after it strikes a foe, and
 ## fn(shot, where) once when it ends (on a foe, a wall, or at the end of its flight).
 var on_strike: Array = []
@@ -115,7 +116,10 @@ func _physics_process(delta: float) -> void:
 					_ended()
 					queue_free()
 					return
+				var was_ctx: Dictionary = main.blow_ctx
+				main.blow_ctx = ctx if not ctx.is_empty() else {"kinds": {}, "form": "shot", "part": ""}  # (a shot, for a guardian's lessons)
 				main.player.ranged_hit(e, dmg, vel.normalized(), force, pierce or reflected or heavy, weapon, shot, fills)
+				main.blow_ctx = was_ctx
 				for fn in on_strike:
 					if fn.is_valid():
 						fn.call(self, e)
@@ -173,11 +177,15 @@ func _burst() -> void:
 		return
 	var r := explode_r
 	explode_r = 0.0
+	var was_ctx: Dictionary = main.blow_ctx
+	if friendly and not ctx.is_empty():
+		main.blow_ctx = ctx  # (its blast is the cast's, for a guardian's lessons)
 	if cluster > 0:
 		for i in cluster:
 			main.explode(position + Vector2.from_angle(TAU * i / cluster + vel.angle()) * r * 0.8, r, explode_dmg, tint)
 	else:
 		main.explode(position, r, explode_dmg, tint)
+	main.blow_ctx = was_ctx
 
 
 func on_parried(_perfect := false) -> void:

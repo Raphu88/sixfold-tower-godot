@@ -101,6 +101,7 @@ const BODY := "res://scripts/rival.gd"
 ##   trade_crystals, trade_per_floor     crystals they offer in a swap
 ##   kept                        how many met rivals the climber remembers
 static var RULES := {
+	"rumour_chance": 0.5,  # a met climber (trading, teaming up, thanking you) passes on a rumour of the guardians, once any has fallen
 	"chance": 0.45, "from": 2, "per_climb": 2, "sure_by": 3, "return_chance": 0.35, "return_steps": 1, "grow_mark": 0.3,
 	"second_from": 4, "second": 0.5, "third_from": 8, "third": 0.4, "step_floors": 4.0, "step_spread": 1,
 	"reach": 34.0, "hp": 110.0, "hp_per_step": 10.0, "armor": 0.2, "pair_bias": 0.75, "state_seconds": 4.0,
@@ -431,6 +432,11 @@ func _line(k: String, rec: Dictionary) -> String:
 		said = String(LINES["robbed"][0])
 	elif rec.get("returning", false) and k != "rescue" and k != "gift":
 		said = String(LINES["again"][randi() % LINES["again"].size()]) + " " + said
+	# Now and then they pass on what the guardians have learned (guardian_lessons.gd).
+	if k in ["trade", "team", "gift"] and main != null and main.profile != null and randf() < float(RULES.get("rumour_chance", 0.5)):
+		var r: String = load("res://scripts/guardian_lessons.gd").rumour(main.profile)
+		if r != "":
+			said += " " + r
 	return said
 
 

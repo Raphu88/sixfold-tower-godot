@@ -267,6 +267,7 @@ func _fill_marks(p) -> void:
 	for b in p.bonds.values():
 		b.essence = b.capacity()
 		b.burned = false
+		b.paralyzed = false
 
 
 ## The room: open floor, no monsters (they come as the event sends them),

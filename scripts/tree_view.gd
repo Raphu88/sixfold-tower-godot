@@ -46,6 +46,7 @@ static var TEXT := {
 	"head_faint": "%s  ·  %s  ·  faint",
 	"head_unbound": "%s  ·  level %d of 12",
 	"head_asleep": "%s  ·  asleep",
+	"head_sealed": "%s  ·  sealed",
 	"head_none": "%s  ·  no mark yet",
 	"none": "No mark here yet. This part %s; once it's full, a summit marks it.",
 	"first": "No mark yet. On your first climb, floor 6 opens with the Regard: the tower's guardian takes notice, and the part you used most takes your first mark. Its tree grows here.",
@@ -161,6 +162,8 @@ static func ready_part(prof) -> String:
 static func _head(prof, part: String) -> String:
 	var name: String = Bonds.PART_NAMES[part]
 	if Unbound.is_on(prof):
+		if Unbound.sealed(prof, part):
+			return TEXT["head_sealed"] % Unbound.node_name(part)
 		if not Unbound.awake(prof, part):
 			return TEXT["head_asleep"] % Unbound.node_name(part)  # (a sleeping Node shows no numbers)
 		return TEXT["head_unbound"] % [Unbound.node_name(part), Unbound.level(prof, part)]
@@ -1203,6 +1206,9 @@ class TreeMap extends Control:
 	func _veins_into(b, pt: String, c: Color, chosen: bool) -> void:
 		var prof = main.profile
 		var at: Vector2 = BV.SPOTS[pt]
+		if Unbound.sealed(prof, pt):
+			load("res://scripts/node_seal.gd").draw_seal(b, at)  # (a sealed Node: an iron seal over it)
+			return
 		if not Unbound.awake(prof, pt):
 			return  # (a sleeping Node shows no veins yet)
 		var lv := Unbound.level(prof, pt)
@@ -1242,7 +1248,7 @@ class TreeMap extends Control:
 			var sub := "unmarked"
 			var sub_col := UI.FAINT
 			if unbound:
-				sub = ("level %d" % Unbound.level(prof, pt)) if Unbound.awake(prof, pt) else "asleep"
+				sub = ("level %d" % Unbound.level(prof, pt)) if Unbound.awake(prof, pt) else (String(Unbound.TEXT["sealed"]) if Unbound.sealed(prof, pt) else "asleep")
 				sub_col = View._part_color(prof, pt).lightened(0.15) if Unbound.awake(prof, pt) else UI.FAINT
 			elif not info.is_empty():
 				var data: Dictionary = Bonds.BONDS[info["id"]]
