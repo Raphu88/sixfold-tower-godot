@@ -187,6 +187,7 @@ static var HELP := {
 	"tech_boost": "On: a cast spends essence you carry unbanked, if it holds the technique's essences, and hits harder. Off: carried essence is never spent.",
 	"ub_part": "One of your Nodes: its level, its size (how much it can hold, 120 at most) and the essences it holds. Press it to see what its levels bring and to move essence out of it (below).",
 	"ub_part_sealed": "A sealed Node: it takes no essence and gives nothing. Press it to choose it: on the train, Unseal it below (it starts again asleep, at size 0).",
+	"mark_seal_break": "Breaks the seal on your faint mark: the mark comes away, every mark with it, and you are Unbound, for good. Press twice: the first press only asks. On the train only, and only while the mark is still faint; once it has grown to full strength the seal is gone.",
 	"ub_seal": "Seals this Node: it takes no essence, and what it holds condenses into crystals; its size, technique, gift, minor ability and attributes are gone. Each sealed Node makes your open Nodes grow faster from use and hit harder. Press twice: the first press only asks. On the train only; one Node always stays open.",
 	"ub_unseal": "Opens this sealed Node again. It starts asleep, at size 0, and soaks up the essence routed to it until it wakes. Your open Nodes lose its share of the sealing bonus. On the train only.",
 	"ub_part_asleep":"A sleeping Node: it holds nothing and shows no numbers until it wakes. Press it to feed it essence from an awake Node (Move essence, below).",

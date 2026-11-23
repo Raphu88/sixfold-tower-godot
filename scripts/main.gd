@@ -78,6 +78,7 @@ const RoomRewardsScript := preload("res://scripts/room_rewards.gd")
 const InscriptionsScript := preload("res://scripts/inscriptions.gd")
 const GlimpsesScript := preload("res://scripts/glimpses.gd")
 const ClimbShapeScript := preload("res://scripts/climb_shape.gd")
+const Fracture := preload("res://scripts/fracture.gd")  # (the Regard's glimpse of the last fracture)
 const MarkUse := preload("res://scripts/mark_use.gd")  # (marks grow by use, and burns)
 const Flow := preload("res://scripts/essence_flow.gd")
 const RivalsScript := preload("res://scripts/rivals.gd")
@@ -873,6 +874,11 @@ func _process(delta: float) -> void:
 			end_regard()
 		return
 	if not regard.is_empty():
+		if Fracture.active(regard):
+			# The glimpse of the last fracture plays first (fracture.gd): a press skips it.
+			if Fracture.tick(regard, delta / maxf(Engine.time_scale, 0.01), _dismiss_pressed()):
+				tip("regard_glimpse")
+			return
 		regard["t"] += delta / maxf(Engine.time_scale, 0.01)
 		if regard_done() and _dismiss_pressed():
 			end_regard()
@@ -3261,6 +3267,8 @@ func _grant_regard(fell: bool) -> void:
 	# DEATH_MARK: 50% on floor 1 up to full on floor 6); reached, it's full.
 	var strength: float = ClimbShapeScript.death_strength(climb_shape.reached()) if fell else 1.0
 	profile.add_bond(part, id, strength < 1.0, strength)
+	if strength < 1.0:
+		load("res://scripts/mark_seal.gd").place(profile, part)  # (a faint first mark carries a seal: broken on the train, it makes you Unbound)
 	profile.regarded = true
 	profile.save()
 	regard_mark = {"fell": fell, "part": part, "id": id, "strength": strength}
@@ -3274,6 +3282,8 @@ func _begin_regard(fell: bool) -> void:
 	# the pack and the pay home: climb_shape.gd leave_at_regard.)
 	regard = {"fell": regard_mark["fell"], "part": regard_mark["part"], "id": regard_mark["id"], "refused": regard_mark.get("refused", false), "t": 0.0, "dark": fade > 0.5,
 		"exit": not fell, "floor": climb_shape.reached(), "strength": float(regard_mark.get("strength", 1.0))}
+	if not fell and not regard["refused"]:
+		Fracture.start(regard)  # (reached: first a glimpse of the last fracture, then the guardian's eye and its charge)
 	GuideScript.moment("regard", "regard")
 	if fell and float(regard["strength"]) < 1.0:
 		tip("death_mark")  # (its strength by the floor reached: climb_shape.gd DEATH_MARK)
@@ -3300,10 +3310,11 @@ func overlay_showing() -> bool:
 
 
 func regard_done() -> bool:
-	return not regard.is_empty() and regard["t"] > 3.0
+	return not regard.is_empty() and regard["t"] > 3.0 and not Fracture.active(regard)
 
 
 func end_regard() -> void:
+	Fracture.finish(regard)  # (the glimpse, if it still played, is over)
 	if unbound != null and unbound.ask_at_regard():
 		return  # (first: accept the mark, or refuse it)
 	if not regard.is_empty():

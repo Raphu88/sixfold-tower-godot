@@ -1991,6 +1991,7 @@ func _climber_marks(prof) -> void:
 		_text(core_line, Makers.core_color(prof).lightened(0.2), true)  # (a secret bond: makers.gd)
 	if not Unbound.is_on(prof):
 		_climber_synergies(small)
+		load("res://scripts/mark_seal.gd").build(self)  # (a faint first mark's seal: broken on the train, it makes you Unbound)
 	else:
 		TechniquePage.node_levels(self, BodyMove.picked(self))  # (the chosen Node: what its levels bring)
 		load("res://scripts/node_seal.gd").build(self, BodyMove.picked(self))  # (on the train: seal or open the chosen Node)

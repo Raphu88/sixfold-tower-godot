@@ -967,6 +967,10 @@ func _draw_gear_prompt(p, id, size: Vector2, font: Font) -> void:
 ## The Regard: the beast's eye opens on you, and your first mark takes hold.
 func _draw_regard(size: Vector2, font: Font) -> void:
 	var rg: Dictionary = main.regard
+	if main.Fracture.active(rg):
+		# First, the guardian's glimpse of the last fracture (fracture.gd), skippable.
+		main.Fracture.draw(self, size, font, float(rg.get("gt", 0.0)), _say("Press Space, Enter or click", "Press {a}", "Tap") + " " + String(main.Fracture.TEXT["skip"]))
+		return
 	if rg.get("refused", false):
 		_draw_refused(size, font)
 		return
