@@ -1680,7 +1680,9 @@ static func drop_weight(id) -> int:
 	return int(WEAPON_DROP_WEIGHT.get(b, 99))
 
 
-## What every climb starts with in each carried slot ({} is empty).
+## The basic sword and bow in their slots, the rest empty ({}): a fresh
+## climber's gear before the profile dresses them. Nothing restores these
+## by themselves: a fall gives them back as gifts (basic_gift.gd).
 static func start_gear() -> Dictionary:
 	var g := {}
 	for s in SLOTS:

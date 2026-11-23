@@ -105,7 +105,7 @@ const SECTIONS := [
 		"tables": ["towers/TOWERS", "towers/PROVING", "themes/THEMES", "tower_needs/NEEDS", "tower_needs/TEXT"], "kinds": ["text"], "skip": ["items"],
 		"names": {"THEMES": "Rooms", "NEEDS": "What's handy in each tower (why)", "TEXT": "What's handy: words"}},
 	{"id": "train_words", "group": "words", "name": "The train and store", "when": "page",
-		"tables": ["train/TEXT", "train/OUTFITTER", "bench/TEXT", "bench/ARTIST", "vessel/TEXT", "loadout_page/TEXT", "stash_page/STASH_TEXT", "storage_view/TEXT"], "kinds": ["text"],
+		"tables": ["train/TEXT", "train/OUTFITTER", "bench/TEXT", "bench/ARTIST", "vessel/TEXT", "loadout_page/TEXT", "stash_page/STASH_TEXT", "storage_view/TEXT", "basic_gift/TEXT"], "kinds": ["text"],
 		"names": {"TEXT": "Words", "STASH_TEXT": "The stash screen"}},
 	{"id": "climb_words", "group": "words", "name": "The climb: wings, finds, mirrors", "when": "live",
 		"tables": ["wings/TEXT", "lost/TEXT", "mirror/TEXT", "proving/TEXT", "doors/LOCK_TEXT", "puzzle/TEXT", "traps/KINDS", "traps/FIRE_FED", "main/FALL_TEXT"], "kinds": ["text"],

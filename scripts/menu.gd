@@ -3612,7 +3612,7 @@ func _show_details(key: String) -> void:
 
 
 ## What to set a worn piece against: gear lying at your feet for the same
-## slot, else what every climb starts with (null for nothing).
+## slot, else the basic sword or bow (basic_gift.gd; null for nothing).
 func _compare_with(p, slot: String, g):
 	if not main.gear_here.is_empty() and p.slot_for(main.gear_here["id"]) == slot and Gear.slot_of(main.gear_here["id"]) != "fists":
 		return main.gear_here.get("rec", main.gear_here["id"])

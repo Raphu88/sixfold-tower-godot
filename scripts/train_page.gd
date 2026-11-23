@@ -361,7 +361,8 @@ func _speech(root: Node, car: String, here: bool) -> void:
 		var first: String = m.main.story_now("train")  # (its first words on the train, once: entity.gd STORY)
 		if first != "":
 			said = first if said == "" else first + "\n" + said
-		for id in CAR_TIPS.get(car, []) + (_shop_tips() if car == "store" else []) + (Travel.engine_tips(_prof()) if car == "engine" else []):
+		for id in CAR_TIPS.get(car, []) + (_shop_tips() if car == "store" else []) + (Travel.engine_tips(_prof()) if car == "engine" else []) \
+				+ (["basic_gift"] if car == Train.HOME and m.main.gift_line != "" else []):  # (the basic sword or bow given after a fall: the first time)
 			var own: String = m.main.tip_now(id)
 			said = own if said == "" else (said + "\n" + own if own != "" else said)
 		tips[car] = said
@@ -373,6 +374,8 @@ func _speech(root: Node, car: String, here: bool) -> void:
 		root.add_child(row)
 	elif car == "personal" and not _small():
 		root.add_child(Entity.says(Entity.line("train", _prof().climbs), face))
+	if car == Train.HOME and String(m.main.gift_line) != "":
+		root.add_child(outfitter_says(m.main.gift_line, face))  # (he gave you the basic sword or bow after a fall: basic_gift.gd)
 
 
 ## The outfitter says something: a brass-edged bubble (his face beside it,
@@ -1884,6 +1887,9 @@ func _break_card(thing: String) -> void:
 		if thing.begins_with("heir:"):
 			m._detail_text(B["break_heir"], UI.DIM)
 			return
+		if not Train.can_sell(g):
+			m._detail_text(Train.BasicGift.TEXT["note"], UI.DIM)  # (the basic sword or bow: given away, so never broken into crystals)
+			return
 	_price_line(v[0], v[1], "Gives")
 	var name := Essence.display(v[0])
 	_ask_button(m.details, B["break_for"] % [v[1], name], B["break_ask"] % [v[1], name], "break", "", "bench_do", "break")
@@ -2047,20 +2053,16 @@ func _head(kind: String, id, title: String, col: Color) -> void:
 		m._detail_text(m.toast, UI.GOLD)
 
 
-## What a piece is set against: your heirloom for its slot, else what every
-## climb starts with there (the sword, the bow, no armor), else nothing.
+## What a piece is set against: your heirloom for its slot, else what you
+## chose to wear there (the basic sword or bow, maybe), else nothing.
 func _start_piece(g):
 	var kept: Array = Gear.heirloom_pieces(_prof().heirlooms, Gear.heirloom_slot(g))
 	if not kept.is_empty():
 		return kept[0]
-	match Gear.slot_of(g):
-		"melee":
-			return Gear.make(Weapons.START_MELEE)
-		"ranged":
-			return Gear.make(Weapons.START_RANGED)
-		"armor":
-			return ""
-	return null
+	var worn = _prof().wear.get(Gear.carry_slots(Gear.slot_of(g))[0], null)
+	if Gear.is_gear(worn):
+		return worn
+	return "" if Gear.slot_of(g) == "armor" else null
 
 
 ## A price on the card: a gem, the amount and its kind; then why you can't

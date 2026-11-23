@@ -13,6 +13,7 @@ extends RefCounted
 
 const Bonds := preload("res://scripts/bonds.gd")
 const Gear := preload("res://scripts/gear.gd")
+const BasicGift := preload("res://scripts/basic_gift.gd")
 const Secret := preload("res://scripts/secret.gd")
 const Appearance := preload("res://scripts/appearance.gd")
 const Unbound := preload("res://scripts/unbound.gd")
@@ -125,8 +126,13 @@ var pack: Array = []
 ## What you'll wear when you set off (the Loadout in your car, loadout_page.gd):
 ## carried slot ("armor", "helm", "ring1"...) -> a gear record, chosen from
 ## your pack or your stash. It goes on over your heirloom or the starting
-## piece in that slot as you depart, and is cleared then (old saves: none).
-var wear := {}
+## piece in that slot as you depart, and is cleared then. A new climber
+## starts with the basic sword and bow here (basic_gift.gd; old saves are
+## handed them once, as they load).
+var wear := BasicGift.kit()
+## The basic sword and bow (basic_gift.gd): "out" while what you wear is up
+## a tower, "said" for the outfitter's words about a gift, shown once.
+var gift := {}
 var supplies := {}
 var supply_paid := {}
 var store := {}
@@ -297,7 +303,8 @@ func reset() -> void:
 	last_pay = {}
 	chest = []
 	pack = []
-	wear = {}
+	wear = BasicGift.kit()  # (a new climber starts with the basic sword and bow: basic_gift.gd)
+	gift = {}
 	supplies = {}
 	supply_paid = {}
 	store = {}
@@ -364,6 +371,10 @@ func load_save() -> void:
 	chest =_records(cfg.get_value("train", "chest", []))
 	pack = _records(cfg.get_value("train", "pack", []))
 	wear = _worn_set(cfg.get_value("train", "wear", {}))
+	var gf = cfg.get_value("train", "gift", {})
+	gift = gf if gf is Dictionary else {}
+	if not cfg.has_section_key("train", "gift"):
+		BasicGift.adopt_old(self)  # (a save from before the gift: the sword and bow it always had)
 	supplies = {}
 	var sup = cfg.get_value("train", "supplies", {})
 	if sup is Dictionary:
@@ -463,6 +474,7 @@ func save() -> void:
 	cfg.set_value("train", "chest", chest)
 	cfg.set_value("train", "pack", pack)
 	cfg.set_value("train", "wear", wear)
+	cfg.set_value("train", "gift", gift)
 	cfg.set_value("train", "supplies", supplies)
 	cfg.set_value("train", "supply_paid", supply_paid)
 	cfg.set_value("train", "store", store)
