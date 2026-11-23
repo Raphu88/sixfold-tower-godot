@@ -160,7 +160,10 @@ func _input(event: InputEvent) -> void:
 				_set_active(true)
 			if not event.pressed:
 				_release_all()
-			if event.pressed and main.overlay_done():
+			if event.pressed and main.Fracture.active(main.regard):
+				if main.Fracture.tick(main.regard, 0.0, true):  # (a tap skips the Regard's glimpse: fracture.gd)
+					main.tip("regard_glimpse")
+			elif event.pressed and main.overlay_done():
 				main.end_regard()
 			get_viewport().set_input_as_handled()
 		return

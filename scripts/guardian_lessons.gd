@@ -31,6 +31,11 @@ extends RefCounted
 ##            in length; the glint still comes just before the blow ("timing")
 ##   Everything a blow loses together is at most "cap" (never immune). Mixing
 ##   up your style (other essences, forms, Nodes or marks, range) beats them.
+## SUMMIT BLADES CAN'T BE FULLY LEARNED. A Summit Blade's power (the slivers
+## of Lann, the fifth climber: summit_blades.gd) marks its blows (blow_ctx
+## "blade"): they count for only LEARN "blade" of their damage in a lesson,
+## and the lessons take only LEARN "blade_keep" of their toll off them (never
+## sidestepped). A rumour hints at it (RUMOURS "blade").
 ## NOBODY TELLS THE CLIMBER. Rival climbers in the towers, the Dining car's
 ## climbers (dining.gd RUMORS "guardians") and the Noble pass on what the
 ## guardians have learned, as rumours (rumour: RUMOURS); the Entity says
@@ -61,12 +66,19 @@ const FORM_GROUP := {"strike": "close", "bolt": "shot", "volley": "shot", "dash"
 ##                 parrier ("parries_full" parries; rolls count "roll_weight",
 ##                 "rolls_full" rolls), at most "timing_cap"
 ##   min_share     an essence, form or Node under this share teaches nothing
+##   blade         a SUMMIT BLADE's blows (its power: summit_blades.gd sets
+##                 blow_ctx "blade") count for only this share of their damage
+##                 in a lesson: the slivers of Lann, the fifth climber, can't
+##                 be fully learned
+##   blade_keep    ...and the lessons take only this share of their usual
+##                 toll off a blade's blow (and never sidestep it): the
+##                 blades keep their edge
 static var LEARN := {
 	"resist": 0.15, "part": 0.08, "guard": {"weapon": 0.06, "close": 0.06, "rush": 0.08},
 	"cap": 0.5, "sidestep": 0.2, "sidestep_cap": 0.4, "near": 110.0,
 	"keep": 0.5, "press": 0.35, "melee_at": 0.6, "ranged_at": 0.4, "steer_cap": 1.0,
 	"timing": 0.12, "timing_cap": 0.4, "parries_full": 8.0, "rolls_full": 12.0, "roll_weight": 0.5,
-	"min_share": 0.15,
+	"min_share": 0.15, "blade": 0.17, "blade_keep": 0.5,
 }
 
 ## What a guardian says on screen when its lessons show (flat, short).
@@ -91,6 +103,7 @@ static var RUMOURS := {
 	"press": ["\"They say {beast} rushes anyone who hangs back.\""],
 	"timing": ["\"Someone told me {beast} holds its blows now, waiting out a parry.\""],
 	"part": ["\"They say {beast} watches the {node} now.\""],
+	"blade": ["\"{teacher} fell to a Summit Blade, and the others still can't read one. Some say Lann's slivers never teach.\"", "\"The guardians talk, but they can't make out a Summit Blade's blow. Not even {beast}.\""],
 	"none": [],
 }
 
@@ -181,6 +194,12 @@ static func note_blow(main, e, amount: float, c: Dictionary) -> void:
 	var t := _tally(e)
 	if t.is_empty():
 		return
+	if String(c.get("blade", "")) != "":
+		# A Summit Blade's blow: it can't be fully learned (LEARN "blade").
+		t["blade"] = float(t.get("blade", 0.0)) + amount
+		amount *= clampf(float(LEARN.get("blade", 1.0)), 0.0, 1.0)
+		if amount <= 0.0:
+			return
 	t["dmg"] = float(t["dmg"]) + amount
 	var kinds: Dictionary = c.get("kinds", {})
 	var sum := 0.0
@@ -231,6 +250,11 @@ static func lesson(tally: Dictionary, beast := "") -> Dictionary:
 		return {}
 	var out := {"beast": beast, "ess": {}, "forms": {}, "parts": {}, "near": snappedf(clampf(float(tally.get("near", 0.0)) / dmg, 0.0, 1.0), 0.01),
 		"rolls": int(tally.get("rolls", 0)), "parries": int(tally.get("parries", 0)), "dmg": int(round(dmg))}
+	var blade := float(tally.get("blade", 0.0))
+	if blade > 0.0:
+		# (the share of the real damage a Summit Blade did: only for the rumours)
+		var real := dmg + blade * (1.0 - clampf(float(LEARN.get("blade", 1.0)), 0.0, 1.0))
+		out["blade"] = snappedf(clampf(blade / maxf(real, 0.01), 0.0, 1.0), 0.01)
 	for key in ["ess", "forms", "parts"]:
 		var d: Dictionary = tally.get(key, {})
 		for k in d:
@@ -349,6 +373,10 @@ static func taken(main, e, amount: float) -> float:
 	var fx := of(main, e)
 	if fx.is_empty() or int(fx.get("count", 0)) <= 0:
 		return amount
+	if String(c.get("blade", "")) != "":
+		# A Summit Blade keeps its edge: never sidestepped, and the lessons
+		# take only a share of their toll (LEARN "blade_keep").
+		return amount * (1.0 - reduction(fx, c) * clampf(float(LEARN.get("blade_keep", 1.0)), 0.0, 1.0))
 	if String(c.get("form", "")) == "shot" and float(e.stun) <= 0.0 and float(e.open_t) <= 0.0 and randf() < float(fx["sidestep"]):
 		_say(main, e, TEXT["sidestep"], Color(0.8, 0.85, 0.95))
 		return 0.0
@@ -461,6 +489,10 @@ static func rumour_facts(prof) -> Array:
 				f6["kind"] = "part"
 				f6["node"] = String(load("res://scripts/bonds.gd").PART_NAMES.get(p, p)).to_lower()
 				out.append(f6)
+		if float(l.get("blade", 0.0)) >= float(LEARN["min_share"]):
+			var f7 := base.duplicate()
+			f7["kind"] = "blade"  # (a Summit Blade did much of it, and taught little)
+			out.append(f7)
 	return out
 
 

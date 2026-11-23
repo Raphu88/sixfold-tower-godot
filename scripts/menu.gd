@@ -1989,8 +1989,10 @@ func _climber_marks(prof) -> void:
 	var core_line: String = Makers.core_text(prof)
 	if core_line != "":
 		_text(core_line, Makers.core_color(prof).lightened(0.2), true)  # (a secret bond: makers.gd)
+		_sworn_line(prof, small)  # (its Sworn: whose, and the errand it sent: sworn.gd)
 	if not Unbound.is_on(prof):
 		_climber_synergies(small)
+		load("res://scripts/mark_seal.gd").build(self)  # (a faint first mark's seal: broken on the train, it makes you Unbound)
 	else:
 		TechniquePage.node_levels(self, BodyMove.picked(self))  # (the chosen Node: what its levels bring)
 		load("res://scripts/node_seal.gd").build(self, BodyMove.picked(self))  # (on the train: seal or open the chosen Node)
@@ -2004,6 +2006,24 @@ func _climber_marks(prof) -> void:
 		_note("Your first climb starts with no mark. Reach floor 6 and the tower's guardian takes notice: the body part you used most takes your first mark.")
 	else:
 		_note("Bonds grow across climbs from the essence you bank at each stair, up to step 12. Choose a mark to see every spell, what each step brings, and its body and passive effects.")
+
+
+## One of the Sworn (sworn.gd): a flat button naming the Maker, with the
+## errand it sent under it (hover/hold help "sworn"; pressing it asks the
+## Entity how the Sworn work). The Entity's first word on it, once.
+func _sworn_line(prof, small: bool) -> void:
+	var Sworn = load("res://scripts/sworn.gd")
+	var title: String = Sworn.title(prof)
+	if title == "":
+		return
+	var b := _button(title, open_talk.bind("how_sworn"), box)
+	b.flat = true
+	b.add_theme_color_override("font_color", Makers.core_color(prof))
+	b.set_meta("help", "sworn")
+	if not small:
+		_note(Sworn.errand_line(prof))
+	if main != null:
+		main.tip("sworn")
 
 
 ## The synergies the climber holds (synergies.gd): the traits their marks
@@ -3574,11 +3594,14 @@ func _page_station() -> void:
 
 ## Opens a talk with the Entity: from the train (its sphere, L or the right
 ## stick) or a climb (its panel's Talk). Leaving goes back where it began.
-func open_talk() -> void:
+func open_talk(at := "") -> void:
 	if page == "talk" or page == "title" or (main != null and main.profile == null):
 		return
 	talk_from = page
 	talk.begin(main)
+	if at != "" and talk.DIALOGUE.has(at):
+		talk.node = at  # (straight to one question: a button that asks the Entity, e.g. the Sworn's)
+		talk.say(main)
 	if main != null:
 		main.sfx("tip_chime", 1.1, -3.0, 0.03)
 	open("talk", page == "")

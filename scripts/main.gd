@@ -52,6 +52,7 @@ const ProvingScript := preload("res://scripts/proving.gd")
 const Secret := preload("res://scripts/secret.gd")
 const Appearance := preload("res://scripts/appearance.gd")
 const MakersScript := preload("res://scripts/makers.gd")
+const SwornScript := preload("res://scripts/sworn.gd")  # (the Sworn: their status, the Makers' errands, the rescue)
 const MirrorScript := preload("res://scripts/mirror.gd")
 const SecretBonds := preload("res://scripts/secret_bonds.gd")
 const SecretToolsScript := preload("res://scripts/secret_tools.gd")
@@ -78,6 +79,7 @@ const RoomRewardsScript := preload("res://scripts/room_rewards.gd")
 const InscriptionsScript := preload("res://scripts/inscriptions.gd")
 const GlimpsesScript := preload("res://scripts/glimpses.gd")
 const ClimbShapeScript := preload("res://scripts/climb_shape.gd")
+const Fracture := preload("res://scripts/fracture.gd")  # (the Regard's glimpse of the last fracture)
 const MarkUse := preload("res://scripts/mark_use.gd")  # (marks grow by use, and burns)
 const Flow := preload("res://scripts/essence_flow.gd")
 const RivalsScript := preload("res://scripts/rivals.gd")
@@ -275,6 +277,9 @@ var lost_cache_chance := 0.0 if Engine.has_meta("sixfold_test") else Lost.CACHE_
 var lost_cache := {}  # this floor's lost cache: {pos, entries (profile.lost entries), taken}
 var fall_note: Array = []  # what the fall took, for the fall screen
 var fall_mark_roll := -1.0  # tests: stands in for the chance a fall leaves a faint mark (main.fall_mark)
+var sworn_rescued := false  # one of the Sworn has saved this Unbound from a fall this climb (sworn.gd: at most once a climb)
+var sworn_roll := -1.0  # tests: stands in for the chance one of the Sworn steps in (sworn.gd RESCUE "chance")
+var drained := {}  # what this fall drained from an Unbound's Nodes back into the well (unbound.gd drain)
 ## After the Regard, a fall shows what it took for a moment, then you're back
 ## on the train: on your own after FALL_WAIT seconds, or at once on a tap, a
 ## confirm key, R or the controller's View (not in the first FALL_GRACE
@@ -873,6 +878,11 @@ func _process(delta: float) -> void:
 			end_regard()
 		return
 	if not regard.is_empty():
+		if Fracture.active(regard):
+			# The glimpse of the last fracture plays first (fracture.gd): a press skips it.
+			if Fracture.tick(regard, delta / maxf(Engine.time_scale, 0.01), _dismiss_pressed()):
+				tip("regard_glimpse")
+			return
 		regard["t"] += delta / maxf(Engine.time_scale, 0.01)
 		if regard_done() and _dismiss_pressed():
 			end_regard()
@@ -1795,6 +1805,7 @@ func _arrive() -> void:
 	player.set_physics_process(true)
 	sfx("clear", 0.8, -8.0, 0.0)
 	makers.on_arrive()  # (in the quiet after the stair, a Maker may show itself)
+	SwornScript.on_arrive(self)  # (a Maker's errand for its Sworn: done once its floor is reached)
 	climb_shape.after_arrive()  # (floor 6 of the first climb: the Regard; floor 6 again: the Lethal Proving offered)
 
 
@@ -2371,6 +2382,8 @@ func _note_climb_start() -> void:
 	climb_paid = false
 	pay_line = ""
 	noticed = []
+	sworn_rescued = false  # (one of the Sworn may step in once a climb: sworn.gd)
+	drained = {}
 	if climb_shape != null:
 		climb_shape.new_climb()
 	var woke: Array = []
@@ -2406,6 +2419,7 @@ func pay_climb() -> String:
 	Dining.settle(self)  # (wagers made in the Dining car are paid or lost: dining.gd)
 	if contracts != null:
 		contracts.on_climb_end(player != null and player.dead)  # (a thing carried out is safe; a fall drops it: contracts.gd)
+	SwornScript.on_climb_end(self)  # (now and then a Maker sends its Sworn somewhere: sworn.gd)
 	var kind: String = tower_data()["essence"]
 	var amount: int = Train.climb_pay(floor_num, climb_best0)
 	if amount < 1:
@@ -3220,6 +3234,14 @@ func on_player_died() -> void:
 		var faint := fall_mark(fall_mark_roll)  # (a full part may take a faint mark as you fall)
 		if faint != "":
 			fall_note.append(faint)
+		if UnboundRun.Unbound.is_on(profile):
+			# Caught: what the Nodes hold drains back into the well (sizes kept: unbound.gd drain).
+			drained = UnboundRun.Unbound.drain(profile)
+			if float(drained.get("total", 0.0)) >= 0.5:
+				fall_note.push_front(String(UnboundRun.Unbound.TEXT["fall_drained"]) % int(round(float(drained["total"]))))
+				tip("unbound_drained")
+				if UnboundRun.Unbound.drained_count(profile) >= int(UnboundRun.Unbound.DRAIN.get("husk_talk", 3)):
+					tip("unbound_husks")  # (drained again and again: the Entity speaks of the Husks)
 		pay_climb()  # (the outfitter pays for the floors all the same: shown on the fall screen)
 	profile.save()
 	GuideScript.moment("death", "death", {"floor": floor_num, "beast": beast_name()})
@@ -3261,6 +3283,8 @@ func _grant_regard(fell: bool) -> void:
 	# DEATH_MARK: 50% on floor 1 up to full on floor 6); reached, it's full.
 	var strength: float = ClimbShapeScript.death_strength(climb_shape.reached()) if fell else 1.0
 	profile.add_bond(part, id, strength < 1.0, strength)
+	if strength < 1.0:
+		load("res://scripts/mark_seal.gd").place(profile, part)  # (a faint first mark carries a seal: broken on the train, it makes you Unbound)
 	profile.regarded = true
 	profile.save()
 	regard_mark = {"fell": fell, "part": part, "id": id, "strength": strength}
@@ -3274,6 +3298,8 @@ func _begin_regard(fell: bool) -> void:
 	# the pack and the pay home: climb_shape.gd leave_at_regard.)
 	regard = {"fell": regard_mark["fell"], "part": regard_mark["part"], "id": regard_mark["id"], "refused": regard_mark.get("refused", false), "t": 0.0, "dark": fade > 0.5,
 		"exit": not fell, "floor": climb_shape.reached(), "strength": float(regard_mark.get("strength", 1.0))}
+	if not fell and not regard["refused"]:
+		Fracture.start(regard)  # (reached: first a glimpse of the last fracture, then the guardian's eye and its charge)
 	GuideScript.moment("regard", "regard")
 	if fell and float(regard["strength"]) < 1.0:
 		tip("death_mark")  # (its strength by the floor reached: climb_shape.gd DEATH_MARK)
@@ -3300,10 +3326,11 @@ func overlay_showing() -> bool:
 
 
 func regard_done() -> bool:
-	return not regard.is_empty() and regard["t"] > 3.0
+	return not regard.is_empty() and regard["t"] > 3.0 and not Fracture.active(regard)
 
 
 func end_regard() -> void:
+	Fracture.finish(regard)  # (the glimpse, if it still played, is over)
 	if unbound != null and unbound.ask_at_regard():
 		return  # (first: accept the mark, or refuse it)
 	if not regard.is_empty():
@@ -3939,7 +3966,9 @@ func proving_spare() -> bool:
 		return true  # (the station's arena: a fall loses the event, never the climber)
 	if rivals != null and rivals.spare():
 		return true  # (a duel with a rival: knocked down, never killed: rivals.gd)
-	return proving != null and proving.spare()
+	if proving != null and proving.spare():
+		return true
+	return SwornScript.try_rescue(self, sworn_roll)  # (a hunted Unbound: now and then one of the Sworn steps in, once a climb)
 
 
 ## Every floor of rooms gets this kind of puzzle ("" for the usual mix);

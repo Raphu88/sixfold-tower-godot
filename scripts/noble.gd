@@ -70,12 +70,21 @@ static func line(key: String) -> String:
 	return String(pool[randi() % pool.size()]) if not pool.is_empty() else ""
 
 
-## The Noble's greeting: a line, and now and then (RUMOUR_CHANCE; `chance`
-## for tests) a rumour of what the guardians have learned. At a `station`
+## The Noble's greeting: a line (on the path of Making or Unmaking, often
+## one for the aura's step: city_lore.gd AURA), and now and then
+## (RUMOUR_CHANCE; `chance` for tests) a rumour of what the guardians have
+## learned. At the climber's home station, once they've grown strong, the
+## Noble's quiet persuasion to stop (city_lore.gd PERSUADE). An Unbound found
+## out this visit gets a cold word instead (city_lore.gd PASSING). At a `station`
 ## whose tower runs wild the Noble always speaks of it (it's their city);
 ## elsewhere, now and then (WILD_CHANCE), of a wild tower (wild_towers.gd).
 static func greet(prof, chance := -1.0, station := "") -> String:
-	var said := line("greet")
+	var Lore = load("res://scripts/city_lore.gd")
+	if station != "" and Lore.found_out(prof, station):
+		return Lore.noble_found()  # (an Unbound found out this visit: cold, and nothing granted: city_lore.gd)
+	var said: String = Lore.aura_line(prof, "noble", chance)  # (the aura changes how people speak: city_lore.gd AURA)
+	if said == "":
+		said = line("greet")
 	var r: String = load("res://scripts/guardian_lessons.gd").rumour(prof)
 	if r != "" and randf() < (RUMOUR_CHANCE if chance < 0.0 else chance):
 		said += " " + line("rumour") + " " + r
@@ -85,6 +94,10 @@ static func greet(prof, chance := -1.0, station := "") -> String:
 		var w: String = Wild.noble_word(prof, station)
 		if w != "":
 			said += " " + w
+	# At home, a climber grown strong hears the Noble's quiet persuasion (city_lore.gd PERSUADE).
+	var p: String = Lore.persuade_word(prof, station, chance)
+	if p != "":
+		said += " " + p
 	return said
 
 

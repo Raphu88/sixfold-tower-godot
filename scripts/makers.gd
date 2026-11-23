@@ -227,6 +227,7 @@ static var TEXT := {
 	"core": "Core mark: %s, depth %d",
 	"core_short": "Core mark: %s",
 	"granted": "It grants its bond: %s.",
+	"sworn_line": "You are one of the Sworn of %s now.",
 	"core_line": "A core mark covers your body (depth %d).",
 	"turned_away": "It turns away. For now.",
 	"one_only": "You already carry a core mark: one secret bond per climber.",
@@ -925,6 +926,7 @@ func answer(maker: String, id: String) -> Dictionary:
 		out["reply"] = _line(d["good_reply"])
 		out["lines"].append(TEXT["granted"] % SECRET_BONDS[bond]["name"])
 		out["lines"].append(TEXT["core_line"] % 1)
+		out["lines"].append(TEXT["sworn_line"] % String(d["name"]))  # (sworn.gd: its Sworn now)
 		var gains := {}
 		for k in d["secret"]:
 			gains[k] = roundf(SECRET_ESSENCE * float(d["secret"][k]))
@@ -953,6 +955,7 @@ func end_meeting(result: Dictionary) -> void:
 	main.tip("maker")
 	if result.get("granted", "") != "":
 		main.tip("core_mark")
+		main.tip("sworn")  # (its secret bond makes you one of its Sworn: sworn.gd)
 		if main.player != null:
 			main.player.queue_redraw()
 			main.fx_ring(main.player.global_position, core_color(main.profile), 60.0, 0.8, 3.0)

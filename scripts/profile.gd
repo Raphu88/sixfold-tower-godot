@@ -209,6 +209,10 @@ var deeds := {}
 ## What the guardians learned from each other's deaths (guardian_lessons.gd):
 ## tower -> the lesson its guardian taught when it fell. {} for an old save.
 var guardians := {}
+## The cities (city_lore.gd): an Unbound passing as marked (the visit rolled,
+## found out, the rumour) and the home Noble's persuasion told so far.
+## {} for an old save.
+var lore := {}
 
 static var ATTRIBUTES := {
 	"air": {"name": "Agility", "bonus": "move speed"},
@@ -302,6 +306,7 @@ func reset() -> void:
 	provings = {}
 	record = {}
 	guardians = {}  # (a fresh climber faces fresh guardians: no lessons from the last one's kills)
+	lore = {}
 	path = ""
 	flow = 0.0
 	appearance = Appearance.DEFAULTS.duplicate()
@@ -422,6 +427,8 @@ func load_save() -> void:
 	deeds = dd if dd is Dictionary else {}
 	var gl = cfg.get_value("guardians", "lessons", {})
 	guardians = gl if gl is Dictionary else {}
+	var lo = cfg.get_value("lore", "state", {})
+	lore = lo if lo is Dictionary else {}
 	var tr = cfg.get_value("tree", "state", {}) if cfg.has_section_key("tree", "state") else null
 	if tr is Dictionary:
 		tree = tr
@@ -483,6 +490,7 @@ func save() -> void:
 	cfg.set_value("summit", "blades", summit_blades)
 	cfg.set_value("deeds", "state", deeds)
 	cfg.set_value("guardians", "lessons", guardians)
+	cfg.set_value("lore", "state", lore)
 	cfg.set_value("slot", "played", int(Time.get_unix_time_from_system()))  # (the climber picker: when last played)
 	cfg.save(save_path)
 

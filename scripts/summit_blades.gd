@@ -268,6 +268,10 @@ static func _fire(p, trigger: String, e, _perfect: bool) -> void:
 	p.blade_cd = rest(m.profile, tower)
 	p.set_meta("blade_flash", Time.get_ticks_msec() * 0.001)
 	var at: Vector2 = e.global_position if e is Node2D and is_instance_valid(e) else p.global_position
+	# (its blows are a Summit Blade's: the guardians can't fully learn them, guardian_lessons.gd LEARN "blade")
+	var was_ctx = m.get("blow_ctx")
+	if was_ctx is Dictionary:
+		m.blow_ctx = {"kinds": {String(b["kind"]): 1.0}, "form": "burst", "part": "", "blade": tower}
 	match tower:
 		"gryphon":
 			var from = e
@@ -317,6 +321,8 @@ static func _fire(p, trigger: String, e, _perfect: bool) -> void:
 					o.take_hit(pw, (o.global_position - at).normalized(), 120.0)
 			m.fx_burst(at, Vector2.UP, col, 12, 260.0)
 			m.sfx("spell_blade", 1.0, -4.0)
+	if was_ctx is Dictionary:
+		m.blow_ctx = was_ctx
 	m.fx_text(p.global_position + Vector2(0, -48), blade_name(tower), col)
 	load("res://scripts/deeds.gd").note(m, "blade_powers")
 
