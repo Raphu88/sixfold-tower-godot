@@ -40,29 +40,29 @@ const Training := preload("res://scripts/training.gd")
 ## you can tell them apart: "lamp" (its lamps' light), "banner" (its
 ## pennants and crest), "trim" (its canopy and columns) and "sky" (the glow
 ## on its horizon). "tower" is the tower it's near. The city and Noble names
-## are placeholders in brackets, the owner's to write.
+## are the owner's (the lore doc's "Names"), easy to change here.
 static var STATIONS := [
-	{"id": "gryphon", "tower": "gryphon", "name": "(Gryphon's city)", "short": "(Gryphon's city)", "noble": "(Gryphon's Noble)",
+	{"id": "gryphon", "tower": "gryphon", "name": "Windhollow", "short": "Windhollow", "noble": "Aster Vale",
 		"sub": "A city on the heights near the Gryphon's Tower.",
 		"blurb": "Learn the game hands on, fight in the tournament, and see the Noble for titles and contracts.",
 		"stops": ["gym", "arena", "noble", "board"], "lamp": Color(0.86, 0.9, 1.0), "banner": Color(0.42, 0.56, 0.86), "trim": Color(0.2, 0.24, 0.32), "sky": Color(0.5, 0.58, 0.82)},
-	{"id": "kraken", "tower": "kraken", "name": "(Kraken's city)", "short": "(Kraken's city)", "noble": "(Kraken's Noble)",
+	{"id": "kraken", "tower": "kraken", "name": "Tidemoor", "short": "Tidemoor", "noble": "Maren Ostrow",
 		"sub": "A harbour city near the Kraken's Tower.",
 		"blurb": "Learn the game hands on, fight in the tournament, and see the Noble for titles and contracts.",
 		"stops": ["gym", "arena", "noble", "board"], "lamp": Color(0.66, 1.0, 0.9), "banner": Color(0.16, 0.56, 0.6), "trim": Color(0.12, 0.24, 0.26), "sky": Color(0.3, 0.62, 0.66)},
-	{"id": "wyvern", "tower": "wyvern", "name": "(Wyvern's city)", "short": "(Wyvern's city)", "noble": "(Wyvern's Noble)",
+	{"id": "wyvern", "tower": "wyvern", "name": "Forgehaven", "short": "Forgehaven", "noble": "Brannoc Hale",
 		"sub": "A forge city near the Wyvern's Tower.",
 		"blurb": "Learn the game hands on, fight in the tournament, and see the Noble for titles and contracts.",
 		"stops": ["gym", "arena", "noble", "board"], "lamp": Color(1.0, 0.62, 0.36), "banner": Color(0.62, 0.2, 0.14), "trim": Color(0.24, 0.16, 0.14), "sky": Color(0.86, 0.4, 0.24)},
-	{"id": "manticore", "tower": "manticore", "name": "(Manticore's city)", "short": "(Manticore's city)", "noble": "(Manticore's Noble)",
+	{"id": "manticore", "tower": "manticore", "name": "Dunewatch", "short": "Dunewatch", "noble": "Sefa Darrow",
 		"sub": "A desert city near the Manticore's Tower.",
 		"blurb": "Learn the game hands on, fight in the tournament, and see the Noble for titles and contracts.",
 		"stops": ["gym", "arena", "noble", "board"], "lamp": Color(1.0, 0.84, 0.52), "banner": Color(0.76, 0.54, 0.2), "trim": Color(0.28, 0.22, 0.14), "sky": Color(0.92, 0.66, 0.36)},
-	{"id": "firebird", "tower": "firebird", "name": "(Firebird's city)", "short": "(Firebird's city)", "noble": "(Firebird's Noble)",
+	{"id": "firebird", "tower": "firebird", "name": "Cinderreach", "short": "Cinderreach", "noble": "Ilse Cindra",
 		"sub": "A city on the cliffs near the Firebird's Tower.",
 		"blurb": "Learn the game hands on, fight in the tournament, and see the Noble for titles and contracts.",
 		"stops": ["gym", "arena", "noble", "board"], "lamp": Color(1.0, 0.7, 0.34), "banner": Color(0.8, 0.3, 0.12), "trim": Color(0.26, 0.14, 0.12), "sky": Color(0.96, 0.46, 0.2)},
-	{"id": "chimera", "tower": "chimera", "name": "(Chimera's city)", "short": "(Chimera's city)", "noble": "(Chimera's Noble)",
+	{"id": "chimera", "tower": "chimera", "name": "Thornmere", "short": "Thornmere", "noble": "Corvin Thorne",
 		"sub": "A city at the edge of the Thornwild, near the Chimera's Tower.",
 		"blurb": "Learn the game hands on, fight in the tournament, and see the Noble for titles and contracts.",
 		"stops": ["gym", "arena", "noble", "board"], "lamp": Color(0.9, 1.0, 0.62), "banner": Color(0.34, 0.54, 0.2), "trim": Color(0.16, 0.22, 0.14), "sky": Color(0.54, 0.72, 0.34)},
