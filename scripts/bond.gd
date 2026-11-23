@@ -60,6 +60,7 @@ var attr_power := 1.0  # Fire density (Intellect): spells hit a little harder
 var attr_fill := 1.0  # Water density (Spirit): marks fill a little faster
 var gear_power := 1.0  # an Ember Charm and the like: spells hit a little harder (player.refresh_gear)
 var flow_power := 1.0  # Unmaking's flow: spells deal more damage (player.set_flow)
+var strain_fill := 1.0  # forced past full and strained: it refills a little slower (forcing.gd apply)
 
 ## How strong an overdrawn cast is, and how much health per missing essence
 ## overdrawing an already-burned mark tears out of you (it is paralyzed too).
@@ -278,7 +279,7 @@ func step_note(new_step: int) -> String:
 
 
 func fill(amount: float) -> void:
-	essence = minf(capacity(), essence + amount * attr_fill)
+	essence = minf(capacity(), essence + amount * attr_fill * strain_fill)
 
 
 ## Pays for a cast. Returns "paid", "burned" (overdrawn: the body part

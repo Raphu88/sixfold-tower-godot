@@ -25,7 +25,9 @@ extends Node2D
 ##   (it can kill), the part goes dark for DARK_TIME (nothing from it can be
 ##   cast) and raw essence shows there. Strain fades while you don't cast
 ##   from the part (STRAIN_REST, then STRAIN_FADE a second), and the stair's
-##   rest clears it.
+##   rest clears it. Essence FORCED into a full Node (forcing.gd) is the
+##   floor under it: the meter never fades below that strain, and from
+##   forcing.gd LADDER "paralyzed" the Node is dark until it fades.
 ## BARRIERS: a vault's seal, a lock-in room's shut doorway and the Proving's
 ##   sealed reliquary. (The stair's own barrier, its gate or ward, is
 ##   climb_shape.gd's: anyone may slip past or break it, for a horde.) Hold a strike against one with bare
@@ -50,6 +52,7 @@ const Palette := preload("res://scripts/palette.gd")
 const UI := preload("res://scripts/ui.gd")
 const Particles := preload("res://scripts/particles.gd")
 const Lessons := preload("res://scripts/guardian_lessons.gd")
+const Forcing := preload("res://scripts/forcing.gd")  # (essence forced past full: a floor under a Node's strain)
 
 const HOT := 70.0
 const ERUPT := 100.0
@@ -183,7 +186,14 @@ func strain_of(part: String) -> float:
 
 
 func is_dark(part: String) -> bool:
-	return float(dark.get(part, 0.0)) > 0.0
+	return float(dark.get(part, 0.0)) > 0.0 or (on and main != null and Forcing.rung_for(Forcing.strain(main.profile, part)) >= Forcing.PARALYZED)
+
+
+## The strain forcing left in a Node: its strain never fades below it (forcing.gd).
+func base_strain(part: String) -> float:
+	if not on or main == null:
+		return 0.0
+	return minf(Forcing.strain(main.profile, part), ERUPT)
 
 
 ## Adds strain to a part (casting, or the dev tools); erupts at ERUPT.
@@ -338,7 +348,7 @@ func erupt(part: String) -> void:
 	var p = main.player
 	dark[part] = DARK_TIME
 	glow[part] = DARK_TIME
-	strain[part] = ERUPT_LEFT
+	strain[part] = maxf(ERUPT_LEFT, base_strain(part))
 	idle[part] = 0.0
 	main.tip("unbound_erupt")
 	if p == null or p.dead:
@@ -393,7 +403,7 @@ func _physics_process(delta: float) -> void:
 		for part in strain.keys():
 			idle[part] = float(idle.get(part, 0.0)) + delta
 			if float(idle[part]) > STRAIN_REST:
-				strain[part] = maxf(0.0, strain_of(part) - fade * delta)
+				strain[part] = maxf(base_strain(part), strain_of(part) - fade * delta)
 		for d in [dark, glow]:
 			for part in d.keys():
 				d[part] = float(d[part]) - delta
@@ -415,6 +425,9 @@ func _physics_process(delta: float) -> void:
 ## A new floor (the stair's rest, or a fresh start): strain clears; the old floor's cracks are gone.
 func _new_floor() -> void:
 	strain.clear()
+	for part in Unbound.PARTS:
+		if base_strain(part) > 0.0:
+			strain[part] = base_strain(part)  # (forced past full: it hasn't faded yet)
 	idle.clear()
 	dark.clear()
 	glow.clear()
