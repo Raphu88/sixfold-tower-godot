@@ -445,7 +445,7 @@ func _draw_core() -> void:
 	var wrec = p.weapon_rec() if p.weapon != "fists" else {}
 	var pool_lines: Array = []
 	if ItemPool.has_pool(wrec):
-		ItemPool.bar_into(wb, Rect2(wr.position + Vector2(5, 3), Vector2(SLOT - 10, 3)), wrec)
+		ItemPool.bar_into(wb, Rect2(wr.position + Vector2(12, 3), Vector2(SLOT - 16, 3)), wrec)  # (clear of the slot's key number)
 		pool_lines.append(ItemPool.TEXT["pool"] % [ItemPool.left(wrec), ItemPool.cap(wrec)])
 		if ItemPool.primed_for(p, wrec):
 			var pc := ItemPool.bar_color(wrec)
