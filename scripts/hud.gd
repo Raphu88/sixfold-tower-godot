@@ -42,6 +42,7 @@ const MarkUse := preload("res://scripts/mark_use.gd")  # (a mark's pool in words
 const Anim := preload("res://scripts/anim.gd")
 const Reactions := preload("res://scripts/reactions.gd")
 const Combat := preload("res://scripts/combat.gd")  # (fatigue's words on the stamina bar)
+const ItemPool := preload("res://scripts/item_pool.gd")  # (the weapon in hand's own essence pool: a small flat bar)
 ## Where each part sits (Arrange mode moves them): every block below is drawn
 ## where it always was, under its element's transform (layout.gd).
 const Layout := preload("res://scripts/layout.gd")
@@ -277,6 +278,7 @@ func _core_signature() -> Array:
 		int(ceil(p.hp)), int(round(p.max_health())), p.max_hp, int(p.sta), p.max_sta, int(p.fatigue), p.poison_t > 0.0,
 		snappedf(hp_trail, 0.004), snappedf(sta_trail, 0.01), int(ceil(p.barrier_hp)),
 		p.weapon, snappedf(p.reload_t, 0.05) if p.wkind() in ["crossbow", "gun"] else 0.0, p.ammo_left() if p.wkind() == "gun" else -1,
+		ItemPool.left(p.weapon_rec()) if p.weapon != "fists" else -1, p.item_power.duplicate(), p.gun_magic() if p.wkind() == "gun" else "",
 		p.selected_item(), p.item_count(p.selected_item()) if p.selected_item() != "" else 0,
 		main.profile.path, main.profile.flow_step(), int(main.profile.flow),
 		int(p.vessel.get("amount", 0.0)) if p.item_count("vessel") > 0 else -1]  # (the vessel's gauge)
@@ -438,7 +440,21 @@ func _draw_core() -> void:
 			var pc := Vector2(wr.position.x + 4.0 + pw * (i + 0.5), wr.end.y - 3.5)
 			wb.dot(pc, minf(2.6, pw * 0.42) + 0.8, UI.OUTLINE)
 			wb.dot(pc, minf(2.6, pw * 0.42), lit if i < loaded else Color(0.3, 0.28, 0.32))
-	tips.append([wx * wr, Gear.display(p.weapon), _gear_tip(p.weapon, maxi(slot_i, 0))])
+	# An enchanted weapon's own essence pool (item_pool.gd): a small flat bar
+	# along the slot's top; a thin frame in its essence while it's powered.
+	var wrec = p.weapon_rec() if p.weapon != "fists" else {}
+	var pool_lines: Array = []
+	if ItemPool.has_pool(wrec):
+		ItemPool.bar_into(wb, Rect2(wr.position + Vector2(5, 3), Vector2(SLOT - 10, 3)), wrec)
+		pool_lines.append(ItemPool.TEXT["pool"] % [ItemPool.left(wrec), ItemPool.cap(wrec)])
+		if ItemPool.primed_for(p, wrec):
+			var pc := ItemPool.bar_color(wrec)
+			for e in [[wr.position, Vector2(wr.end.x, wr.position.y)], [Vector2(wr.end.x, wr.position.y), wr.end], [wr.end, Vector2(wr.position.x, wr.end.y)], [Vector2(wr.position.x, wr.end.y), wr.position]]:
+				wb.line(e[0], e[1], pc, 2.0)
+			pool_lines.append(ItemPool.TEXT["hud_power"])
+		else:
+			pool_lines.append(ItemPool.TEXT["pool_dry"] if ItemPool.left(wrec) <= 0 else ItemPool.TEXT["hud_hold"] % "the off-hand button")
+	tips.append([wx * wr, Gear.display(p.weapon), pool_lines + _gear_tip(p.weapon, maxi(slot_i, 0))])
 	c.draw_set_transform_matrix(unit * wx)
 	wb.flush(c)
 	if slot_i >= 0 and not main.touch_active:

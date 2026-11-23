@@ -8,10 +8,13 @@ extends RefCounted
 ##     safe pocket...)
 ##   - on some, a CHARGE ("charge": an id in CHARGES): an effect that fires
 ##     by itself when its moment comes (a blow that would fell you, a shell
-##     that would turn your strike...). Once spent it stays spent: nothing
-##     refills on its own. You refill it by FEEDING IT ESSENCE, on the train
-##     at the workshop bench with crystals of the charm's kind, or in the
-##     tower from the inventory, with essence you haven't banked yet.
+##     that would turn your strike...). The charge is the charm's OWN
+##     ESSENCE POOL (item_pool.gd, the rule every essence item follows): it
+##     fires from the charm's pool first, and once that is spent, from the
+##     essence you carry (not yet banked). Nothing refills it on its own:
+##     you refill it by FILTERING ESSENCE IN, on the train at the workshop
+##     bench with crystals of the charm's kind, or in the tower from the
+##     inventory, with essence you carry (not while a monster is after you).
 ## Charms come from the workshop bench (CRAFT), the outfitter's rail
 ## (SHOP) and, now and then, the towers (LOOT: vaults, secret rooms, a rare
 ## drop). They come home like other worn gear (a recall or the summit) and
@@ -117,7 +120,7 @@ static var OLD_ITEMS := {"wardbreaker": {"refund": {"blade": 10}}}
 static var TEXT := {
 	"charge": "Charge  ·  %d of %d",
 	"charge_line": "%s: %s",
-	"charge_empty": "Spent: feed it essence to refill it, at the workshop bench or from the inventory in a tower. Nothing refills it on its own.",
+	"charge_empty": "Spent: now its charge draws on the essence you carry. Filter essence in to refill it, at the workshop bench or from the inventory in a tower. Nothing refills it on its own.",
 	"charge_full": "Charged.",
 	"never_used": "A charm is never used up. Its passive is always on while you wear it.",
 	"refill": "Refill: %s",
@@ -161,10 +164,29 @@ static func charge_id(g) -> String:
 	return id if CHARGES.has(id) else ""
 
 
-## How many charges it holds when full (0 for none).
+## How many charges it holds when full (0 for none). An enchanted weapon's
+## own essence pool counts the same way (item_pool.gd WEAPON): every essence
+## item keeps its pool as "charge" uses, refilled as a charm's charge is.
 static func charge_max(g) -> int:
 	var id := charge_id(g)
-	return int(CHARGES[id]["max"]) if id != "" else 0
+	if id != "":
+		return int(CHARGES[id]["max"])
+	return _pool().weapon_max(g)
+
+
+## The essence one charge (one use of its pool) is worth.
+static func refill_per(g) -> int:
+	var id := charge_id(g)
+	if id != "":
+		return int(CHARGES[id]["refill"])
+	return _pool().weapon_refill(g)
+
+
+const POOL := "res://scripts/item_pool.gd"  # (loaded when needed: it loads this)
+
+
+static func _pool():
+	return load(POOL)
 
 
 ## How many charges it has left (a record with none noted is full).
@@ -197,10 +219,9 @@ static func spend(g: Dictionary) -> bool:
 ## What refilling every spent charge costs, in essence (less your renown's
 ## cut, refill_cut, given the climber).
 static func refill_amount(g, profile = null) -> int:
-	var id := charge_id(g)
-	if id == "" or missing(g) <= 0:
+	if charge_max(g) <= 0 or missing(g) <= 0:
 		return 0
-	var full := int(CHARGES[id]["refill"]) * missing(g)
+	var full := refill_per(g) * missing(g)
 	return maxi(1, int(round(float(full) * (1.0 - refill_cut(profile)))))
 
 
@@ -257,6 +278,8 @@ static func recipe_why(profile, id: String) -> String:
 ## The crystal kind a charm is refilled (and priced) with: its own essence;
 ## an ordinary charm's, the slot's (train.gd SLOT_KIND).
 static func kind(g) -> String:
+	if charge_id(g) == "" and _pool().weapon_max(g) > 0:
+		return Gear.enchant_kind(g)  # (an enchanted weapon's pool: its enchantment's essence)
 	var k := String(Gear.PIECES.get(Gear.base_id(g), {}).get("kind", ""))
 	return k if k != "" else "water"
 
@@ -265,7 +288,8 @@ static func kind(g) -> String:
 static func charge_lines(g) -> Array:
 	var id := charge_id(g)
 	if id == "":
-		return []
+		var wl: Array = _pool().weapon_lines(g)  # (an enchanted weapon's own pool: item_pool.gd)
+		return wl.map(func(l): return l[0])
 	var c: Dictionary = CHARGES[id]
 	return [TEXT["charge"] % [charges(g), charge_max(g)], TEXT["charge_line"] % [c["name"], c["desc"]],
 		TEXT["charge_full"] if missing(g) <= 0 else TEXT["charge_empty"]]
@@ -305,12 +329,7 @@ static func refill_unbanked(main, g: Dictionary) -> String:
 	var held := unbanked(main)
 	if held + 0.001 < amount:
 		return TEXT["short_run"] % [int(amount), int(held)]
-	for k in main.run_essence.keys():
-		main.run_essence[k] = maxf(0.0, float(main.run_essence[k]) - amount * float(main.run_essence[k]) / held)
-	var was := charges(g)
-	g["charge"] = charge_max(g)
-	keep_heirloom(main, g, was)
-	return ""
+	return _pool().refill_carried(main, g)  # (filtering your essence in: item_pool.gd; an heirloom follows)
 
 
 # --- worn charms in the tower --------------------------------------------------------
@@ -327,9 +346,12 @@ static func worn(p) -> Dictionary:
 ## fired (and says so over the climber).
 static func fire(p, id: String) -> bool:
 	var g := worn(p)
-	if g.is_empty() or charge_id(g) != id or not spend(g):
+	if g.is_empty() or charge_id(g) != id:
 		return false
-	keep_heirloom(p.main, g, charges(g) + 1)
+	# Its own pool first, then the essence you carry (item_pool.gd draw; an
+	# heirloom's charges follow). With neither, it stays quiet.
+	if _pool().draw(p.main, g) == "":
+		return false
 	if p.main != null:
 		var col := Gear.color(g)
 		p.main.fx_text(p.global_position + Vector2(0, -52), TEXT["spent"] % [Gear.display(g), CHARGES[id]["name"]], col)
@@ -341,15 +363,7 @@ static func fire(p, id: String) -> bool:
 ## charge spent (or refilled) on the climb is noted on the heirloom too,
 ## or it would come back full on its own. `was`: its charges before.
 static func keep_heirloom(main, g: Dictionary, was: int) -> void:
-	if main == null or main.profile == null:
-		return
-	var h = main.profile.heirlooms.get("charm", null)
-	if not (h is Dictionary) or Gear.base_id(h) != Gear.base_id(g) or charges(h) != was:
-		return
-	if not Gear.same(h, g):
-		return
-	h["charge"] = charges(g)
-	main.profile.save()
+	_pool().keep_heirloom(main, g, was)  # (every essence item's the same way: item_pool.gd)
 
 
 # --- the safe pocket ----------------------------------------------------------------------

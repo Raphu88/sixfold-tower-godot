@@ -115,7 +115,7 @@ static var TEXT := {
 		"recall": "Bind a recall scroll for your next climb: read it in the tower to leave safely, keeping everything. You carry one.",
 		"vessel": "Brew a vessel that catches the secret essence that isn't your path, or work a full one into a piece: one rank past +3, or a deep rune.",
 		"tincture": "Craft a tincture from crystals of its kind. Drink it to send its essence where you choose: one mark, or an unmarked body part.",
-		"charm": "Refill a charm's spent charge, or an off-hand piece's pool, with crystals of its kind (anyone). New charms are crafted here too: by you with the Rune Artist's mark, else by the workshop's Rune Artist."
+		"charm": "Refill a charm's spent charge, an off-hand piece's pool or an enchanted weapon's (every essence item's own pool), with crystals of its kind (anyone). New charms are crafted here too: by you with the Rune Artist's mark, else by the workshop's Rune Artist."
 	},
 	"where_wear": "You'll wear it when you set off.",
 	"heirlooms": "Heirlooms",
@@ -670,10 +670,20 @@ static func charm_refs(profile) -> Array:
 		out.append("wear:charm")
 	if Charms.charge_max(profile.wear.get("offhand", {})) > 0:
 		out.append("wear:offhand")  # (an enchanted off-hand piece's own pool: offhand.gd)
+	for slot in ["melee", "ranged"]:
+		if _weapon_spent(profile.wear.get(slot, {})):
+			out.append("wear:" + slot)  # (an enchanted weapon's own pool, not full: item_pool.gd)
 	for ref in pieces(profile):
-		if Charms.charge_max(piece(profile, ref)) > 0:
+		var g := piece(profile, ref)
+		if Charms.charge_max(g) > 0 and (Charms.charge_id(g) != "" or _weapon_spent(g)):
 			out.append(ref)
 	return out
+
+
+## An enchanted weapon whose own pool isn't full (only those are listed at
+## the Charms counter, so a stash of full weapons doesn't crowd it).
+static func _weapon_spent(g) -> bool:
+	return Charms.charge_id(g) == "" and Charms.charge_max(g) > 0 and Charms.missing(g) > 0
 
 
 ## What refilling a charm costs ({kind: amount}; {} when it's full), less

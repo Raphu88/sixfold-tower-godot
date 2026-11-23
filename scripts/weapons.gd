@@ -40,7 +40,9 @@ extends RefCounted
 ##   reload_move  walking speed while reloading
 ##   kick         how hard a shot pushes you back
 ##   refill       an enchanted pistol never reloads: each empty chamber fills
-##                itself with essence after this many seconds
+##                itself with essence after this many seconds (each essence
+##                shot draws on its own pool, then yours: item_pool.gd; with
+##                neither it fires lead and reloads)
 ##   shot_sound, shot_pitch, crack, crack_pitch   the shot (two layers)
 ##   reload_sound, reload_pitch, load_sound, load_pitch   reloading, and done
 ##
@@ -491,7 +493,7 @@ const ESSENCE_SHOT_DEFAULT := "iron"
 ## The words a pistol's card and the HUD use.
 static var GUN_TEXT := {
 	"shot": "%s: %s",  # "Fire shot: it bursts in flame..."
-	"refills": "Its chambers fill themselves: no reloading",
+	"refills": "Its chambers fill themselves while it has essence: no reloading",
 	"reloading": "Reloading",
 	"broken_off": "Reload broken off",
 	"loaded": "Loaded",

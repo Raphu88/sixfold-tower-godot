@@ -104,11 +104,11 @@ static var HELP := {
 	"put_back": "Puts one {piece} back on the shelf. What you paid comes back.",
 	"sell": "Sells {piece} for {price}. Press it twice.",
 	# --- your car, the Loadout and the stash ------------------------------------------------------
-	"slot:worn": "{slot}: {piece}. What you start the climb wearing there. {from}",
+	"slot:worn": "{slot}: {piece}. What you start the climb wearing there. {from} {pool}",
 	"slot:worn:empty": "{slot}: nothing yet. Choose it to see what could go there.",
-	"slot:pack": "{piece}, in your pack: it goes up the tower with you. {versus}",
+	"slot:pack": "{piece}, in your pack: it goes up the tower with you. {versus} {pool}",
 	"slot:pack:empty": "An empty pocket in your pack. Pieces here go up the tower with you.",
-	"slot:chest": "{piece}, in your stash: it stays safe on the train. {versus}",
+	"slot:chest": "{piece}, in your stash: it stays safe on the train. {versus} {pool}",
 	"slot:chest:empty": "An empty space in your stash ({count}).",
 	"slot:belt": "{piece}: packed on your belt for your next climb.",
 	"slot:vessel": "A vessel: it catches secret essence on a climb.",
@@ -156,11 +156,12 @@ static var HELP := {
 	"slot:crystal:empty": "{piece}: none yet. Stairs condense crystals, and the outfitter pays for every climb.",
 	"slot:tincture": "{piece}: choose it, then choose where it goes.",
 	"slot:bench:craft": "{piece}, a charm the bench crafts for {price}: {desc}.",
-	"slot:bench:charm": "{piece}: a charm you own. Choose it to see its charge, and refill it with crystals of its kind.",
+	"slot:bench:charm": "{piece}: an essence item you own. Choose it to see its own pool, and refill it with crystals of its kind. {pool}",
 	"bench_do:refill": "Refills {piece}'s charge with crystals of its kind. Press it twice.",
 	"bench_do:craft": "Crafts {piece}: it goes into your stash. Press it twice.",
 	"feed_charm": "Feeds your charm essence you haven't banked yet: its charge is full again.",
 	"feed_offhand": "Feeds your off-hand piece's own pool essence you haven't banked yet: its uses are full again.",
+	"feed_item": "Filters essence you carry into this weapon's own pool: full again. Not while a monster is after you. What you pour in, you won't bank.",
 	"tab:deeds": "Your deeds: thirty-six of them, each paying a little renown; and the Summit Blades you've found and bonded.",
 	"deeds_leaf_deeds": "The deeds: six kinds of six, what each asks, how far along you are and the renown it pays.",
 	"deeds_leaf_blades": "The Summit Blades: one hidden in each tower. Which you've found and bonded, their powers, and awakening.",
@@ -496,6 +497,8 @@ static func explain(m, b: Control) -> String:
 		text = String(f.get("words", ""))
 		if text == "" and f.has("piece"):
 			text = "{piece}"
+	if f.has("pool") and text != "" and not text.contains("{pool}"):
+		text += " {pool}"  # (an essence item's own pool, the bar along its top: item_pool.gd)
 	return tidy(Entity.fill_words(text, f))
 
 
@@ -571,6 +574,9 @@ static func _piece_facts(m, g, f: Dictionary) -> void:
 	f["desc"] = Gear.desc(g)
 	f["slot"] = String(Gear.SLOT_NAMES.get(Gear.slot_of(g), ""))
 	f["versus"] = _versus(m, g)
+	var Pools = load("res://scripts/item_pool.gd")
+	if Pools.has_pool(g):
+		f["pool"] = String(Pools.TEXT["pool"] % [Pools.left(g), Pools.cap(g)]) + ": the bar along its top. A use draws on it first, then on the essence you carry; filter yours in to refill it, or hold the off-hand button to power it."
 
 
 static func _item_facts(id: String, f: Dictionary) -> void:

@@ -25,10 +25,12 @@ extends RefCounted
 ## ENCHANTED off-hand pieces (the Ember Dirk, the Tide Ward and every wand)
 ## have their OWN ESSENCE POOL for their power: a few uses (gear.gd PIECES
 ## "charge", whose numbers live in charms.gd CHARGES with the charms'),
-## spent as the power fires and refilled exactly as a charm's charge is:
-## in the tower from the inventory, with essence you haven't banked yet; on
-## the train at the workshop bench's Charms counter, with crystals of its
-## kind. Nothing refills on its own.
+## spent as the power fires (the pool first, then the essence you carry:
+## item_pool.gd, the rule every essence item follows) and refilled exactly
+## as a charm's charge is: in the tower from the inventory, with essence you
+## carry; on the train at the workshop bench's Charms counter, with crystals
+## of its kind. Nothing refills on its own. Holding the off-hand button
+## powers the next use (a wand casts at once, powered: item_pool.gd POWER).
 ##
 ## The pieces themselves (names, slots, colours, how common) are gear.gd
 ## PIECES (slot "offhand"); what each does in a fight is here. Names, words
@@ -40,6 +42,7 @@ const Charms := preload("res://scripts/charms.gd")
 const Essence := preload("res://scripts/essence.gd")
 const Art := preload("res://scripts/icon_art.gd")
 const Palette := preload("res://scripts/palette.gd")
+const ItemPool := preload("res://scripts/item_pool.gd")
 
 ## Weapons that need both hands (and every bow and crossbow, by kind).
 static var TWO_HANDS := ["greatsword", "war_hammer", "spear"]
@@ -83,11 +86,11 @@ static var TEXT := {
 	"two_hands": "Put away while a two-handed weapon or a bow is in hand",
 	"pool": "Essence pool · %d of %d uses",
 	"pool_line": "%s: %s",
-	"pool_refill": "Spent uses come back only when you feed it essence (%d a use): the inventory in the tower, or the workshop bench's Charms counter.",
+	"pool_refill": "Used first; dry, a use draws on the essence you carry. Spent uses come back only when you filter essence in (%d a use): the inventory in the tower, or the workshop bench's Charms counter.",
 	"pool_full": "Its pool is full.",
 	"blocked": "Blocked",
 	"guard_broken": "Guard broken",
-	"no_pool": "%s: its pool is spent",
+	"no_pool": "%s: its pool is dry, and you carry too little essence",
 	"put_away": "Off-hand put away",
 	"no_wand": "No wand in your off-hand",
 	"stat_strike": "Off-hand strike", "stat_guard": "Block", "stat_guard_sta": "Block stamina", "stat_uses": "Pool uses",
@@ -153,33 +156,27 @@ static func power(g) -> Dictionary:
 	return Charms.CHARGES.get(Charms.charge_id(g), {})
 
 
-## Spends one use of the worn piece's pool (kept on an heirloom too). True if there was one.
+## Spends one use of the worn piece: its own pool first, then the essence
+## you carry (item_pool.gd draw; kept on an heirloom too). True if it fired.
 static func spend(p) -> bool:
 	var g := piece(p)
-	if g.is_empty() or not Charms.spend(g):
+	if g.is_empty():
 		return false
-	_keep_heirloom(p.main, g, Charms.charges(g) + 1)
-	return true
+	return ItemPool.draw(p.main, g) != ""
 
 
-## An off-hand heirloom spent (or refilled) on a climb stays so (as charms.gd keep_heirloom).
-static func _keep_heirloom(main, g: Dictionary, was: int) -> void:
-	if main == null or main.get("profile") == null:
-		return
-	var h = main.profile.heirlooms.get("offhand", null)
-	if not (h is Dictionary) or not Gear.same(h, g) or Charms.charges(h) != was:
-		return
-	h["charge"] = Charms.charges(g)
-	main.profile.save()
+## A use of the worn piece with the power if it's primed (item_pool.gd use):
+## its multiplier, or 0.0 when it can't fire.
+static func _use(p) -> float:
+	var g := piece(p)
+	if g.is_empty():
+		return 0.0
+	return ItemPool.use(p.main, p, g)
 
 
-## Refills the worn off-hand's pool in the tower from unbanked essence (as a charm). "" if done.
+## Refills the worn off-hand's pool in the tower from the essence you carry (as a charm). "" if done.
 static func refill_unbanked(main, g: Dictionary) -> String:
-	var was := Charms.charges(g)
-	var why: String = Charms.refill_unbanked(main, g)
-	if why == "":
-		_keep_heirloom(main, g, was)
-	return why
+	return Charms.refill_unbanked(main, g)  # (an heirloom follows: item_pool.gd keep_heirloom)
 
 
 # --- the card ---------------------------------------------------------------------------
@@ -259,9 +256,10 @@ static func strike_power(p) -> float:
 ## An off-hand strike landed on a foe: the Ember Dirk's pool sets it burning.
 static func struck(p, e) -> void:
 	var g := piece(p)
-	if Charms.charge_id(g) == "ember_strike" and not e.dead and spend(p):
+	var mult := _use(p) if Charms.charge_id(g) == "ember_strike" and not e.dead else 0.0
+	if mult > 0.0:
 		var pw := power(g)
-		e.ignite(float(pw.get("dmg", 3.0)), float(pw.get("time", 3.0)))
+		e.ignite(float(pw.get("dmg", 3.0)) * mult, float(pw.get("time", 3.0)))
 		p.main.fx_burst(e.global_position, Vector2.UP, Color(1.0, 0.55, 0.25), 6, 160.0)
 	_wear(p, float(RULES["wear_strike"]))
 	load("res://scripts/deeds.gd").note(p.main, "off_strikes")
@@ -320,8 +318,9 @@ static func block(p, dmg: float, source) -> float:
 	_wear(p, float(RULES["wear_block"]))
 	load("res://scripts/deeds.gd").note(m, "blocks")
 	# The Tide Ward: a blocked blow sends a wave out, from its pool.
-	if Charms.charge_id(g) == "tide_block" and spend(p):
-		var pw := power(g)
+	var mult := _use(p) if Charms.charge_id(g) == "tide_block" else 0.0
+	if mult > 0.0:
+		var pw := _scaled(power(g), mult)
 		var r := float(pw.get("radius", 110.0))
 		m.fx_ring(p.global_position, Color(0.45, 0.78, 0.95), r, 0.4, 5.0)
 		for e in m.targets():
@@ -346,6 +345,12 @@ static func cast(p) -> bool:
 	var m = p.main
 	var g := piece(p)
 	if use_of(g) != "wand":
+		var t := ItemPool.power_target(p)
+		if not t.is_empty():
+			# (an essence item to power: a tap only says how)
+			m.fx_text(p.global_position + Vector2(0, -40), ItemPool.TEXT["power_hint"] % Gear.display(t[1]), Color(0.85, 0.8, 0.6))
+			m.tip("item_power")
+			return true
 		if not g.is_empty() and use_of(g) == "shield":
 			return true  # (a shield blocks with parry held: nothing to cast)
 		m.fx_text(p.global_position + Vector2(0, -40), TEXT["no_wand"], Color(0.7, 0.68, 0.75))
@@ -355,19 +360,34 @@ static func cast(p) -> bool:
 		return true
 	if p.off_cd > 0.0:
 		return false  # (soon: it stays buffered a moment)
-	if pool(g) <= 0:
+	# Its own pool first, then the essence you carry (item_pool.gd); powered,
+	# the essence filtered in pays for itself.
+	if not ItemPool.can_use(m, g) and not ItemPool.primed_for(p, g):
 		m.fx_text(p.global_position + Vector2(0, -40), TEXT["no_pool"] % Gear.display(g), Color(0.95, 0.55, 0.42))
 		m.sfx("ui_back", 0.8, -8.0)
 		return true
 	if not p.spend_sta(float(data(g).get("sta", 6.0))):
 		p._winded()
 		return true
-	spend(p)
+	var mult := _use(p)
+	if mult <= 0.0:
+		return true
 	p.off_cd = float(data(g).get("cd", 0.8))
 	p.off_flash = 0.3
-	_power(p, Charms.charge_id(g), power(g))
+	_power(p, Charms.charge_id(g), _scaled(power(g), mult))
 	load("res://scripts/deeds.gd").note(m, "wand_casts")
 	return true
+
+
+## A power's numbers, `mult` times as strong (a powered use: item_pool.gd POWER).
+static func _scaled(pw: Dictionary, mult: float) -> Dictionary:
+	if mult == 1.0:
+		return pw
+	var out := pw.duplicate()
+	for k in ["dmg", "shield", "push", "burn", "chill", "stagger"]:
+		if out.has(k):
+			out[k] = float(out[k]) * mult
+	return out
 
 
 ## What each wand does.

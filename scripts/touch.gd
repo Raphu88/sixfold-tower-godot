@@ -25,7 +25,7 @@ const ONE_SHOT := ["weapon", "menu", "item_next", "take", "climber", "inventory"
 ## Held buttons a quick tap still has to reach the game with: let go a
 ## moment later (Item: a tap uses the current item, a hold opens the belt
 ## wheel to choose one).
-const HOLD_TAP := ["item", "tools"]
+const HOLD_TAP := ["item", "tools", "offhand"]
 ## The top bar: always there, also while fallen.
 const TOP_BAR := ["menu", "fullscreen", "climber", "inventory", "map"]
 const Items := preload("res://scripts/items.gd")
@@ -35,6 +35,7 @@ const Draw := preload("res://scripts/draw_util.gd")
 const Abilities := preload("res://scripts/abilities.gd")
 const Layout := preload("res://scripts/layout.gd")
 const Offhand := preload("res://scripts/offhand.gd")
+const ItemPool := preload("res://scripts/item_pool.gd")  # (an essence item's own pool; hold the Off-hand button to power it)
 
 var main
 var active := false
@@ -80,8 +81,9 @@ func _layout() -> void:
 	# last tool, hold and slide for the tool ring.
 	if main.secret_tools != null and main.secret_tools.ring_ready():
 		buttons.append(_button("tools", "tool_ring", s))
-	# Off-hand: only while a wand is in a free off hand (offhand.gd): a tap casts it.
-	if main.player != null and Offhand.ready_use(main.player) == "wand":
+	# Off-hand: only while a wand is in a free off hand (offhand.gd: a tap
+	# casts it), or an essence item could be powered (item_pool.gd: hold it).
+	if main.player != null and (Offhand.ready_use(main.player) == "wand" or not ItemPool.power_target(main.player).is_empty()):
 		buttons.append(_button("offhand", "offhand", s))
 	# One cast button per mark you carry, in the mark spots, in body order.
 	var i := 0
@@ -377,7 +379,8 @@ func _signature() -> Array:
 	if p != null:
 		s.append_array([p.dead, p.weapon, snappedf(p.draw_t, 0.04) if p.drawing else -1.0, snappedf(p.reload_t, 0.05), p.ammo_left(), snappedf(p.refill_t, 0.05),
 			p.selected_item(), p.item_count(p.selected_item()) if p.selected_item() != "" else 0,
-			Offhand.ready_use(p), Offhand.pool(Offhand.piece(p)), p.off_cd <= 0.0])  # (the Off-hand button comes and goes with a wand)
+			Offhand.ready_use(p), Offhand.pool(Offhand.piece(p)), p.off_cd <= 0.0,  # (the Off-hand button comes and goes with a wand)
+			ItemPool.power_target(p).size(), p.item_power.duplicate(), snappedf(p.off_hold_t, 0.05), ItemPool.left(p.weapon_rec())])  # (...or an essence item to power)
 		for part in p.bonds:
 			var b = p.bonds[part]
 			s.append_array([part, b.id, snappedf(b.essence / b.capacity(), 0.01), b.essence >= b.cost(), b.selected])
@@ -491,12 +494,20 @@ func _draw() -> void:
 				col = main.secret_tools.SB.color(main.secret_tools.bond())
 			"offhand":
 				var wand := Offhand.piece(p)
-				label = "%d" % Offhand.pool(wand)
-				col = Offhand.Gear.color(wand) if not wand.is_empty() else Color(UI.TEXT, 0.5)
-				var ek := Offhand.Gear.enchant_kind(wand)
-				if ek != "":
-					col = load("res://scripts/essence.gd").color(ek)
-				ready = Offhand.pool(wand) > 0 and p.off_cd <= 0.0
+				var target := ItemPool.power_target(p)
+				if Offhand.ready_use(p) == "wand":
+					label = "%d" % Offhand.pool(wand)
+					col = Offhand.Gear.color(wand) if not wand.is_empty() else Color(UI.TEXT, 0.5)
+					var ek := Offhand.Gear.enchant_kind(wand)
+					if ek != "":
+						col = load("res://scripts/essence.gd").color(ek)
+					ready = ItemPool.can_use(main, wand) and p.off_cd <= 0.0
+				elif not target.is_empty():
+					label = ItemPool.TEXT["power_touch"]  # (hold to power the weapon in hand)
+					col = ItemPool.bar_color(target[1])
+					ready = ItemPool.primed_for(p, target[1])
+				if p.off_hold_t > 0.0 and not p.off_hold_done:
+					fill = clampf(p.off_hold_t / maxf(ItemPool.hold_time(), 0.01), 0.0, 1.0)  # (held: the ring fills toward the power)
 		# A glassy disc in a dark bezel with a gilt ring and a gloss (ui.gd
 		# button_into): a mark's button carries its emblem and fills with
 		# essence, and glows in its colour once it can cast.
@@ -513,9 +524,16 @@ func _draw() -> void:
 		bt.flush(self)
 		if item_icon != "":
 			Items.draw_icon(self, item_icon, c + Vector2(0, -5), r * 0.42)
-		if b["id"] == "offhand" and p != null and not Offhand.piece(p).is_empty():
-			var wand := Offhand.piece(p)
-			Offhand.Gear.draw_icon(self, wand, c + Vector2(0, -4), r * 0.95, Offhand.Gear.color(wand))  # (the wand itself, its uses under it)
+		if b["id"] == "offhand" and p != null:
+			var shown: Dictionary = Offhand.piece(p) if Offhand.ready_use(p) == "wand" else {}
+			var tg := ItemPool.power_target(p)
+			if shown.is_empty() and not tg.is_empty():
+				shown = tg[1]
+			if not shown.is_empty():
+				Offhand.Gear.draw_icon(self, shown, c + Vector2(0, -4), r * 0.95, Offhand.Gear.color(shown))  # (the wand, or the weapon to power; its pool under it)
+				var pb := Draw.Batch.new()
+				ItemPool.bar_into(pb, Rect2(c + Vector2(-r * 0.55, r * 0.42), Vector2(r * 1.1, 3.0)), shown)
+				pb.flush(self)
 			draw_string(font, c + Vector2(-r, r * 0.8), label, HORIZONTAL_ALIGNMENT_CENTER, r * 2.0, 13, Color(col, 0.95))
 			continue
 		var fsize := 16 if r > 30.0 else 13
