@@ -28,6 +28,7 @@ const Charms := preload("res://scripts/charms.gd")
 const Combat := preload("res://scripts/combat.gd")
 const Wheel := preload("res://scripts/wheel.gd")
 const Offhand := preload("res://scripts/offhand.gd")  # (the off-hand: a second weapon, a shield or a wand)
+const ItemPool := preload("res://scripts/item_pool.gd")  # (every essence item's own pool, filtering and power)
 const SummitBlades := preload("res://scripts/summit_blades.gd")  # (a Summit Blade at your hip)
 ## Damage multiplier for striking a foe from behind.
 var BACKSTAB_MULT: float:
@@ -249,6 +250,9 @@ var triune_n := 0  # Triune Fang: which head strikes next
 var rebirth_used := false  # Sunplume Mantle: once a climb
 var off_cd := 0.0  # the off-hand's wand: until it can cast again (offhand.gd)
 var off_flash := 0.0  # the off-hand piece flashes (a block, a cast)
+var off_hold_t := -1.0  # the off-hand button held this long (-1: not held): a tap casts a wand, a hold powers (item_pool.gd)
+var off_hold_done := false  # this hold already powered (or said why not): letting go does nothing more
+var item_power := {}  # an essence item primed by a hold: {slot, code, kind} (item_pool.gd POWER)
 var guard_on := false  # guarding with a shield (parry held past its window)
 var guard_force := false  # (tests: hold the guard without the parry button)
 var blade_cd := 0.0  # the carried Summit Blade's power: until it can fire again (summit_blades.gd)
@@ -335,9 +339,15 @@ func gun_shots() -> int:
 	return int(Weapons.WEAPONS[id]["shots"]) if Weapons.is_gun(id) else 0
 
 
-## The essence your ranged slot's pistol fires (gear.gd shot_kind), "" for lead.
+## The essence your ranged slot's pistol fires (gear.gd shot_kind), "" for
+## lead: an enchanted pistol whose own pool is dry, with too little essence
+## of yours to draw on (item_pool.gd), fires lead and reloads like any other.
 func gun_magic() -> String:
-	return Gear.shot_kind(gear.get("ranged", {}))
+	var g = gear.get("ranged", {})
+	var k := Gear.shot_kind(g)
+	if k != "" and not ItemPool.can_use(main, g) and not ItemPool.primed_for(self, g):
+		return ""
+	return k
 
 
 ## Shots loaded in your ranged slot's pistol (a newly carried one is loaded).
@@ -772,6 +782,7 @@ func _physics_process(delta: float) -> void:
 	_read_buffer()
 	_update_pick(delta)
 	_update_item_hold(delta)
+	_update_off_hold(delta)
 
 	if jump_t > 0.0:
 		_tick_jump(delta)
@@ -881,6 +892,32 @@ func _auto_aim() -> void:
 ## wheel of its spells opens (the game slows: wheel.gd) and the direction you
 ## point picks one; letting go (or a click, or a number key) puts it on the
 ## button. Choosing never casts: a tap of the key casts the spell on it.
+## The off-hand button held: let go soon and it's a tap (the wand casts:
+## offhand.gd); held for item_pool.gd POWER "hold", it filters essence you
+## carry into an essence item: a wand casts at once, powered; a weapon's
+## next use is powered.
+func _update_off_hold(delta: float) -> void:
+	if off_hold_t < 0.0:
+		return
+	if dead:
+		off_hold_t = -1.0
+		return
+	if Input.is_action_pressed("offhand"):
+		if off_hold_done:
+			return
+		off_hold_t += delta / maxf(Engine.time_scale, 0.01)
+		if off_hold_t >= ItemPool.hold_time():
+			off_hold_done = true
+			if ItemPool.prime(self) == "offhand" and Offhand.use_of(Offhand.piece(self)) == "wand":
+				buffered = "offhand"  # (the wand casts now, powered)
+				buffer_t = BUFFER_TIME
+		return
+	if not off_hold_done:
+		buffered = "offhand"  # a tap
+		buffer_t = BUFFER_TIME
+	off_hold_t = -1.0
+
+
 func _update_pick(delta: float) -> void:
 	if pick_part == "":
 		return
@@ -1183,8 +1220,11 @@ func _read_buffer() -> void:
 		pressed = "attack"  # (not a click that dismissed the Entity's bubble)
 	elif Input.is_action_just_pressed("parry"):
 		pressed = "parry"
-	elif Input.is_action_just_pressed("offhand"):
-		pressed = "offhand"  # (the off-hand's wand: offhand.gd)
+	# The off-hand button: a tap casts the wand (when let go), a hold powers
+	# the next use of an essence item (see _update_off_hold).
+	if Input.is_action_just_pressed("offhand") and off_hold_t < 0.0:
+		off_hold_t = 0.0
+		off_hold_done = false
 	# The item button and the d-pad down: tap to use (or pick the next),
 	# hold to open the belt wheel and choose (see _update_item_hold).
 	for src in ["use_item", "item_next"]:
@@ -1641,6 +1681,10 @@ func _melee() -> bool:
 	dmg *= 1.0 + 0.2 * graft("hand")
 	var reach: float = swing["range"] * (1.25 if has_bond("blade_forger") else 1.0)  # Long Edge
 	var hits := 0
+	# An enchanted melee weapon's finisher carries its EDGE: one use of its
+	# own pool (then your essence: item_pool.gd), drawn when it lands.
+	var pooled: bool = heavy and not off and weapon != "fists" and weapon == gear_id("melee") and ItemPool.has_pool(gear["melee"])
+	var edge := -1.0
 	for e in main.targets():
 		var to: Vector2 = e.global_position - global_position
 		if to.length() > reach + e.radius:
@@ -1653,7 +1697,12 @@ func _melee() -> bool:
 			Offhand.struck(self, e)  # (the Ember Dirk's pool; its wear)
 			hits += 1
 			continue
-		_strike(e, dmg, to.normalized(), swing["knock"], heavy, String(w.get("blade_sound", w["hit_sound"])) if blade else w["hit_sound"], w.get("rocks", false), float(w.get("backstab", 0.0)), float(swing.get("stagger", 0.0)))
+		if pooled and edge < 0.0:
+			edge = ItemPool.use_weapon(self, "melee")
+		var hit_dmg: float = dmg * (edge if edge > 1.0 else 1.0)  # (powered: harder)
+		_strike(e, hit_dmg, to.normalized(), swing["knock"], heavy, String(w.get("blade_sound", w["hit_sound"])) if blade else w["hit_sound"], w.get("rocks", false), float(w.get("backstab", 0.0)), float(swing.get("stagger", 0.0)))
+		if edge > 0.0:
+			ItemPool.edge_hit(self, e, Gear.enchant_kind(gear["melee"]), edge, hit_dmg, to.normalized())
 		_melee_rules(e, heavy)
 		if heavy:
 			SummitBlades.on_finisher(self, e)  # (the carried Summit Blade's power)
@@ -1790,12 +1839,19 @@ func release_draw() -> void:
 		force *= rule("gale")
 		dmg *= 1.2
 	var stone: bool = w.get("stone", false)  # a sling: a stone never pierces; a full whirl rocks what it hits
+	# An enchanted bow's full draw carries its essence (its own pool first,
+	# then yours: item_pool.gd); powered, it hits harder.
+	var emult := ItemPool.use_weapon(self, "ranged") if full else 0.0
+	if emult > 1.0:
+		dmg *= emult
 	var arrow = main.spawn_player_arrow(global_position + aim * (radius + 6.0), aim * speed, dmg, force, full and not stone)
 	arrow.weapon = true
 	arrow.life = float(w.get("life", 1.6))
 	if stone:
 		arrow.style = "stone"
 		arrow.heavy = full
+	if emult > 0.0:
+		ItemPool.shot_extras(self, arrow, Gear.enchant_kind(gear["ranged"]))
 	main.sfx_fade("draw")  # the creak stops when the string goes
 	# A harder draw looses a louder, sharper shot.
 	if stone:
@@ -1820,11 +1876,17 @@ func _fire_bolt() -> void:
 	var hand = bonds.get("hand")
 	if hand != null and hand.burned:
 		dmg *= 0.6
+	# An enchanted crossbow's every bolt carries its essence (item_pool.gd).
+	var emult := ItemPool.use_weapon(self, "ranged")
+	if emult > 1.0:
+		dmg *= emult
 	var bolt = main.spawn_player_arrow(global_position + aim * (radius + 6.0), aim * float(w["speed"]), dmg, float(w["knock"]), bool(w["pierce"]))
 	bolt.weapon = true
 	bolt.life = float(w["life"])
 	bolt.heavy = bool(w.get("heavy", false))
 	bolt.style = "bolt"
+	if emult > 0.0:
+		ItemPool.shot_extras(self, bolt, Gear.enchant_kind(gear["ranged"]))
 	# Spinecaster: two barbs fly beside the bolt.
 	for i in int(rule("volley")):
 		var side := 0.2 * (1.0 + floorf(i / 2.0)) * (1.0 if i % 2 == 0 else -1.0)
@@ -1843,6 +1905,12 @@ func _fire_bolt() -> void:
 func _fire_gun() -> void:
 	var w := wdata()
 	var magic := gun_magic()
+	var pmult := 1.0
+	if magic != "":
+		pmult = ItemPool.use_weapon(self, "ranged")  # (its own pool first, then your essence; powered: harder)
+		if pmult <= 0.0:
+			magic = ""
+			pmult = 1.0
 	var es: Dictionary = Weapons.essence_shot(magic) if magic != "" else {}
 	ammo_left()
 	ammo -= 1
@@ -1850,7 +1918,7 @@ func _fire_gun() -> void:
 	attack_cd = w["recover"]
 	spend_sta(w["sta"], true)
 	sta_delay = float(Combat.CLIMBER["strike_wait"])
-	var dmg: float = float(w["dmg"]) * Gear.weapon_power(gear["ranged"]) * (1.0 + gfx("ranged"))
+	var dmg: float = float(w["dmg"]) * Gear.weapon_power(gear["ranged"]) * (1.0 + gfx("ranged")) * pmult
 	if ammo <= 0 and rule("last_shot") > 0.0:
 		dmg *= 1.0 + rule("last_shot")  # Lastbell Revolver: the last shot in the cylinder
 	wear_gear("shot")

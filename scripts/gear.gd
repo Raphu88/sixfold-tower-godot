@@ -829,8 +829,8 @@ static func rec(g) -> Dictionary:
 		var out := make(String(g["base"]), String(g.get("rarity", "")), g.get("traits", []), int(g.get("rank", 0)), String(g.get("named", "")), String(g.get("rune", "")))
 		if out.has("wear"):
 			out["wear"] = clampf(float(g.get("wear", 1.0)), 0.0, 1.0)
-		if g.has("charge") and PIECES.get(out["base"], {}).has("charge"):
-			out["charge"] = maxi(0, int(g["charge"]))  # (a charm's charges left: charms.gd; none noted is full)
+		if g.has("charge") and (PIECES.get(out["base"], {}).has("charge") or load(POOL).weapon_max(out) > 0):
+			out["charge"] = maxi(0, int(g["charge"]))  # (an essence item's uses left: a charm's charges, an enchanted weapon's pool; none noted is full)
 		return out
 	if g is String or g is StringName:
 		var s := String(g)
@@ -1616,7 +1616,9 @@ static func trait_lines(g) -> Array:
 			out.append([trait_text(t, r["rarity"], int(r.get("rank", 0))), Essence.color(TRAITS[t]["kind"])])
 	if r.has("rune"):
 		out.append([rune_text(r["rune"]), LASTING_RUNES[r["rune"]]["color"]])
-	if slot_of(r) == "offhand":
+	if load(POOL).weapon_max(r) > 0:
+		out.append_array(load(POOL).weapon_lines(r))  # (an enchanted weapon's own essence pool: item_pool.gd)
+	elif slot_of(r) == "offhand":
 		out.append_array(load(OFFHAND).card_lines(r))  # (an enchanted one's own pool: offhand.gd)
 	elif PIECES.get(base_id(r), {}).has("charge"):
 		# A charm's charge (charms.gd): how many are left, what it does, how it refills.
@@ -1629,6 +1631,7 @@ static func trait_lines(g) -> Array:
 
 const CHARMS := "res://scripts/charms.gd"  # (loaded when needed: charms.gd preloads this)
 const OFFHAND := "res://scripts/offhand.gd"  # (loaded when needed: it preloads this)
+const POOL := "res://scripts/item_pool.gd"  # (every essence item's own pool; loaded when needed: it preloads this)
 
 
 ## A random piece of gear (its id), weighted by how common each is. A

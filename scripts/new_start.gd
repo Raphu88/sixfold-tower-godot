@@ -30,7 +30,7 @@ const Pronouns := preload("res://scripts/pronouns.gd")
 ## idea a line. [what it covers (for the owner), the line]. PLACEHOLDER lines.
 static var INTRO := [
 	["The train and the towers",
-		"[Placeholder] Six towers stand at the edges of the world, and a single train runs between them. You are on it now, whether you remember boarding or not."],
+		"[Placeholder] Six towers stand at the edges of the world, and a single train runs between them. You are on it now; you remember boarding, and the conductor's nod as the doors closed."],
 	["Why the towers exist",
 		"[Placeholder] The towers were raised for a purpose no one agrees on. They test whoever climbs them, and they keep what they learn."],
 	["What marks are",

@@ -96,7 +96,7 @@ const HELP := [
 	["strike / hold to draw", "Left click / J", "{rt}"],
 	["parry", "Right click / K", "{lt}"],
 	["block (a shield: hold parry)", "hold Right click / K", "hold {lt}"],
-	["off-hand wand", "U / middle click", "press {ls}"],
+	["off-hand wand (hold: power an item)", "U / middle click", "press {ls}"],
 	["weapon", "1 2 3 / wheel", "{rb} / D-pad left right"],
 	["cast marks (hold: choose a spell)", "Q E F C X V", "hold {lb} + {x} {a} {b} {y} {rb} {rt}"],
 	["use item / next (hold: choose on the wheel)", "G / T", "{x} / D-pad down"],

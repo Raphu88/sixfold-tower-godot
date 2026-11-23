@@ -210,8 +210,10 @@ func _wand() -> void:
 	_check(InputMap.has_action("offhand"), "an off-hand button (U, the middle mouse button, the left stick)")
 	g["charge"] = 0
 	p.off_cd = 0.0
+	m.run_essence = {}  # (dry, a cast would draw on carried essence: item_pool.gd)
+	var shots_dry: int = m.get_children().filter(func(c): return "friendly" in c and c.friendly).size()
 	O.cast(p)
-	_check(O.pool(g) == 0, "an empty pool: nothing cast")
+	_check(O.pool(g) == 0 and m.get_children().filter(func(c): return "friendly" in c and c.friendly).size() == shots_dry, "an empty pool and nothing carried: nothing cast")
 	# Fed with essence not yet banked, as a charm is.
 	m.run_essence = {"fire": 40.0}
 	var why := O.refill_unbanked(m, g)

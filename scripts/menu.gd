@@ -62,6 +62,7 @@ const EntityHelp := preload("res://scripts/entity_help.gd")
 const Bestiary := preload("res://scripts/bestiary.gd")
 const Charms := preload("res://scripts/charms.gd")
 const Offhand := preload("res://scripts/offhand.gd")  # (the off-hand slot: offhand.gd)
+const ItemPool := preload("res://scripts/item_pool.gd")  # (every essence item's own pool: filtering essence in)
 
 static var GOLD: Color:  # (UI.GOLD, read each time: the Data editor can change it)
 	get: return UI.GOLD
@@ -3183,22 +3184,18 @@ func _show_details(key: String) -> void:
 					return
 			elif arg != "fists":
 				_detail_lines(g, "" if weaponish else WHERE.get(arg, Gear.SLOT_NAMES.get(arg, arg)))
-			if arg == "charm" and has and Charms.missing(g) > 0 and not _on_train():
-				# A spent charge: feed it essence you haven't banked yet (charms.gd).
+			if arg in ["charm", "offhand", "melee", "ranged"] and has and ItemPool.has_pool(g) and Charms.missing(g) > 0 and not _on_train():
+				# An essence item's own pool, not full (item_pool.gd): filter
+				# essence you carry into it (not while a monster is after you).
 				var amount := Charms.refill_amount(g, main.profile)
 				var held := int(Charms.unbanked(main))
-				var fb := _button(Charms.TEXT["refill_run"] % amount, _feed_charm, details)
-				fb.disabled = p.dead or held < amount
-				fb.set_meta("help", "feed_charm")
-				_detail_text(Charms.TEXT["run_note"] if held >= amount else Charms.TEXT["short_run"] % [amount, held], DIM)
-			if arg == "offhand" and has and Offhand.has_pool(g) and Charms.missing(g) > 0 and not _on_train():
-				# An off-hand piece's pool (offhand.gd): fed like a charm, with essence you haven't banked yet.
-				var oamount := Charms.refill_amount(g, main.profile)
-				var oheld := int(Charms.unbanked(main))
-				var ob := _button(Charms.TEXT["refill_run"] % oamount, _feed_offhand, details)
-				ob.disabled = p.dead or oheld < oamount
-				ob.set_meta("help", "feed_offhand")
-				_detail_text(Charms.TEXT["run_note"] if oheld >= oamount else Charms.TEXT["short_run"] % [oamount, oheld], DIM)
+				var hunted := ItemPool.filter_why(main)
+				var feed: Callable = _feed_charm if arg == "charm" else (_feed_offhand if arg == "offhand" else _feed_item.bind(arg))
+				var fb := _button(ItemPool.TEXT["filter"] % amount, feed, details)
+				fb.disabled = p.dead or held < amount or hunted != ""
+				fb.set_meta("help", {"charm": "feed_charm", "offhand": "feed_offhand"}.get(arg, "feed_item"))
+				_detail_text(hunted if hunted != "" else (ItemPool.TEXT["filter_note"] if held >= amount else ItemPool.TEXT["filter_short"] % [amount, held]), DIM)
+				main.tip("item_pool")  # (filtering offered, the first time: the Entity explains)
 			var other = _compare_with(p, arg, g)
 			_detail_stats(g if has else "", other)
 			if arg in ["armor", "helm", "legs"] and p.protection() > 0.0:
@@ -3491,6 +3488,19 @@ func _wear_pack(i: int, into: String) -> void:
 
 func _drop_pack(i: int) -> void:
 	main.drop_from_pack(i)
+	open("inventory", opened_direct)
+
+
+## Filters essence you carry into the weapon in a slot, refilling its own
+## pool (item_pool.gd refill_carried).
+func _feed_item(slot: String) -> void:
+	var g = main.player.gear.get(slot, {})
+	if not (g is Dictionary) or g.is_empty() or ItemPool.filter_why(main) != "":
+		return
+	if ItemPool.refill_carried(main, g) == "":
+		main.sfx("craft", 1.1, -4.0, 0.0)
+		main.note_event("gear", ItemPool.TEXT["filtered"] % Gear.display(g), Gear.color(g))
+	inv_sel = "gear:" + slot
 	open("inventory", opened_direct)
 
 
@@ -4579,6 +4589,7 @@ func _make_theme() -> Theme:
 ## are locked.
 class Slot extends Button:
 	const Art := preload("res://scripts/icon_art.gd")
+	const ItemPool := preload("res://scripts/item_pool.gd")
 	const Gear := preload("res://scripts/gear.gd")
 	const Essence := preload("res://scripts/essence.gd")
 	const Items := preload("res://scripts/items.gd")
@@ -4666,6 +4677,9 @@ class Slot extends Button:
 					var wb := UI.Draw.Batch.new()
 					UI.wear_into(wb, Rect2(Vector2(6, size.y - 8), Vector2(size.x - 12, 3)), wear)
 					wb.flush(self)
+				if rec != null and not empty and ItemPool.has_pool(rec):
+					# An essence item's own pool (item_pool.gd): a small flat bar along the top.
+					ItemPool.draw_bar(self, Rect2(Vector2(14, 3), Vector2(size.x - 28, 3)), rec)
 				if kept:
 					var kb := UI.Draw.Batch.new()
 					UI.gem_into(kb, Vector2(size.x - 8, 8), 3.5, UI.GOLD)
