@@ -426,6 +426,7 @@ class Crest extends Control:
 	const Towers := preload("res://scripts/towers.gd")
 	var station := {}
 	var home := false
+	var wild_word := ""  # its tower's well runs wild (wild_towers.gd crest_word): the city talks of it
 
 	func _ready() -> void:
 		mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -455,5 +456,7 @@ class Crest extends Control:
 		var nw := font.get_string_size(name, HORIZONTAL_ALIGNMENT_LEFT, -1, fs).x
 		UI.draw_text(self, font, Vector2(pw + 8.0, h * 0.5 + fs * 0.35), name, HORIZONTAL_ALIGNMENT_LEFT, size.x - pw - 8.0, fs, banner.lightened(0.5))
 		var rest := "%s  ·  %s" % [near, tag] if near != "" else tag
+		if wild_word != "":
+			rest += "  ·  " + wild_word
 		UI.draw_text(self, UI.font("body"), Vector2(pw + 16.0 + nw, h * 0.5 + fs * 0.3), rest, HORIZONTAL_ALIGNMENT_LEFT, maxf(0.0, size.x - pw - 16.0 - nw), fs - 3, UI.GOLD if home else UI.DIM)
 

@@ -257,6 +257,13 @@ static var TIPS := {
 	"ending": {"group": "tower", "name": "The ending",
 		"tip": "All six guardians. I wrote it all down. Keep going, if you like.",
 		"more": "Once all six towers' guardians have been beaten, the ending plays after the last summit. Then the same climber plays on: every tower stays open, and everything you have stays yours."},
+	# Wild towers (wild_towers.gd): the first time you enter one, by what you are.
+	"wild_tower": {"group": "tower", "name": "A wild tower",
+		"tip": "Its guardian fell, and its well runs wild. When rings light up on the floor, get out before they strike. Careful: wild essence burns marks.",
+		"more": "When a tower's guardian is beaten, its well runs wild. The tower stays open, but stranger. Storms gather on its floors: rings light up, one under you, and strike a moment later. Roll or step out of them; they strike monsters too. Its monsters are tougher and its finds a little richer. A strike that catches a marked climber burns one of their marks a rung, burned, then paralyzed; the stair heals a rung. It never burns a mark out by itself. The engine's map marks every wild tower. Ask me: Wild towers?"},
+	"wild_tower_unbound": {"group": "unbound", "name": "A wild tower, Unbound",
+		"tip": "Its guardian fell, and its well runs wild. The storms still sting, but wild essence feeds you. Your Nodes will drink it at the stair.",
+		"more": "When a tower's guardian is beaten, its well runs wild. Storms gather on its floors: rings light up, one under you, and strike a moment later. A strike that catches an Unbound hurts half as much and leaves some of the tower's essence in what you carry, a little each floor at most; banked at the stair, it flows into your Nodes. Its monsters are tougher and its finds a little richer. The engine's map marks every wild tower. Ask me: Wild towers?"},
 	"casting": {"group": "essence", "name": "Casting",
 		"tip": "Your mark answers to {cast}. Tap to cast; hold to choose a spell while the world slows. Choosing never casts.",
 		"more": "Each mark is a bond with a body (an upgrade to a basic action), a passive, and spells learned as it grows (at steps 1, 2, 4 and 5; step 3 changes the first). A mark fills with essence during a climb as its body part does its work, and glows once a spell can be cast. Tap the mark's key ({cast}) to cast its selected spell, or hold it to open the wheel of its spells, point at one and let go: that spell goes on the button, and nothing is cast until you tap it. The climber screen ({climber}) has a page for every mark with all its spells."},

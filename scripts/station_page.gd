@@ -128,6 +128,7 @@ func build() -> void:
 	var crest := StationView.Crest.new()
 	crest.station = st
 	crest.home = station == Travel.home(prof)
+	crest.wild_word = load("res://scripts/wild_towers.gd").crest_word(prof, Travel.tower_of(station))  # (the city by a wild tower talks of it)
 	crest.custom_minimum_size = Vector2(minf(420.0, _avail()), 26 if small else 30)
 	crest.set_meta("station_crest", station)
 	m.box.add_child(crest)
@@ -491,7 +492,7 @@ func _noble(left: Node) -> void:
 	var prof = _prof()
 	_section(left, Noble.name_of(station))
 	if not said.has("noble_line"):
-		said["noble_line"] = Noble.greet(prof)  # (now and then a rumour of the guardians: guardian_lessons.gd)
+		said["noble_line"] = Noble.greet(prof, -1.0, station)  # (now and then a rumour of the guardians: guardian_lessons.gd; word of wild towers: wild_towers.gd)
 	_line(left, String(said["noble_line"]), UI.GOLD)
 	if Training.required(prof):
 		# The Noble's Grace (training.gd): what lets a climber into the towers.

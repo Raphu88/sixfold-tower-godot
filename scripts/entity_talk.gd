@@ -73,7 +73,7 @@ static var DIALOGUE := {
 	# to "how"'s choices.
 	"how": {"ask": "How do things work here?",
 		"lines": ["Which part? I'll keep it short.", "Ask. The rules are simpler than they look. Mostly."],
-		"choices": ["how_controls", "how_start", "how_grace", "how_training", "how_stamina", "how_essence", "how_marks", "how_burns", "how_new_mark", "how_part_fills", "how_dodge", "how_synergies", "how_renown", "how_travel", "how_titles", "how_contracts", "how_tourney", "how_manager", "how_climb", "how_first_mark", "how_barrier", "how_fall", "how_belt", "how_wheel", "how_states", "how_handy", "how_charms", "how_workshop", "how_offhand", "how_item_pool", "how_gear", "how_summit", "how_deeds", "how_bags", "how_shop", "how_ward", "how_secret", "how_portals", "how_aura", "how_unbound", "how_nodes", "how_sealing", "how_unbound_words", "how_unbound_techniques", "how_bestiary", "how_guardians", "how_rivals", "how_dining", "how_bets", "how_duels", "how_glows", "how_ways_down", "how_foes", "start", "bye"]},
+		"choices": ["how_controls", "how_start", "how_grace", "how_training", "how_stamina", "how_essence", "how_marks", "how_burns", "how_new_mark", "how_part_fills", "how_dodge", "how_synergies", "how_renown", "how_travel", "how_titles", "how_contracts", "how_tourney", "how_manager", "how_climb", "how_first_mark", "how_barrier", "how_fall", "how_belt", "how_wheel", "how_states", "how_handy", "how_charms", "how_workshop", "how_offhand", "how_item_pool", "how_gear", "how_summit", "how_deeds", "how_bags", "how_shop", "how_ward", "how_secret", "how_portals", "how_aura", "how_unbound", "how_nodes", "how_sealing", "how_unbound_words", "how_unbound_techniques", "how_bestiary", "how_guardians", "how_wild", "how_rivals", "how_dining", "how_bets", "how_duels", "how_glows", "how_ways_down", "how_foes", "start", "bye"]},
 	"how_controls": {"ask": "What are the controls?", "fact": "controls",
 		"lines": ["{controls_how}", "{controls_list}", "Press H any time to show or hide this list in the corner of the screen. Settings & Controls lets you change any key."],
 		"choices": ["how", "bye"]},
@@ -240,6 +240,9 @@ static var DIALOGUE := {
 	"how_guardians": {"ask": "Do the guardians know each other?",
 		"lines": ["They do. Six towers, six guardians, and they talk when one of them falls. I can't tell you what they say; I don't hear it all. If the next one seems to know you before you've met, ask around. Climbers on the train and on the stairs hear more than I do, and the Noble hears everything."],
 		"choices": ["how_bestiary", "how", "bye"]},
+	"how_wild": {"ask": "Wild towers?", "fact": "wild",
+		"lines": ["When a tower's guardian falls, its well runs wild. The tower stays open, but stranger. Every {storm_gap} seconds or so a storm gathers: rings light up on the floor, one under you, and strike {storm_warn} seconds later. Roll or step out; they strike monsters too, so lure them in. Its monsters have {wild_hp} and {wild_dmg}; its finds are a little richer, about {wild_essence} more essence from a kill and likelier gear. {wild_you} The engine's map marks every wild tower. {wild_count} Each one that runs wild loosens something in the world. Others will tell you more than I can."],
+		"choices": ["how_guardians", "how_burns", "how", "bye"]},
 	"how_foes": {"ask": "Monsters that work together?",
 		"lines": ["Some help the rest. A bellringer's bell quickens every monster it reaches: catch it first. A rookery hatches bats until it's broken. A stormstone strikes whoever stands nearest, so let them stand nearer. A stoker feeds the fires; slay it and they die down. And a husk reads your rhythm: three blows on one beat and it parries the next. Wait a beat. The Bestiary keeps the rest."],
 		"choices": ["how_bestiary", "how", "bye"]},
@@ -445,6 +448,8 @@ static func facts(main, n: Dictionary) -> Dictionary:
 			f = _fact_start(main)
 		"training":
 			f = load("res://scripts/training.gd").talk_facts(main.profile if main != null else null)
+		"wild":
+			f = load("res://scripts/wild_towers.gd").talk_facts(main.profile if main != null else null)
 	if main != null:
 		f["floor"] = f.get("floor", main.get("floor_num"))
 	return f

@@ -279,6 +279,10 @@ func _rumors() -> void:
 	var seen := {}
 	var kept_lessons: Dictionary = prof.guardians
 	prof.guardians = {"gryphon": {"beast": "the Gryphon", "ess": {"fire": 0.8}, "forms": {"shot": 0.7}, "parts": {"brow": 0.7}, "near": 0.2, "rolls": 3, "parries": 0, "dmg": 300}}  # (a guardian has fallen: the rumours of its lesson)
+	var Wild = load("res://scripts/wild_towers.gd")
+	var kept_by = prof.record.get("beasts_by", null)
+	prof.record["beasts_by"] = {"gryphon": 1}  # (...and its well runs wild: wild_towers.gd)
+	Wild.test_on = true
 	for r in D.RUMORS:
 		for i in 6:
 			var f := D.fact(prof, String(r["fact"]), tw, "")
@@ -292,6 +296,11 @@ func _rumors() -> void:
 				bad.append("%s left a blank: %s" % [r["fact"], text])
 	_check(bad.is_empty(), "every rumor's fact is true by the game's own tables (%s)" % [bad.slice(0, 3)])
 	prof.guardians = kept_lessons
+	Wild.test_on = false
+	if kept_by == null:
+		prof.record.erase("beasts_by")
+	else:
+		prof.record["beasts_by"] = kept_by
 	_check(seen.size() >= D.RUMORS.size() - 1, "...and nearly every kind of rumor has something to say (%s)" % [seen.keys()])
 	# A weakness heard fills that Bestiary line.
 	var keep: Array = D.RUMORS
@@ -341,6 +350,9 @@ func _fact_true(prof, f: Dictionary) -> bool:
 		"guardians":
 			var GL = load("res://scripts/guardian_lessons.gd")
 			return not GL.rumour_facts(prof).is_empty() and String(f["rumour"]).length() > 8
+		"wild":
+			var Wd = load("res://scripts/wild_towers.gd")
+			return (f["towers"] as Array).all(func(tw): return Wd.is_wild(prof, String(tw))) and not (f["towers"] as Array).is_empty() and String(f["rumour"]).length() > 8
 	return false
 
 
