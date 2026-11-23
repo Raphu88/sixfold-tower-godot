@@ -482,12 +482,13 @@ func _store_screen() -> void:
 	menu.open("train")
 	await t._frames(2)
 	var sell: Array = t._car_buttons("sell", "chest:0")
-	for i in 2:
-		if sell.size() == 1:
-			sell[0].pressed.emit()
-			await t._frames(3)
-			sell = t._car_buttons("sell", "chest:0")
-	_check(prof.chest.is_empty(), "a stash piece sells (asking once first)")
+	if sell.size() == 1:
+		sell[0].pressed.emit()
+		await t._frames(3)
+	_check(not prof.chest.is_empty() and menu.asking(), "Sell asks first (the confirmation pop-up)")
+	await t._confirm(true)
+	await t._frames(2)
+	_check(prof.chest.is_empty(), "...and Confirm sells the stash piece")
 	menu.train_store = "shop"
 	menu.train_car = "personal"
 	menu.close()

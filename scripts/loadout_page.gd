@@ -444,9 +444,8 @@ func piece_card(where: String, i: int) -> void:
 	var kind := Train.gear_kind(g)
 	var got := Train.gear_sell(g, prof)
 	var key := "%s:%d" % [where, i]
-	var sell := _btn(m.Nav.fill(Train.TEXT["sell_ask"] % [got, Essence.display(kind)], m.main) if m.sell_ask == key else Train.TEXT["sell_for"] % [got, Essence.display(kind)], _sell.bind(where, i), "sell", key)
-	if m.sell_ask == key:
-		m._primary(sell)
+	var sell := _btn(Train.TEXT["sell_for"] % [got, Essence.display(kind)], _sell.bind(where, i), "sell", key)
+	sell.set_meta("asks", true)  # (it opens the pop-up)
 	if not full and not _small():
 		m._detail_text(TEXT["press_again_pack"] if where == "chest" else TEXT["press_again_chest"], UI.FAINT)
 	m._detail_lines(g, Gear.SLOT_NAMES.get(Gear.slot_of(g), ""))
@@ -478,7 +477,7 @@ func _belt_card(id: String) -> void:
 func _done(text: String, _say: String, sound: String) -> void:
 	m.toast = text
 	m.toast_t = 3.0
-	m.main.sfx(sound, 1.0, -4.0, 0.0)
+	m.feedback(m.DONE_KINDS.get(sound, "make"), sound)  # (its sound, and a flash on the button: menu.gd)
 	if m.page != "train":
 		m._want_focus = {"meta": "slot", "value": m.inv_sel}  # (the keys stay on the chosen piece, not whatever took its place)
 	m.open(m.page, m.opened_direct)
@@ -532,15 +531,19 @@ func _move(where: String, i: int) -> void:
 		_done(Train.TEXT["cant"] % why, "", "ui_back")
 
 
-## Selling asks once ("Press again to sell"), then sells.
+## Selling asks first (the confirmation pop-up: menu.gd ask), then sells.
 func _sell(where: String, i: int) -> void:
-	var key := "%s:%d" % [where, i]
-	if m.sell_ask != key:
-		m.sell_ask = key
-		m.toast = ""
-		m.open(m.page, m.opened_direct)
+	var prof = _prof()
+	var list: Array = prof.chest if where == "chest" else prof.pack
+	if i >= list.size():
 		return
-	m.sell_ask = ""
+	var g: Dictionary = list[i]
+	var kind := Train.gear_kind(g)
+	var got := Train.gear_sell(g, prof)
+	m.ask(Train.TEXT["sell_ask"] % [got, Essence.display(kind)], Train.TEXT["sell_for"] % [got, Essence.display(kind)], _sell_now.bind(where, i), Gear.rarity(g) != "common", Gear.display(g))
+
+
+func _sell_now(where: String, i: int) -> void:
 	var prof = _prof()
 	var list: Array = prof.chest if where == "chest" else prof.pack
 	if i >= list.size():

@@ -164,7 +164,7 @@ static var TEXT := {
 	"pack_shrinks": "your pack would hold too little: move a piece out of it first",
 	"no_room": "your pack and stash are both full",
 	"sell_for": "Sell for %d %s",
-	"sell_ask": "{again} to sell for %d %s",
+	"sell_ask": "Sell it to the outfitter for %d %s? It's his once sold.",
 	"sold": "Sold: %s for %s",
 	# Store car
 	"store_sub": "Kept by the outfitter. He buys what climbers bring down, and sells it to the next ones up.",

@@ -3404,7 +3404,7 @@ func _menu_tests() -> void:
 	Input.action_release("pause")
 	_check(not main.menu_open() and not paused, "Esc again resumes")
 	# Every page builds without errors.
-	for pg in ["title", "pause", "settings", "controls", "confirm_new", "dev", "climber", "inventory"]:
+	for pg in ["title", "pause", "settings", "controls", "dev", "climber", "inventory"]:
 		menu.open(pg)
 		await _frames(1)
 	_check(menu.page == "inventory" and paused, "every menu page opens")
@@ -3479,6 +3479,17 @@ func _menu_button(text: String) -> Button:
 		if b.text == text and b.is_visible_in_tree():
 			return b
 	return null
+
+
+## The confirmation pop-up (menu.gd ask, confirm_pop.gd): if it's asking,
+## presses Confirm (or Cancel) and waits a frame. True if it was asking.
+func _confirm(yes := true) -> bool:
+	var m = main.menu
+	if not m.asking():
+		return false
+	m.pop.press(yes)
+	await _frames(1)
+	return true
 
 
 func _tap_at(pos: Vector2) -> void:
@@ -3561,7 +3572,7 @@ func _title_tests() -> void:
 	_check(status, "the title shows marks carried and best floor")
 	_menu_button("Start over").pressed.emit()
 	await _frames(2)
-	_check(menu.page == "confirm_new" and menu.backdrop.visible, "Start over asks over the title backdrop")
+	_check(menu.asking() and menu.page == "title" and menu.backdrop.visible, "Start over asks first (the pop-up, over the title backdrop)")
 	_menu_button("Cancel").pressed.emit()
 	await _frames(2)
 	_check(menu.page == "title", "...and Cancel returns to the title")
@@ -4505,13 +4516,11 @@ func _spell_tests() -> void:
 	Input.action_press("new_climber")
 	await _frames(2)
 	Input.action_release("new_climber")
-	_check(main.new_climber_t > 0.0 and main.banner.get("title", "") == "START OVER?", "a first press asks to confirm")
-	_check(not main.profile.bonds.is_empty(), "one press changes nothing yet")
+	_check(main.menu.page == "pause" and main.menu.asking(), "N asks to confirm: the pause menu, with the confirmation pop-up")
+	_check(not main.profile.bonds.is_empty(), "asking changes nothing yet")
+	await _confirm(true)
 	await _frames(2)
-	Input.action_press("new_climber")
-	await _frames(2)
-	Input.action_release("new_climber")
-	_check(main.profile.bonds.is_empty() and not main.profile.regarded, "a second press starts a new climber: no marks")
+	_check(main.profile.bonds.is_empty() and not main.profile.regarded, "Confirm starts a new climber: no marks")
 	_check(main.menu.page == "intro", "...who meets the introduction first (then a name, a look and the questions)")
 	_begin_start()  # (Begin: the game runs on)
 	Engine.remove_meta("sixfold_title_seen")
@@ -8075,9 +8084,9 @@ func _screen_tests() -> void:
 	if not over_b.is_empty():
 		over_b[0].pressed.emit()
 	await _frames(1)
-	_check(menu.page == "confirm_new", "Start over asks first")
+	_check(menu.page == "settings" and menu.asking(), "Start over asks first (the confirmation pop-up)")
 	await _key_tap(KEY_ESCAPE)
-	_check(menu.page == "settings", "...and Esc cancels back to Settings & Controls")
+	_check(menu.page == "settings" and not menu.asking(), "...and Esc cancels, back on Settings & Controls")
 	menu.open("pause")
 	await _frames(1)
 	for b in _all_buttons(menu):
@@ -9138,12 +9147,10 @@ func _train_tests() -> void:
 	if sell.size() == 1:
 		sell[0].pressed.emit()
 		await _frames(2)
-	_check(prof.pack.size() == 2, "the first press on Sell only asks")
-	sell = _car_buttons("sell", "pack:0")
-	if sell.size() == 1:
-		sell[0].pressed.emit()
-		await _frames(2)
-	_check(prof.pack.size() == 1 and prof.crystal_total("stone") == stone + cap_sell, "the second sells it: %d Stone into your crystal" % cap_sell)
+	_check(prof.pack.size() == 2 and menu.asking(), "a press on Sell only asks (the confirmation pop-up)")
+	await _confirm(true)
+	await _frames(1)
+	_check(prof.pack.size() == 1 and prof.crystal_total("stone") == stone + cap_sell, "Confirm sells it: %d Stone into your crystal" % cap_sell)
 	menu.train_store = "shop"
 	# The chest: keep a piece; it's saved with the profile (old saves load without one).
 	_check(T.move(prof, p, "pack", 0) == "" and prof.chest.size() == 1 and prof.pack.is_empty(), "a piece moves from your pack to the chest")
@@ -9486,13 +9493,11 @@ func _bench_tests() -> void:
 	if temper.size() == 1:
 		temper[0].pressed.emit()
 		await _frames(2)
-	_check(int(B.piece(prof, "heir:melee")["rank"]) == 0, "the first press only asks")
-	temper = bench_buttons.call("bench_do", "temper")
-	if temper.size() == 1:
-		temper[0].pressed.emit()
-		await _frames(2)
+	_check(int(B.piece(prof, "heir:melee")["rank"]) == 0 and menu.asking(), "a press only asks (the confirmation pop-up)")
+	await _confirm(true)
+	await _frames(1)
 	var spear: Dictionary = prof.heirlooms["melee"]
-	_check(int(spear["rank"]) == 1 and prof.crystal_total("blade") == 180.0 and G.display(spear).ends_with("+1"), "the second tempers it to +1 for 20 Blade (%s)" % G.display(spear))
+	_check(int(spear["rank"]) == 1 and prof.crystal_total("blade") == 180.0 and G.display(spear).ends_with("+1"), "Confirm tempers it to +1 for 20 Blade (%s)" % G.display(spear))
 	_check(is_equal_approx(G.effects(spear)["strike"], strike0 * 1.25) and is_equal_approx(G.weapon_power(spear), power0 * 1.04), "+1: its trait 25% stronger, the spear 4% harder")
 	_check(B.temper(prof, "heir:melee").contains("density"), "+2 needs Blade density settled in you")
 	prof.density["blade"] = 100.0
@@ -10728,12 +10733,9 @@ func _secret_bond_tests() -> void:
 	if pb != null:
 		pb.pressed.emit()
 		await _frames(1)
-	_check(prof.path == "unmaking", "...a first press only asks")
-	for c in main.menu.find_children("*", "Button", true, false):
-		if c.has_meta("path_change"):
-			c.pressed.emit()
-	await _frames(1)
-	_check(prof.path == "" and prof.flow == 0.0 and main.run_flow == 0.0, "...a second: all of the path's flow is gone, and a new path starts from nothing")
+	_check(prof.path == "unmaking" and main.menu.asking(), "...a press only asks (the confirmation pop-up)")
+	await _confirm(true)
+	_check(prof.path == "" and prof.flow == 0.0 and main.run_flow == 0.0, "...Confirm: all of the path's flow is gone, and a new path starts from nothing")
 	_check(main.menu.find_children("*", "Control", true, false).any(func(c): return c.get_script() == load("res://scripts/secret_page.gd").Drain), "...shown flowing out of the shadow")
 	main.on_train = false
 	main.menu.close()
@@ -12002,12 +12004,10 @@ func _vessel_tests() -> void:
 	if fire.size() == 1:
 		fire[0].pressed.emit()
 		await _frames(2)
-		_check(prof.vessels.size() == 2, "the first press only asks")
-		fire = trade.call("fire")
-		if fire.size() == 1:
-			fire[0].pressed.emit()
-			await _frames(2)
-	_check(prof.vessels.size() == 1 and prof.crystal_total("fire") == float(V.TRADE["one"]), "the second trades it for %d Fire" % int(V.TRADE["one"]))
+		_check(prof.vessels.size() == 2 and menu.asking(), "a press only asks (the confirmation pop-up)")
+		await _confirm(true)
+		await _frames(1)
+	_check(prof.vessels.size() == 1 and prof.crystal_total("fire") == float(V.TRADE["one"]), "Confirm trades it for %d Fire" % int(V.TRADE["one"]))
 	menu.inv_sel = "vessel:0"
 	menu.open("train")
 	await _frames(2)
@@ -12030,10 +12030,8 @@ func _vessel_tests() -> void:
 	if dt.size() == 1:
 		dt[0].pressed.emit()
 		await _frames(2)
-		dt = deep.call()
-		if dt.size() == 1:
-			dt[0].pressed.emit()
-			await _frames(2)
+		await _confirm(true)
+		await _frames(1)
 	var spear: Dictionary = prof.heirlooms["melee"]
 	_check(int(spear["rank"]) == G.RANK_CAP and prof.vessels.is_empty() and is_equal_approx(G.effects(spear)["strike"], strike3 * (1.0 + G.RANK_TRAIT * 4) / (1.0 + G.RANK_TRAIT * 3)),
 		"...to +%d, using up the vessel (its trait a quarter more of its base)" % G.RANK_CAP)
@@ -12133,7 +12131,7 @@ func _slot_climber(slot: int, name: String, bonds: Dictionary, crystal: Array):
 ## kept apart (marks, crystals, train, look, the Entity's tips); settings
 ## shared; the slot played last remembered; deleting one removes only it; no
 ## seventh; an old single save moves into slot 1 whole; the picker by keys,
-## a tap, an empty slot, Delete twice.
+## a tap, an empty slot, Delete (asking first, in the pop-up).
 ## The menu's left rail (rail.gd) and the interface's fonts (ui.gd).
 func _rail_tests() -> void:
 	print("the menu's rail and fonts")
@@ -12272,7 +12270,7 @@ func _rail_tests() -> void:
 	if not brake.is_empty():
 		brake[0].pressed.emit()
 	await _frames(2)
-	_check(menu.page == "confirm_new" and rail.visible and rail.current == "settings", "Start over from the train asks first, beside the rail (Settings & Controls lit)")
+	_check(menu.asking() and menu.page == "train" and rail.visible and rail.current == "settings", "Start over from the train asks first (the pop-up, over the car, Settings & Controls lit)")
 	menu.go_back()
 	await _frames(2)
 	_check(menu.page == "train" and menu.train_car == "settings", "...and Cancel goes back to the train, on that car")
@@ -12456,11 +12454,13 @@ func _train_rail_tests() -> void:
 	if not brake.is_empty():
 		brake[0].pressed.emit()
 	await _frames(2)
-	_check(menu.page == "confirm_new" and _menu_button(load("res://scripts/climbers_page.gd").TEXT["cancel"]) != null, "...which asks first")
+	_check(menu.asking() and _menu_button(load("res://scripts/climbers_page.gd").TEXT["cancel"]) != null, "...which asks first (the pop-up, with Cancel)")
 	menu.go_back()
 	await _frames(2)
 	_check(menu.page == "train" and menu.train_car == "settings" and main.profile.regarded, "...and Cancel goes back to the car, nothing lost")
 	# Controller setup from the car comes back to it.
+	menu.open("train")  # (the car on its Settings tab again)
+	await _frames(2)
 	var pads: Array = _all_buttons(tp.roots["settings"]).filter(func(b): return b.get_meta("setting", "") == "padsetup")
 	if not pads.is_empty():
 		pads[0].pressed.emit()
@@ -13013,7 +13013,7 @@ func _nav_tests() -> void:
 	await _frames(1)
 	await _key_tap(KEY_ENTER)
 	await _frames(2)
-	_check(menu.page == "confirm_new" and _focus_now() != null and _focus_now().has_meta("cancel"), "Start over asks first, with the focus on Cancel")
+	_check(menu.asking() and _focus_now() != null and _focus_now() == menu.pop.no, "Start over asks first (the pop-up), with the focus on Cancel")
 	await _key_tap(KEY_ESCAPE)
 	await _until(func(): return _focus_now() != null and _focus_now().has_meta("over"), 1.0)
 	_check(menu.page == "settings" and _focus_now() != null and _focus_now().has_meta("over"), "...and Esc goes back onto Start over, nothing lost")
@@ -13224,7 +13224,7 @@ func _climber_slot_tests() -> void:
 	_check(S.exists(5) and S.filled() == [1, 2, 5] and not main.profile.regarded, "...whose Begin saves them in that slot, for the bondless first climb")
 	Engine.remove_meta("sixfold_title_seen")
 	main.touch._set_active(false)
-	# Six full: no seventh. Delete asks twice and removes only that climber.
+	# Six full: no seventh. Delete asks first (the pop-up) and removes only that climber.
 	for i in [3, 4, 6]:
 		_slot_climber(i, "C%d" % i, {}, [])
 	_check(S.filled().size() == 6 and S.first_empty() == 0 and not main.switch_climber(7) and S.current() == 5, "with six climbers there's no empty slot, and no seventh")
@@ -13237,12 +13237,10 @@ func _climber_slot_tests() -> void:
 	if del4.size() == 1:
 		del4[0].pressed.emit()
 	await _frames(2)
-	del4 = _all_buttons(menu).filter(func(x): return int(x.get_meta("climber_delete", 0)) == 4)
-	_check(S.exists(4) and del4.size() == 1 and del4[0].text == load("res://scripts/nav.gd").fill(CP.TEXT["delete_again"], main), "Delete asks again first (nothing is deleted yet)")
-	if del4.size() == 1:
-		del4[0].pressed.emit()
+	_check(S.exists(4) and menu.asking() and menu.pop.yes.text == CP.TEXT["delete_forever"], "Delete asks first: the pop-up (nothing is deleted yet)")
+	await _confirm(true)
 	await _frames(2)
-	_check(not S.exists(4) and S.filled() == [1, 2, 3, 5, 6] and S.current() == 5 and menu.page == "climbers", "a second press deletes only that climber")
+	_check(not S.exists(4) and S.filled() == [1, 2, 3, 5, 6] and S.current() == 5 and menu.page == "climbers", "Confirm deletes only that climber")
 	_check(S.peek(1).crystal_total("fire") == 50.0 and S.peek(2).bonds.size() == 2, "...the others are untouched")
 	# Deleting the climber being played: whoever played last is current.
 	main.delete_climber(5)
@@ -14623,13 +14621,10 @@ func _data_editor_tests() -> void:
 			all = b
 	all.pressed.emit()
 	await _frames(2)
-	_check(Reg.applied.size() == n and dp.ask_all, "...Put all back asks first")
-	for b in menu.focusables():
-		if b.has_meta("data_revert_all"):
-			all = b
-	all.pressed.emit()
-	await _frames(2)
-	_check(Reg.applied.is_empty() and Train.BASE_PRICE["dagger"] == 10 and load("res://scripts/palette.gd").VOID.is_equal_approx(Color(0.035, 0.03, 0.05)), "...and the second press puts everything back")
+	_check(Reg.applied.size() == n and menu.asking(), "...Put all back asks first (the pop-up)")
+	await _confirm(true)
+	await _frames(1)
+	_check(Reg.applied.is_empty() and Train.BASE_PRICE["dagger"] == 10 and load("res://scripts/palette.gd").VOID.is_equal_approx(Color(0.035, 0.03, 0.05)), "...and Confirm puts everything back")
 	# Back: to Dev tools, saved.
 	Reg.set_value("train/BASE_PRICE/axe", 20)
 	await _key_tap(KEY_ESCAPE)
@@ -14953,7 +14948,7 @@ func _pages_fit(tag: String) -> Array:
 			out.append("%s arrange button %s doesn't fit (%s, %d px words)" % [tag, b[0], b[1], fs])
 	var pages :=[["pause", ""], ["climber", "abilities"], ["climber", "tree"], ["climber", "marks"], ["climber", "essence"], ["climber", "record"], ["mark", "hand"],
 		["inventory", "worn"], ["inventory", "pack"], ["inventory", "heirlooms"], ["library", ""], ["settings", "settings"], ["settings", "controls"],
-		["dev", ""], ["data", ""], ["painter", ""], ["confirm_new", ""], ["climbers", ""], ["appearance", ""]]
+		["dev", ""], ["data", ""], ["painter", ""], ["climbers", ""], ["appearance", ""]]
 	for pg in pages:
 		match pg[0]:
 			"climber":

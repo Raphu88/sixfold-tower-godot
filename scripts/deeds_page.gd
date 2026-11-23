@@ -206,7 +206,7 @@ static func _num(v: float) -> String:
 
 static func _carry(m, tower: String) -> void:
 	SummitBlades.carry(m.main.profile, tower)
-	m.main.sfx("equip_sword", 1.1, -4.0, 0.0)
+	m.feedback("choose", "equip_sword")  # (its sound, and a flash on the button)
 	said = SummitBlades.TEXT["carried"] + ": " + SummitBlades.blade_name(tower)
 	m.open("climber", m.opened_direct)
 
@@ -214,7 +214,7 @@ static func _carry(m, tower: String) -> void:
 static func _awaken(m, tower: String) -> void:
 	var why := SummitBlades.awaken(m.main.profile, tower)
 	if why == "":
-		m.main.sfx("craft_rune", 1.0, -2.0, 0.0)
+		m.feedback("make", "craft_rune")
 		said = SummitBlades.TEXT["woke"] % [SummitBlades.blade_name(tower), SummitBlades.level(m.main.profile, tower)]
 		m.main.tip_now("summit_awaken", false)
 	else:

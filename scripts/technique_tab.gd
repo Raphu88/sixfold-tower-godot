@@ -664,7 +664,7 @@ static func _set_form(menu, form: String) -> void:
 	var prof = menu.main.profile
 	var i := slot(menu)
 	if apply(menu, i, set_form(prof, Unbound.tech_of(prof, i), form)):
-		menu.main.sfx("craft_rune", 1.0, -4.0, 0.0)
+		menu.feedback("choose", "craft_rune")  # (its sound, and a flash on the button)
 	_redraw(menu, "tech_form", form)
 
 
@@ -677,7 +677,7 @@ static func _cycle_fx(menu, kind: String) -> void:
 		if next != "":
 			menu.set_meta("tech_said", {"line": next, "ms": Time.get_ticks_msec(), "echo": false})
 	elif apply(menu, i, cycle_effect(prof, Unbound.tech_of(prof, i), kind)):
-		menu.main.sfx("glint", 1.2, -6.0, 0.0)
+		menu.feedback("choose")
 	_redraw(menu, "tech_fx", kind)
 
 
@@ -685,7 +685,7 @@ static func _fit(menu, vid: String) -> void:
 	var prof = menu.main.profile
 	var i := slot(menu)
 	if apply(menu, i, fit(prof, Unbound.tech_of(prof, i), vid)):
-		menu.main.sfx("equip_heavy", 1.3, -6.0, 0.0)
+		menu.feedback("choose", "equip_heavy")
 	_redraw(menu, "tech_fitting", vid)
 
 

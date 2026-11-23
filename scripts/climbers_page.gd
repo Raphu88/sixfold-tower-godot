@@ -6,7 +6,7 @@ extends RefCounted
 ## light on each mark), their name, marks (or first climb, or Unbound), best
 ## floor, climbs and when they last played; an empty slot offers a new
 ## climber. Choosing a card plays that climber (main.gd switch_climber);
-## Delete under a card asks for a second press, then forgets them for good.
+## Delete under a card asks first (a pop-up), then forgets them for good.
 ## Every word is here, in TEXT.
 
 const Slots := preload("res://scripts/slots.gd")
@@ -35,29 +35,23 @@ static var TEXT := {
 	"played_days": "Played %d days ago",
 	"played_long": "Played over a month ago",
 	"delete": "Delete",
-	"delete_again": "{again}: delete forever",
-	"delete_ask": "Press Delete again to delete %s for good. This can't be undone.",
+	"delete_title": "Delete %s?",
+	"delete_ask": "Delete %s for good? This can't be undone.",
+	"delete_forever": "Delete forever",
 	"deleted": "%s is gone, and can't be brought back.",
 	"full": "All six slots are full. Delete a climber to make room for a new one.",
-	"delete_note": "Delete asks twice. A deleted climber can't be brought back.",
+	"delete_note": "Delete asks first. A deleted climber can't be brought back.",
 	# The title screen's button, with the current climber.
 	"button": "Climbers",
 	"button_named": "Climbers  ·  %s",
 	"button_slot": "Climbers  ·  slot %d",
-	# Start over (title, pause menu, N twice): this climber only.
+	# Start over (title, pause menu, N; it asks first: the pop-up): this climber only.
 	"over": "Start over",
 	"over_title": "Start over?",
 	"over_text": "Start %s over with no marks. {Their} marks and growth, essence, crystals, train and heirlooms will be lost. Your other climbers are kept.",
 	"over_this": "this climber",
-	"over_banner": "START OVER?",
-	"over_again": "%s within 3 seconds to start this climber over.",
-	"over_key": "Press N again",
-	"over_tap": "Tap New again",
-	"over_lost": "{Their} marks and all {their} growth will be lost.",
 	"cancel": "Cancel",
 }
-## How long a Delete stays armed for its second press.
-const ARM_MS := 4000
 ## A card's size (desktop, phone); the Delete button's height.
 const CARD := Vector2(0.0, 150.0)
 const CARD_SMALL := Vector2(0.0, 86.0)
@@ -129,7 +123,6 @@ static func build(menu) -> void:
 	elif not small:
 		menu._entity_says("climbers")
 	var current := Slots.current()
-	var armed := _armed(menu)
 	var grid: GridContainer = menu._grid(3, 8 if small else 10, 6 if small else 10)
 	var full := true
 	for slot in range(1, Slots.MAX + 1):
@@ -157,21 +150,20 @@ static func build(menu) -> void:
 		card.pressed.connect(_choose.bind(menu, slot))
 		cell.add_child(card)
 		if prof != null:
-			var del: Button = menu._button(menu.Nav.fill(TEXT["delete_again"], main) if armed == slot else TEXT["delete"], _delete.bind(menu, slot), cell)
+			var del: Button = menu._button(TEXT["delete"], _delete.bind(menu, slot), cell)
 			del.custom_minimum_size = Vector2(0, DELETE_H_SMALL if small else DELETE_H)
 			del.add_theme_font_size_override("font_size", 13 if small else 15)
 			for c in ["font_color", "font_hover_color", "font_focus_color", "font_pressed_color"]:
-				del.add_theme_color_override(c, UI.BAD if armed == slot else (UI.DIM if c == "font_color" else UI.TEXT))
+				del.add_theme_color_override(c, UI.DIM if c == "font_color" else UI.TEXT)
 			del.set_meta("climber_delete", slot)
+			del.set_meta("asks", true)  # (it opens the pop-up)
 		else:
 			var gap := Control.new()
 			gap.custom_minimum_size.y = DELETE_H_SMALL if small else DELETE_H
 			cell.add_child(gap)
-	# Under the cards: what Delete does (a warning while one is armed).
+	# Under the cards: what Delete does.
 	var note := ""
-	if armed > 0:
-		note = TEXT["delete_ask"] % name_of(Slots.peek(armed))
-	elif full:
+	if full:
 		note = TEXT["full"]
 	elif not small:
 		note = TEXT["delete_note"]
@@ -181,22 +173,12 @@ static func build(menu) -> void:
 		menu._note(note)
 		var l: Label = menu.box.get_child(menu.box.get_child_count() - 1)
 		l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-		if armed > 0:
-			l.add_theme_color_override("font_color", UI.BAD)
 	menu._footer()
-
-
-## The slot whose Delete is armed (0 if none, or if it has run out).
-static func _armed(menu) -> int:
-	if Time.get_ticks_msec() - int(menu.get_meta("climber_delete_t", -ARM_MS - 1)) > ARM_MS:
-		return 0
-	return int(menu.get_meta("climber_delete", 0))
 
 
 ## A card: play that climber (or begin a new one in an empty slot).
 static func _choose(menu, slot: int) -> void:
 	var main = menu.main
-	menu.set_meta("climber_delete", 0)
 	if slot == Slots.current() and (Slots.exists(slot) or not main.profile.created):
 		menu._leave_title()  # (the climber already loaded: on as Continue)
 		return
@@ -204,16 +186,14 @@ static func _choose(menu, slot: int) -> void:
 	main.switch_climber(slot)
 
 
-## Delete: the first press arms it, a second (within ARM_MS) deletes.
+## Delete: asks first (the confirmation pop-up: menu.gd ask), then deletes.
 static func _delete(menu, slot: int) -> void:
+	var who := name_of(Slots.peek(slot))
+	menu.ask(TEXT["delete_ask"] % who, TEXT["delete_forever"], _delete_now.bind(menu, slot), true, TEXT["delete_title"] % who)
+
+
+static func _delete_now(menu, slot: int) -> void:
 	var main = menu.main
-	if _armed(menu) != slot:
-		menu.set_meta("climber_delete", slot)
-		menu.set_meta("climber_delete_t", Time.get_ticks_msec())
-		main.sfx("warn_knight", 1.2, -8.0, 0.0)
-		menu.open("climbers")
-		return
-	menu.set_meta("climber_delete", 0)
 	var gone := name_of(Slots.peek(slot))
 	var was_current: bool = slot == Slots.current()
 	main.delete_climber(slot)

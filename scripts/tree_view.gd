@@ -17,13 +17,13 @@ extends RefCounted
 ## dashed: not written yet, it can't be chosen). Every option comes from
 ## the tree's data (tree.gd nodes), never a list here, so new content shows
 ## by itself, each with the glyph its data suggests (grimoire_card.gd glyph_for).
-## Choosing is for good, so it takes a second press (the first only arms
-## it); the Entity says so the first time a fork is ready (entity.gd TIPS "tree_fork").
+## Choosing is for good, so it asks first (the confirmation pop-up: menu.gd
+## ask); the Entity says so the first time a fork is ready (entity.gd TIPS "tree_fork").
 ##
 ## Reaching it: a tap on a part, then a bud; the stick or d-pad up and down
 ## the parts, Right onto the branch, then up and down along it (Left and
-## Right between a node's buds), A or Enter to read a bud and again to
-## choose; the mouse points and clicks. Every Abilities entry links here
+## Right between a node's buds), A or Enter to read a bud, then its Choose
+## (and Confirm in the pop-up); the mouse points and clicks. Every Abilities entry links here
 ## ("On the body map": open_tree) and every bud's card links back ("In your
 ## abilities"); a star in Your Car's window opens it on a part with a ready
 ## fork (train_view.gd SkyStar).
@@ -55,9 +55,12 @@ static var TEXT := {
 	"steps_short": "steps %d–%d",
 	"effects": "Essences",
 	"choose": "Choose %s, for good",
-	"choose_again": "%s to choose %s, for good",
+	"choose_title": "Choose %s?",
+	"choose_ask": "%s is yours for good: the other side of this fork is passed on.",
 	"learn": "Learn %s  ·  %d crystal essence",
-	"learn_again": "%s to learn it  ·  %d crystal essence",
+	"learn_title": "Learn %s?",
+	"learn_ask": "Learn %s again for %d crystal essence. It's yours for good.",
+	"learn_confirm": "Learn it",
 	"learn_short": "Needs %d crystal essence",
 	"learn_bud": "%d crystal",
 	"chosen": "%s chosen. It's yours for good.",
@@ -80,8 +83,6 @@ static var TEXT := {
 ## The glyph of a mark's high-step bud when its words don't suggest one
 ## (the Zenith always wears the crown).
 const HIGH_GLYPHS := {"passive": "kinds", "upgrade": "spark", "apex": "spark", "transform": "spark", "zenith": "crown"}
-## How long an armed choice waits for its second press (ms).
-const ARM_MS := 4000
 ## The body map's layout, [computer, phone]: the figure's size beside the
 ## tree, a line of buds, a bud's height, and the narrowest room that still
 ## takes the figure and the tree side by side (narrower: the tree goes under it).
@@ -204,8 +205,6 @@ static func _selected(menu, nodes: Array) -> String:
 
 static func _select(menu, key: String) -> void:
 	menu.set_meta("tree_sel", key)
-	if menu.has_meta("tree_arm"):
-		menu.remove_meta("tree_arm")
 	menu._want_focus = {"meta": "bud", "value": key}
 	menu.open("climber", menu.opened_direct)
 
@@ -225,8 +224,6 @@ static func pick_part(menu, part: String) -> void:
 ## body map", the window's star, the dev page.)
 static func open_tree(menu, part: String, key := "") -> void:
 	menu.set_meta("tree_part", part)
-	if menu.has_meta("tree_arm"):
-		menu.remove_meta("tree_arm")
 	if key != "":
 		menu.set_meta("tree_sel", key)
 		menu.set_meta("tree_flash", key)
@@ -354,26 +351,22 @@ static func _card(menu, prof, part: String, nodes: Array, sel: String, small: bo
 	menu.box.add_child(row)
 	# Choose it (a ready fork), or learn it again (the Unbound's passed side).
 	var key := "%s|%s" % [node["id"], opt["id"]]
-	var armed := String(menu.get_meta("tree_arm", "")) == key and Time.get_ticks_msec() - int(menu.get_meta("tree_arm_at", 0)) < ARM_MS
-	var again := _again(main)
 	if node.get("state", "") == "ready" and opt["state"] in ["available", "in_use"] and opt["built"]:
-		var b: Button = menu._button(TEXT["choose_again"] % [again, opt["name"]] if armed else TEXT["choose"] % opt["name"], _choose.bind(menu, key), row)
+		var b: Button = menu._button(TEXT["choose"] % opt["name"], _ask_choose.bind(menu, key, String(opt["name"])), row)
 		b.set_meta("tree_act", "choose")
+		b.set_meta("asks", true)  # (it opens the pop-up)
 		b.custom_minimum_size.y = 42.0
 		b.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		if armed:
-			menu._primary(b)
 	elif opt.get("state", "") == "learnable":
 		var cost := int(opt.get("cost", 0))
 		var can: bool = prof.crystals_held() >= float(cost)
-		var text: String = (TEXT["learn_again"] % [again, cost] if armed else TEXT["learn"] % [opt["name"], cost]) if can else TEXT["learn_short"] % cost
-		var b: Button = menu._button(text, _learn.bind(menu, key), row)
+		var text: String = TEXT["learn"] % [opt["name"], cost] if can else TEXT["learn_short"] % cost
+		var b: Button = menu._button(text, _ask_learn.bind(menu, key, String(opt["name"]), cost), row)
 		b.set_meta("tree_act", "learn")
+		b.set_meta("asks", true)  # (it opens the pop-up)
 		b.disabled = not can
 		b.custom_minimum_size.y = 42.0
 		b.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		if armed:
-			menu._primary(b)
 	# Back the other way: the entry in Abilities this is part of.
 	var ab := ability_of(main, part, node, opt)
 	if ab != "":
@@ -386,10 +379,6 @@ static func _card(menu, prof, part: String, nodes: Array, sel: String, small: bo
 		row.queue_free()
 	if menu.toast != "":
 		menu._text(menu.toast, menu.GOLD, true)
-
-
-static func _again(main) -> String:
-	return "Tap again" if main.touch_active else "Press again"
 
 
 ## A tree option as a grimoire card's entry.
@@ -472,16 +461,13 @@ static func _num(f: float) -> String:
 	return str(int(round(f))) if absf(f - round(f)) < 0.05 else "%.1f" % f
 
 
-## Choose: the first press arms it; a second within ARM_MS chooses, for good.
+## Choose: it asks first (the pop-up), then chooses, for good.
+static func _ask_choose(menu, key: String, name: String) -> void:
+	menu.ask(TEXT["choose_ask"] % name, TEXT["choose"] % name, _choose.bind(menu, key), false, TEXT["choose_title"] % name)
+
+
 static func _choose(menu, key: String) -> void:
 	var main = menu.main
-	if String(menu.get_meta("tree_arm", "")) != key or Time.get_ticks_msec() - int(menu.get_meta("tree_arm_at", 0)) >= ARM_MS:
-		menu.set_meta("tree_arm", key)
-		menu.set_meta("tree_arm_at", Time.get_ticks_msec())
-		menu._want_focus = {"meta": "tree_act", "value": "choose"}
-		menu.open("climber", menu.opened_direct)
-		return
-	menu.remove_meta("tree_arm")
 	var bits := key.split("|")
 	var n := TreeRules.node(main.profile, bits[0])
 	if TreeRules.choose(main.profile, bits[0], bits[1]):
@@ -491,7 +477,7 @@ static func _choose(menu, key: String) -> void:
 				name = o["name"]
 		main.profile.save()
 		main._give_bonds()
-		main.sfx("ready", 0.9)
+		menu.feedback("choose")  # (its sound, and a flash on the button)
 		menu.toast = TEXT["chosen"] % name
 		menu.toast_t = 3.0
 		menu.set_meta("tree_flash", key)  # (the bud just taken glows a moment)
@@ -499,22 +485,19 @@ static func _choose(menu, key: String) -> void:
 	menu.open("climber", menu.opened_direct)
 
 
-## Learn a passed side again (the Unbound): two presses, then it's paid for.
+## Learn a passed side again (the Unbound): it asks first (the pop-up), then it's paid for.
+static func _ask_learn(menu, key: String, name: String, cost: int) -> void:
+	menu.ask(TEXT["learn_ask"] % [name, cost], TEXT["learn_confirm"], _learn.bind(menu, key), false, TEXT["learn_title"] % name)
+
+
 static func _learn(menu, key: String) -> void:
 	var main = menu.main
-	if String(menu.get_meta("tree_arm", "")) != key or Time.get_ticks_msec() - int(menu.get_meta("tree_arm_at", 0)) >= ARM_MS:
-		menu.set_meta("tree_arm", key)
-		menu.set_meta("tree_arm_at", Time.get_ticks_msec())
-		menu._want_focus = {"meta": "tree_act", "value": "learn"}
-		menu.open("climber", menu.opened_direct)
-		return
-	menu.remove_meta("tree_arm")
 	var bits := key.split("|")
 	var paid: Dictionary = TreeRules.learn_skipped(main.profile, bits[0], bits[1])
 	if not paid.is_empty():
 		main.profile.save()
 		main._give_bonds()
-		main.sfx("ready", 1.1)
+		menu.feedback("choose")  # (its sound, and a flash on the button)
 		menu.toast = TEXT["learned"] % Library.variation(bits[1]).get("name", bits[1])
 		menu.toast_t = 3.0
 		menu.set_meta("tree_flash", key)
@@ -577,7 +560,7 @@ static func _repick(menu, bond_id: String, option: String, name: String) -> void
 		TreeRules.repick_keep(main.profile, bond_id)
 	elif TreeRules.repick(main.profile, bond_id, option):
 		main._give_bonds()
-		main.sfx("ready", 0.9)
+		menu.feedback("choose")
 	main.profile.save()
 	menu.toast = TreeRules.TEXT["repick_done"] % [String(Bonds.BONDS[bond_id]["name"]), name]
 	menu.toast_t = 3.0

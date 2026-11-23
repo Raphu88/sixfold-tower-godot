@@ -51,7 +51,8 @@ const TEXT := {
 	"none_found": "Nothing matches. Try fewer letters, or another word.",
 	"changes_none": "Nothing is changed yet. Whatever you change shows up here, with a Default button to put it back.",
 	"revert_all": "Put all %d back to their defaults",
-	"revert_all_ask": "%s to put all %d back",
+	"revert_all_ask": "Put all %d changes back to their defaults? What you changed is lost.",
+	"revert_all_confirm": "Put all back",
 	"reverted_all": "Everything is back to its default.",
 	"count": "%d changed",
 	"count_none": "Nothing changed",
@@ -212,12 +213,9 @@ func _changes() -> void:
 	if list.is_empty():
 		_note(TEXT["changes_none"])
 		return
-	var b: Button = m._button(TEXT["revert_all_ask"] % [Nav.again(m.main), list.size()] if ask_all else TEXT["revert_all"] % list.size(), revert_all, content)
+	var b: Button = m._button(TEXT["revert_all"] % list.size(), revert_all, content)
 	b.set_meta("data_revert_all", true)
-	if ask_all:
-		b.add_theme_color_override("font_color", UI.BAD)
-		b.add_theme_color_override("font_focus_color", UI.BAD)
-		b.add_theme_color_override("font_hover_color", UI.BAD)
+	b.set_meta("asks", true)  # (it opens the pop-up)
 	for i in mini(list.size(), shown):
 		_field_row(content, list[i]["path"], true)
 	if list.size() > shown:
@@ -608,12 +606,12 @@ func revert(path: String) -> void:
 		_focus_first_in(path)
 
 
-## Put all back: a second press does it (the first asks).
+## Put all back: it asks first (the confirmation pop-up: menu.gd ask).
 func revert_all() -> void:
-	if not ask_all:
-		ask_all = true
-		m.open("data")
-		return
+	m.ask(TEXT["revert_all_ask"] % Reg.changes().size(), TEXT["revert_all_confirm"], revert_all_now, true)
+
+
+func revert_all_now() -> void:
 	ask_all = false
 	Reg.revert_all()
 	notes.clear()
