@@ -73,7 +73,7 @@ static var HELP := {
 	"rail:inventory": "Your gear, items and heirlooms.",
 	"floor_map": "Opens the floor map: the rooms you've seen, where you stand, the stair and the portals.",
 	# --- the engine -------------------------------------------------------------------------
-	"tower": "{Tower}, by {station}: {essence} essence, and {beast} at the top. {where} {best_line}",
+	"tower": "{Tower}, by {station}: {essence} essence, and {beast} at the top. {wild_line} {where} {best_line}",
 	"depart": "Pull it and the train leaves for {tower}. Your pack and your belt go with you.",
 	"board:stations": "Steps off at the station you're at: Training, the tournament, the Noble and the Renown Board.",
 	"board:towers": "Turns the board back to the six towers.",
@@ -599,6 +599,7 @@ static func _tower_facts(m, id: String, f: Dictionary) -> void:
 		best = int(m.main.profile.record.get("best", {}).get(id, 0))
 	f["best"] = str(best)
 	f["best_line"] = String(TEXT["best"]) % best if best > 0 else String(TEXT["best_none"])
+	f["wild_line"] = load("res://scripts/wild_towers.gd").help_line(m.main.profile if m != null and m.main != null else null, id)  # (its well runs wild: wild_towers.gd)
 
 
 ## The piece a card's button acts on: from its tag ("pack:2", "outfit:0",

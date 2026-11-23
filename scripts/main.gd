@@ -82,6 +82,7 @@ const MarkUse := preload("res://scripts/mark_use.gd")  # (marks grow by use, and
 const Flow := preload("res://scripts/essence_flow.gd")
 const RivalsScript := preload("res://scripts/rivals.gd")
 const ContractsScript := preload("res://scripts/contracts.gd")
+const WildTowersScript := preload("res://scripts/wild_towers.gd")  # (a beaten guardian's tower runs wild)
 ## The camera's zoom (world px to view px) at World zoom Normal: on a
 ## computer, and on a phone (whose view used to be drawn 1.5x, at 1.1).
 ## The view's own scale (the Interface size) is taken back out, so the
@@ -311,6 +312,7 @@ var glimpses  # the tower's beast glimpsed now and then (glimpses.gd)
 var climb_shape  # the first Regard, the stair's barrier, hordes, the exit and the ending (climb_shape.gd)
 var rivals  # other climbers met in the tower: trade, duel, team up, rescue (rivals.gd)
 var contracts  # the Noble's contracts in play: tracked, a thing to retrieve, paid when done (contracts.gd)
+var wild  # a wild tower's storms, empowered monsters, richer finds and look (wild_towers.gd)
 var tower_floor = null  # the tower's own floor, when it has one (floor_styles.gd "module": scripts/towers/tower_floor.gd has its hooks)
 ## What the beast noticed this climb (scenarios.gd): [{floor, kind, grade}],
 ## for the summit or the Regard to read.
@@ -434,6 +436,9 @@ func _ready() -> void:
 	contracts = ContractsScript.new()
 	contracts.main = self
 	add_child(contracts)
+	wild = WildTowersScript.new()
+	wild.main = self
+	add_child(wild)
 	Renown.heard = on_renown  # (every renown gain is said, and a rank-up is a moment: on_renown)
 	fog = FogScript.new()
 	fog.main = self
@@ -1074,6 +1079,7 @@ func _separate_bodies() -> void:
 
 func _start_floor(n: int) -> void:
 	floor_num = n
+	Floors.wild_tough = WildTowersScript.tough(self)  # (a wild tower's monsters are empowered: wild_towers.gd)
 	notices.new_floor()
 	cleared = false
 	stair_open = false
@@ -1246,7 +1252,13 @@ func _start_floor(n: int) -> void:
 	if plan.get("summit", false):
 		banner = {"title": "%s AWAITS" % beast_name().to_upper(), "lines": [tower_data().get("beast_hint", "Watch for the glint.")], "t": 3.0}
 		tip("beast")
+		var by: Dictionary = profile.record.get("beasts_by", {}) if profile != null else {}
+		if guardians_beaten() == Towers.ORDER.size() - 1 and int(by.get(tower, 0)) <= 0:
+			story("final")  # (the last guardian standing: entity.gd STORY)
 		sfx_kind("roar", str(tower_data().get("beast_kind", "")), "warn_knight", 1.0, -2.0)  # (the beast takes notice: its roar)
+	# The first climb, the floor before the Regard: the Entity's word on it (entity.gd STORY).
+	if first_climb and not in_camp and n == ClimbShapeScript.regard_floor() - 1 and not _story_unbound():
+		story("before_regard")
 	# Two kinds on the belt (every climb starts with two staples): the Entity
 	# explains the belt wheel, once (not on the very first floor of the first
 	# climb, which has enough to say).
@@ -1326,6 +1338,8 @@ func _start_floor(n: int) -> void:
 		camera.position = start
 		camera.reset_smoothing()
 	climb_shape.setup_floor(plan)  # (the stair's barrier starts forming: climb_shape.gd)
+	if wild != null:
+		wild.setup_floor(plan)  # (a wild tower's storms: wild_towers.gd)
 
 
 ## The rooms' tints and marks on the floor (themes.gd), springs and camps.
@@ -1440,7 +1454,7 @@ func open_all_doors() -> void:
 func _open_cache() -> void:
 	cache["taken"] = true
 	var pos: Vector2 = cache["pos"]
-	var amount: float = cache["amount"]
+	var amount: float = float(cache["amount"]) * WildTowersScript.reward(self, "cache")  # (a wild tower's cache holds a little more)
 	gather_essence(cache["kind"], amount, pos)
 	var col: Color = Essence.color(cache["kind"])
 	notices.feed("%s: +%d essence" % [Floors.CACHE["name"], int(amount)], col, "essence")  # (the log has it with the essence)
@@ -1715,6 +1729,8 @@ func _arrive() -> void:
 			lines.append(paid)
 		lines.append_array(_keep_beast_pieces())
 		lines.append_array(summit_blades.on_summit())  # (a Summit Blade carried up is bonded for good)
+		if wild != null:
+			lines.append_array(wild.summit_lines())  # (its well runs wild now; the third stirs the Makers: wild_towers.gd)
 		var home := bring_pack_home()
 		if home != "":
 			lines.append(home)
@@ -2808,6 +2824,7 @@ func await_tower() -> void:
 func open_train() -> void:
 	on_train = true
 	choosing_tower = true
+	Floors.wild_tough = Vector2.ONE  # (off the climb: the Bestiary's numbers are plain)
 	sfx_ambience("train")
 	player.set_physics_process(false)
 	for e in enemies():
@@ -2894,6 +2911,8 @@ func _apply_tower_look() -> void:
 	sfx_ambience(tower)
 	lighting.set_tower_look(tower)
 	room_view.self_modulate = t["stone"] * Palette.TOWER_TINT.get(tower, Color.WHITE)
+	if WildTowersScript.is_wild(profile, tower) and not first_climb:
+		room_view.self_modulate = room_view.self_modulate.lerp(room_view.self_modulate * Palette.WILD_TINT, Palette.WILD_TINT_K)  # (a wild tower's stone: wild_towers.gd)
 	room_view.set_torch_color(t["torch"])
 
 
@@ -3287,6 +3306,8 @@ func regard_done() -> bool:
 func end_regard() -> void:
 	if unbound != null and unbound.ask_at_regard():
 		return  # (first: accept the mark, or refuse it)
+	if not regard.is_empty():
+		story("after_regard")  # (marked or refused, the Entity's word on it, once: entity.gd STORY)
 	if climb_shape != null and climb_shape.before_leaving():
 		return  # (the floor-6 Regard: leave or climb on; a slip's refusal: the climb goes on; the ending: climb_shape.gd)
 	# Survived (the beast fell, or the Regard without a fall): first keep an heirloom.
@@ -3582,6 +3603,29 @@ func _high_step_tips() -> void:
 func tip_now(id: String, hold := true) -> String:
 	var said: String = GuideScript.tell(id)
 	return said if said != "" or not hold else GuideScript.still(id)
+
+
+## The Entity's words at a turn of the climber's story (entity.gd STORY),
+## once per climber, the Unbound's own where it has one. story() says it in
+## play; story_now() returns it for a page ("" once said).
+func story(id: String) -> bool:
+	return GuideScript.story(id, _story_unbound())
+
+
+func story_now(id: String) -> String:
+	return GuideScript.story_now(id, _story_unbound())
+
+
+func _story_unbound() -> bool:
+	return profile != null and UnboundRun.Unbound.is_on(profile)
+
+
+## How many towers' guardians this climber has beaten (the record's beasts_by).
+func guardians_beaten() -> int:
+	if profile == null:
+		return 0
+	var by: Dictionary = profile.record.get("beasts_by", {})
+	return Towers.ORDER.filter(func(tid): return int(by.get(tid, 0)) > 0).size()
 
 
 func menu_open() -> bool:
@@ -4478,9 +4522,17 @@ func on_enemy_killed(e) -> void:
 	MakersScript.feed(self, "beast" if e.is_boss() and not e.shade else ("champion" if e.champion else "kill"))
 	if e.is_boss() and not e.shade:  # (the Proving's shadow of a beast isn't the beast)
 		load("res://scripts/guardian_lessons.gd").learn(self, e)  # (it teaches the other guardians how its killer fought)
+		var was_wild := WildTowersScript.is_wild(profile, tower)
 		profile.note_beast(tower)
+		if wild != null:
+			wild.on_guardian(tower, was_wild)  # (the first time, its well runs wild: wild_towers.gd)
 		Renown.on_beast(profile, beast_name())
 		GuideScript.say("beast_slain", {"beast": beast_name()})
+		var beaten := guardians_beaten()  # (the story's turns, said once: entity.gd STORY)
+		if beaten == 1:
+			story("first_guardian")
+		elif beaten == 3:
+			story("three_guardians")
 		_beast_piece(e)
 	# Overcharge: a charged foe's death throws lightning to everything near it.
 	if e.overcharge_t > 0.0:
@@ -4498,7 +4550,9 @@ func on_enemy_killed(e) -> void:
 		BondScript.graft_drop(self, e.global_position, e.kind)
 	# Rarely a slain monster leaves a piece of gear, likelier one that suits it.
 	var share: float = rivals.drop_mult() if rivals != null else 1.0  # (teamed up with a rival: finds are shared)
-	if not e.is_boss() and randf() < gear_drop_chance * share:
+	var wild_gear := WildTowersScript.reward(self, "gear")  # (a wild tower's finds are a little richer: wild_towers.gd REWARD)
+	var wild_items := WildTowersScript.reward(self, "items")
+	if not e.is_boss() and randf() < gear_drop_chance * share * wild_gear:
 		drop_gear(e.global_position + Vector2(0, 10), find_gear(e.kind), true)
 	# Very rarely a slain monster leaves a charm (charms.gd LOOT).
 	if not e.is_boss() and not first_climb and randf() < charm_drop_chance:
@@ -4507,7 +4561,7 @@ func on_enemy_killed(e) -> void:
 	# a little more essence instead, or rarely a tincture of its essence
 	# (items.gd DROPS; tinctures only once you're marked or Unbound).
 	if not e.is_boss():
-		var left: Dictionary = Items.kill_drop(floor_num, player != null and not player.bonds.is_empty(), tower, item_drop_chance * share, 0.0 if first_climb else tincture_drop_chance * share)
+		var left: Dictionary = Items.kill_drop(floor_num, player != null and not player.bonds.is_empty(), tower, item_drop_chance * share * wild_items, 0.0 if first_climb else tincture_drop_chance * share)
 		if left.has("item"):
 			item_drops.append({"pos": e.global_position, "id": left["item"], "t": Items.DROP_LIFE})
 		elif left.has("tincture"):
@@ -4523,7 +4577,7 @@ func on_enemy_killed(e) -> void:
 	if objective != null:
 		objective.on_enemy_killed(e)  # (the Keeper drops the stair's key)
 	var drop: Array = Essence.drop_for(e.kind, floor_num)
-	gather_essence(drop[0], drop[1], e.global_position)
+	gather_essence(drop[0], drop[1] * WildTowersScript.reward(self, "essence"), e.global_position)  # (a wild tower: a little more)
 	# Every kill also yields a little of the tower's own essence.
 	gather_essence(tower_data()["essence"], Towers.ESSENCE_BONUS, e.global_position)
 	if player != null:

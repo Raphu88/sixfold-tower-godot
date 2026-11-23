@@ -21,6 +21,7 @@ const Essence := preload("res://scripts/essence.gd")
 const VesselPage := preload("res://scripts/vessel_page.gd")
 const UI := preload("res://scripts/ui.gd")
 const Art := preload("res://scripts/train_art.gd")
+const Wild := preload("res://scripts/wild_towers.gd")
 
 ## A stop's plaque on the map: [computer, phone].
 const STOP_SIZE := [Vector2(178, 62), Vector2(118, 48)]
@@ -91,6 +92,7 @@ func build(root: Node) -> void:
 		b.locked = not map.open and st != here
 		b.fare = Travel.fare(prof, st)
 		b.best = int(prof.record.get("best", {}).get(tower, 0))
+		b.wild = Wild.is_wild(prof, tower)  # (its guardian fell: its well runs wild, wild_towers.gd)
 		b.custom_minimum_size = sz
 		b.set_meta("tower", tower)
 		var hf := _stop_facts(prof, st)  # (entity_help.gd "tower": its essence and beast, and where it is on the loop)
@@ -176,6 +178,16 @@ func _climb_placard(row: Node) -> void:
 	ess.add_child(bl)
 	if not small:
 		tp._note(col, tw.get("blurb", ""), 10.0)
+	if Wild.is_wild(prof, m.train_tower):
+		# Its guardian fell: its well runs wild (wild_towers.gd).
+		var wt := String(Wild.TEXT["placard"])
+		if Wild.Unbound.is_on(prof):
+			wt += " " + String(Wild.TEXT["placard_unbound"])
+		elif not prof.bonds.is_empty():
+			wt += " " + String(Wild.TEXT["placard_marked"])
+		var wl: Label = tp._note(col, wt, 10.0)
+		wl.add_theme_color_override("font_color", Wild.Palette.WILD.lerp(UI.TEXT, 0.25))
+		wl.set_meta("wild_note", m.train_tower)
 	var going: Array = prof.pack.map(func(g): return Gear.display(g))
 	var n := 0
 	for id in prof.supplies:
@@ -408,6 +420,7 @@ class MapStop extends Button:
 	var locked := false
 	var fare := 0
 	var best := 0
+	var wild := false  # its guardian fell: its well runs wild (wild_towers.gd), a storm sign in its corner
 
 	func _ready() -> void:
 		focus_mode = Control.FOCUS_ALL
@@ -441,6 +454,8 @@ class MapStop extends Button:
 			LockPlate.padlock(b, c, 6.0 if small else 9.0, Color(0.75, 0.68, 0.55))
 		else:
 			UI.gem_into(b, c + Vector2(-8 if small else -12, 0), 4.0 if small else 5.5, UI.GOLD)
+		if wild:
+			wild_sign(b, Vector2(size.x - (8.0 if small else 10.0), 10.0 if small else 12.0), 4.0 if small else 5.5, dim)
 		b.flush(self)
 		var cx := 22.0 if small else 25.0
 		UI.draw_text_fit(self, UI.font("body"), Vector2(cx, gy + 4.0), city, HORIZONTAL_ALIGNMENT_LEFT, size.x - cx - (6.0 if small else right + 2.0), 11 if small else 12, UI.DIM if not locked else UI.FAINT)
@@ -450,6 +465,15 @@ class MapStop extends Button:
 			UI.draw_text(self, UI.font("body"), Vector2(size.x - right - 4.0, size.y - 7.0), String(Travel.TEXT["here"]), HORIZONTAL_ALIGNMENT_CENTER, right + 2.0, 11, Color(0.7, 0.9, 1.0))
 		if home and not small:
 			UI.draw_text(self, UI.font("body"), Vector2(size.x - right - 64.0, 18.0), String(Travel.TEXT["home"]), HORIZONTAL_ALIGNMENT_RIGHT, 56.0, 11, Color(UI.GOLD, 0.8))
+
+	## A wild tower's sign: a lit orb of wild essence (shaded) with a small
+	## jagged strike across it.
+	static func wild_sign(b, c: Vector2, r: float, dim := 1.0) -> void:
+		var P = load("res://scripts/palette.gd")
+		b.soft(c, Vector2(r * 1.9, r * 1.9), Color(P.WILD, 0.35 * dim))
+		b.ball(c, r, Color(P.WILD, dim))
+		var s := r * 0.9
+		b.polyline(PackedVector2Array([c + Vector2(-s * 0.2, -s * 1.1), c + Vector2(s * 0.25, -s * 0.1), c + Vector2(-s * 0.25, s * 0.1), c + Vector2(s * 0.2, s * 1.1)]), Color(P.WILD_HOT, dim), 1.6)
 
 	## A small locomotive: boiler, cab, stack and wheels.
 	func _train(b, c: Vector2, s: float) -> void:

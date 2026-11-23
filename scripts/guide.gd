@@ -64,7 +64,7 @@ const TOP_TOUCH := 64.0
 ## What the Entity remembers, saved in the "guide" section: on (tips on, in
 ## the shared settings file), known (Archive entries unlocked) and told (tips
 ## said), both in the current climber's slot file (slots.gd).
-static var state := {"on": true, "known": {}, "told": {}, "cast": {}}
+static var state := {"on": true, "known": {}, "told": {}, "cast": {}, "story": {}}
 static var loaded := false
 ## The climber file known and told were loaded from (and are saved to).
 static var loaded_from := ""
@@ -166,6 +166,7 @@ static func load_from(settings: String, climber: String) -> void:
 	state["known"] = {}
 	state["told"] = {}
 	state["cast"] = {}
+	state["story"] = {}
 	var cfg := ConfigFile.new()
 	if cfg.load(settings) == OK:
 		state["on"] = bool(cfg.get_value("guide", "on", true))
@@ -177,6 +178,8 @@ static func load_from(settings: String, climber: String) -> void:
 		state["told"] = t if t is Dictionary else {}
 		var c = cfg.get_value("guide", "cast", {})
 		state["cast"] = c if c is Dictionary else {}
+		var sm = cfg.get_value("guide", "story", {})
+		state["story"] = sm if sm is Dictionary else {}
 
 
 ## What's been said, into the current climber's file.
@@ -192,6 +195,7 @@ static func save_to(climber: String) -> void:
 	cfg.set_value("guide", "known", state["known"])
 	cfg.set_value("guide", "told", state["told"])
 	cfg.set_value("guide", "cast", state.get("cast", {}))
+	cfg.set_value("guide", "story", state.get("story", {}))
 	cfg.save(climber)
 
 
@@ -211,6 +215,7 @@ static func unload() -> void:
 	state["known"] = {}
 	state["told"] = {}
 	state["cast"] = {}
+	state["story"] = {}
 	queue.clear()
 	held.clear()
 	Entity.gone.clear()
@@ -369,6 +374,32 @@ static func say_text(text: String, always := false) -> void:
 	queue.push_front({"kind": "say", "id": "", "key": "", "text": text})
 
 
+## A story moment (entity.gd STORY): its line for this climber (marked or
+## `unbound`), the first time only, and it's remembered (each climber hears
+## each once; Replay tips forgets them too). Story, not a tip: said even
+## with tips off. "" when said before, unknown, or in quiet tests.
+static func story_now(id: String, unbound: bool) -> String:
+	if not live() or not Entity.STORY.has(id):
+		return ""
+	load_state()
+	if not state.has("story"):
+		state["story"] = {}
+	if state["story"].has(id):
+		return ""
+	state["story"][id] = true
+	save_state()
+	return Entity.story_line(id, unbound)
+
+
+## A story moment in play: said now, ahead of any tips waiting. True if said.
+static func story(id: String, unbound: bool) -> bool:
+	var text := story_now(id, unbound)
+	if text == "":
+		return false
+	say_text(text, true)
+	return true
+
+
 ## A moment: its tip the first time, a short line after that.
 static func moment(tip_id: String, line_key: String, fill := {}) -> void:
 	if told(tip_id) or not tips_on():
@@ -381,6 +412,7 @@ static func replay() -> void:
 	load_state()
 	state["told"] = {}
 	state["cast"] = {}
+	state["story"] = {}
 	queue.clear()
 	held.clear()
 	Entity.gone.clear()

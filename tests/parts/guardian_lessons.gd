@@ -48,6 +48,10 @@ func _lesson_rules() -> void:
 		"a lesson keeps how its killer fought, as shares of the damage: Fire 60%%, shots 75%%, 20%% up close; a sliver of Water teaches nothing (%s)" % str(l))
 	_check(int(l["rolls"]) == 3 and int(l["parries"]) == 1 and l["parts"].has("brow"), "...the rolls, the parries and the Node leaned on")
 	_check(GL.lesson({"dmg": 0.0}).is_empty(), "a guardian that took no blows teaches nothing")
+	var fresh = _prof()
+	fresh.guardians["gryphon"] = _fire_lesson()
+	fresh.reset()
+	_check(fresh.guardians.is_empty() and GL.effects(fresh, "kraken")["count"] == 0, "Start over: a fresh climber faces fresh guardians (no lessons kept)")
 
 
 func _effects() -> void:

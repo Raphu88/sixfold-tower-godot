@@ -515,5 +515,5 @@ func _words() -> void:
 		if String(w).contains("Healing Draught"):
 			bad.append(String(w).left(40))
 	_check(bad.is_empty(), "no banned words in the pools' words %s" % [bad])
-	var intro := String(NewStart.INTRO[0][1])
-	_check(intro.contains("you remember boarding") and not intro.contains("whether you remember"), "the intro: the climber remembers boarding")
+	var intro := String(NewStart.INTRO[4][1])
+	_check(intro.contains("You remember the conductor's nod") and not intro.contains("whether you remember"), "the intro: the climber remembers boarding")

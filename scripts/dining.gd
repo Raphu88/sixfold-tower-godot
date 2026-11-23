@@ -10,7 +10,7 @@ extends RefCounted
 ##   rumor   something true and useful, read from the game's own tables when
 ##           it's said (RUMORS: each names a fact function, fact_<name>);
 ##           a monster's weakness also fills that Bestiary line (bestiary.gd
-##           "told")
+##           "told"); or a line of the children's counting rhyme (RHYME)
 ##   bet     a wager in crystals on your next climb (BETS: reach a floor, fell
 ##           the beast, a floor without a Healing Vial, slay so many of a
 ##           kind); odds by difficulty; paid (or lost) when the climb ends
@@ -73,6 +73,8 @@ const WINGS := "res://scripts/wings.gd"
 ##   duel_time              after this long (seconds) a duel is a draw
 ##   duel_yield             they yield at this share of their health
 ##   duel_left              a lost duel leaves you this share of your health
+##   entity_chance          how often a climber you know mentions their own
+##                          Entity in passing (LINES "entity")
 static var RULES := {
 	"seats_min": 3, "seats_max": 5, "new_faces": 1, "max_bets": 2,
 	"stake_low": 10, "stake_mid": 20, "stake_high": 40,
@@ -80,7 +82,7 @@ static var RULES := {
 	"odds_dry": 1.8, "odds_slay_low": 1.5, "odds_slay_high": 2.2, "slay_few": 5, "slay_many": 10,
 	"warm_odds": 0.25, "warm_off": 0.1, "title_odds": 0.2, "gift": 8, "buy_share": 0.6,
 	"duel_crystals": 20, "duel_renown": 6, "duel_win_renown": 4, "duel_floor": 3, "duel_floor_most": 9,
-	"duel_time": 120.0, "duel_yield": 0.15, "duel_left": 0.2,
+	"duel_time": 120.0, "duel_yield": 0.15, "duel_left": 0.2, "entity_chance": 0.1,
 }
 
 ## What they say, by your history with them (one is picked; {mark}, {part},
@@ -104,13 +106,30 @@ static var LINES := {
 	"duel_open": ["\"A duel? In the Arena car. Name the stake.\"", "\"First to yield. What are we fighting for?\""],
 	"gift": ["\"For last time. Take it.\"", "\"Here. I don't forget a kindness.\""],
 	"bye": ["\"Climb well.\"", "\"Until next time.\""],
+	# Now and then (RULES entity_chance), in passing: their own Entity. Nobody
+	# knows if there is one Entity or many.
+	"entity": ["\"Mine went quiet just before you sat down.\"", "\"Yours tell you about the Makers too?\"", "\"Mine never stops talking on the stairs. Yours?\"",
+		"\"Do you think they're all the same one? The Entities, I mean. Mine won't say.\"", "\"Mine says I climb too fast. Don't tell it I told you.\"", "\"Mine laughed when you walked in. It doesn't laugh much.\""],
 }
+
+## The counting rhyme the children chant in the cities, a line at a time:
+## heard as a rumor here (RUMORS "rhyme") and from rival climbers in the
+## tower (rivals.gd LINES "rhyme"). The owner's approved words.
+static var RHYME := [
+	"Count six wells, six stones, and six beasts that keep them.",
+	"Count six who held the world: two given, three building, one cast out.",
+	"Count four sixes for the years between each climber who could break the keeping.",
+	"Count six such climbers, and the keeping is done.",
+	"The fifth was broken into six blades, to wait for the last.",
+	"The last will hold the making and the unmaking: to make anew, or to break again.",
+]
 
 ## Rumors: each is a fact read from the game when it's said (fact_<fact>
 ## below returns the blanks, or {} when it has nothing true to say), and
 ## the words to say it with. A monster's weakness fills that Bestiary line.
 static var RUMORS := [
 	{"id": "guardians", "fact": "guardians", "lines": ["{rumour}"]},  # (what the guardians learned from each other's deaths: guardian_lessons.gd)
+	{"id": "wild", "fact": "wild", "lines": ["{rumour}"]},  # (a tower whose well runs wild: wild_towers.gd RUMOURS "dining")
 	{"id": "handy", "fact": "handy", "lines": ["\"Going up {tower}? Carry {item}: {why}.\""]},
 	{"id": "weakness", "fact": "weakness", "lines": ["\"{monster}? {weak}. Learned that the hard way.\""]},
 	{"id": "beast", "fact": "beast", "lines": ["\"{beast} waits at the top of {tower}. {hint}\""]},
@@ -118,6 +137,7 @@ static var RUMORS := [
 	{"id": "dark", "fact": "dark", "lines": ["\"In {tower}, from floor {floor} the halls go dark. {item} carries your light.\""]},
 	{"id": "wing", "fact": "wing", "lines": ["\"From floor {floor}, a sealed wing may ask this: {rule}\""]},
 	{"id": "best_bet", "fact": "best_bet", "lines": ["\"Wagers? The best odds on the train tonight are {odds} for {bet}.\""]},
+	{"id": "rhyme", "fact": "rhyme", "lines": ["\"The children at every station chant it: '{rhyme}'\"", "\"You know the counting rhyme? '{rhyme}'\""]},  # (a line of RHYME)
 ]
 
 ## The wagers: what you bet will happen on your next climb (in the tower
@@ -430,7 +450,10 @@ static func greeting(prof, rec: Dictionary) -> String:
 		return say("won", fill)
 	if int(rec.get("duels_lost", 0)) > 0:
 		return say("lost", fill)
-	return say("again", fill) + " " + say("mark", fill)
+	var said := say("again", fill) + " " + say("mark", fill)
+	if randf() < float(RULES.get("entity_chance", 0.0)):
+		said += " " + say("entity", fill)  # (rarely, in passing: their own Entity)
+	return said
 
 
 ## Their strongest mark, for the words: {mark, part, step, name}.
@@ -526,7 +549,26 @@ static func fact(prof, name: String, tower: String, who := "") -> Dictionary:
 			return fact_best_bet(prof, tower)
 		"guardians":
 			return fact_guardians(prof)
+		"rhyme":
+			return fact_rhyme()
+		"wild":
+			return fact_wild(prof, tower)
 	return {}
+
+
+## A line of the counting rhyme (RHYME): always something to say.
+static func fact_rhyme() -> Dictionary:
+	if RHYME.is_empty():
+		return {}
+	var i := randi() % RHYME.size()
+	return {"type": "rhyme", "line": i, "rhyme": String(RHYME[i])}
+
+
+## A tower whose well runs wild (wild_towers.gd): {} while none is.
+static func fact_wild(prof, tower: String) -> Dictionary:
+	var W = load("res://scripts/wild_towers.gd")
+	var r: String = W.rumour(prof, "dining", tower)
+	return {"type": "wild", "rumour": r, "towers": W.wild_list(prof)} if r != "" else {}
 
 
 ## What the guardians have learned from each other's deaths (guardian_lessons.gd): {} before any has fallen.

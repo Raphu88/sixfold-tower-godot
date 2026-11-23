@@ -6,10 +6,10 @@ extends Node2D
 ## to press: walking up reads it, so it plays the same with keys, a
 ## controller or touch.
 ##
-## The words are the owner's to write: INSCRIPTIONS holds six for each tower
-## (a stone shows its tower's, by floor: floor 1 and 7 the first, floor 2
-## and 8 the second...), every one a blank placeholder for now. Write over
-## them here or in the Data editor ("Inscription stones").
+## The words are the owner's: INSCRIPTIONS holds six for each tower (a
+## stone shows its tower's, by floor: floor 1 and 7 the first, floor 2 and
+## 8 the second...). Change them here or in the Data editor ("Inscription
+## stones").
 ##
 ## Planning: floors.gd calls plan() once the floor (and the tower's own
 ## ground) is laid: plan["inscription"] = {pos, tower, index}. In play this
@@ -19,57 +19,63 @@ const Grid := preload("res://scripts/towers/water_wind_grid.gd")
 const Palette := preload("res://scripts/palette.gd")
 const UI := preload("res://scripts/ui.gd")
 const Themes := preload("res://scripts/themes.gd")
+const Pronouns := preload("res://scripts/pronouns.gd")
 const CELL := 40.0
 
-## Each tower's six stones: a title over the words, and the words.
+## Each tower's six stones: a title over the words, and the words (the
+## owner's approved text). Stones 1-2: the tower's own well and guardian;
+## 3-5: a chapter of the shared history; 6: the tower's line of the
+## prophecy. The Chimera's speak of the sixth climber, the one playing: its
+## {they} / {them} tokens become the climber's pronouns as it shows
+## (pronouns.gd; words() fills them).
 static var INSCRIPTIONS := {
 	"gryphon": [
-		{"title": "Inscription", "text": "(Inscription to come)"},
-		{"title": "Inscription", "text": "(Inscription to come)"},
-		{"title": "Inscription", "text": "(Inscription to come)"},
-		{"title": "Inscription", "text": "(Inscription to come)"},
-		{"title": "Inscription", "text": "(Inscription to come)"},
-		{"title": "Inscription", "text": "(Inscription to come)"},
+		{"title": "The Gryphon's Tower", "text": "Here the air runs up from the deep well, and the Gryphon rides it. What it lets through is breath. What it holds back is storm."},
+		{"title": "The Gryphon's Tower", "text": "The Gryphon watches from every height. It sees who climbs and why, and it does not forget a face."},
+		{"title": "The Gryphon's Tower", "text": "There were always wells. Before the towers they lay open, and anyone could drink."},
+		{"title": "The Gryphon's Tower", "text": "Now each well is capped with stone and kept by a beast, and essence comes out only as much as one climber can hold."},
+		{"title": "The Gryphon's Tower", "text": "A mark is a share of the well, given and measured. The one who takes it takes the keeping with it."},
+		{"title": "The Gryphon's Tower", "text": "Six wells beneath six stones, and six beasts to keep them."},
 	],
 	"kraken": [
-		{"title": "Inscription", "text": "(Inscription to come)"},
-		{"title": "Inscription", "text": "(Inscription to come)"},
-		{"title": "Inscription", "text": "(Inscription to come)"},
-		{"title": "Inscription", "text": "(Inscription to come)"},
-		{"title": "Inscription", "text": "(Inscription to come)"},
-		{"title": "Inscription", "text": "(Inscription to come)"},
+		{"title": "The Kraken's Tower", "text": "Beneath this tower the well rises and falls like a tide. The Kraken keeps the tide."},
+		{"title": "The Kraken's Tower", "text": "Nothing that sinks here is lost to the Kraken. It knows the weight of every climber."},
+		{"title": "The Kraken's Tower", "text": "Once, people drew every essence at once, raw and unmeasured, and called it freedom."},
+		{"title": "The Kraken's Tower", "text": "The sky split. The sea stood up. The ground forgot how to hold. The world began to come undone."},
+		{"title": "The Kraken's Tower", "text": "Six people stood in the breaking and held it shut with their own wild essence, and did not let go."},
+		{"title": "The Kraken's Tower", "text": "Six held the breaking world: two gave themselves, three built the keeping, and one was cast away."},
 	],
 	"wyvern": [
-		{"title": "Inscription", "text": "(Inscription to come)"},
-		{"title": "Inscription", "text": "(Inscription to come)"},
-		{"title": "Inscription", "text": "(Inscription to come)"},
-		{"title": "Inscription", "text": "(Inscription to come)"},
-		{"title": "Inscription", "text": "(Inscription to come)"},
-		{"title": "Inscription", "text": "(Inscription to come)"},
+		{"title": "The Wyvern's Tower", "text": "Iron essence pours from the well below into the Wyvern's forge. Nothing leaves it unshaped."},
+		{"title": "The Wyvern's Tower", "text": "The Wyvern tests every blade and every climber the same way: by striking them."},
+		{"title": "The Wyvern's Tower", "text": "Two of the six gave all of themselves. One became Making, one became Unmaking, and together they hold up everything beneath."},
+		{"title": "The Wyvern's Tower", "text": "Three built with Making and Unmaking together: one the marks, one the towers, one the beasts. They are the Makers now, and no longer only people."},
+		{"title": "The Wyvern's Tower", "text": "They bound four sixes into the keeping, one for each of the four who still walked after: three Makers, and one more."},
+		{"title": "The Wyvern's Tower", "text": "Six by six by six by six the years are counted, and at each count one climber rises who could undo the keeping."},
 	],
 	"manticore": [
-		{"title": "Inscription", "text": "(Inscription to come)"},
-		{"title": "Inscription", "text": "(Inscription to come)"},
-		{"title": "Inscription", "text": "(Inscription to come)"},
-		{"title": "Inscription", "text": "(Inscription to come)"},
-		{"title": "Inscription", "text": "(Inscription to come)"},
-		{"title": "Inscription", "text": "(Inscription to come)"},
+		{"title": "The Manticore's Tower", "text": "The well under the sand is slow and heavy, and the Manticore lies across it like a stone across a grave."},
+		{"title": "The Manticore's Tower", "text": "It hunts by waiting. Those who draw from its well without leave find the ground has been listening."},
+		{"title": "The Manticore's Tower", "text": "The last of the six would not agree to the keeping. For that, the three cast them out."},
+		{"title": "The Manticore's Tower", "text": "Their name was taken, and their body with it. They may walk only where they are not seen, beside those who climb."},
+		{"title": "The Manticore's Tower", "text": "Four climbers have risen since the keeping, one at each count. Each could have broken it. None did, and none are remembered."},
+		{"title": "The Manticore's Tower", "text": "Six times the count comes round, and then the keeping ends."},
 	],
 	"firebird": [
-		{"title": "Inscription", "text": "(Inscription to come)"},
-		{"title": "Inscription", "text": "(Inscription to come)"},
-		{"title": "Inscription", "text": "(Inscription to come)"},
-		{"title": "Inscription", "text": "(Inscription to come)"},
-		{"title": "Inscription", "text": "(Inscription to come)"},
-		{"title": "Inscription", "text": "(Inscription to come)"},
+		{"title": "The Firebird's Tower", "text": "The well beneath this tower burns and does not burn out. The Firebird rises from it and returns to it."},
+		{"title": "The Firebird's Tower", "text": "It burns the bridges behind every climber, so that no one climbs here without meaning to."},
+		{"title": "The Firebird's Tower", "text": "The fifth climber reached every summit and could not finish the beasts."},
+		{"title": "The Firebird's Tower", "text": "Knowing they would fall, they made a pact with the one who was cast out, and at each well's mouth they poured themself into a blade."},
+		{"title": "The Firebird's Tower", "text": "Six cities remember six heroes. They are one climber, and the blades are all that is left of them."},
+		{"title": "The Firebird's Tower", "text": "Five have risen. The fifth became six blades, and waits in the stone."},
 	],
 	"chimera": [
-		{"title": "Inscription", "text": "(Inscription to come)"},
-		{"title": "Inscription", "text": "(Inscription to come)"},
-		{"title": "Inscription", "text": "(Inscription to come)"},
-		{"title": "Inscription", "text": "(Inscription to come)"},
-		{"title": "Inscription", "text": "(Inscription to come)"},
-		{"title": "Inscription", "text": "(Inscription to come)"},
+		{"title": "The Chimera's Tower", "text": "The well beneath the Thornwild cuts whatever drinks from it. The Chimera grows from it, many beasts in one."},
+		{"title": "The Chimera's Tower", "text": "It has worn the shape of every beast the Makers made, and it remembers how each of them died."},
+		{"title": "The Chimera's Tower", "text": "The sixth count is ending. The one who climbs now is the last the keeping was made to hold."},
+		{"title": "The Chimera's Tower", "text": "The Makers will ask {them} to stop. The one who was cast out will ask {them} to go on."},
+		{"title": "The Chimera's Tower", "text": "Whoever holds Making and Unmaking at once will make the world again, or break it again."},
+		{"title": "The Chimera's Tower", "text": "The sixth will not come down the same: {they} will become, or {they} will break."},
 	],
 }
 ## from: the first floor; chance: how often a floor has a stone; read: how
@@ -92,12 +98,14 @@ var t := 0.0
 var over: Node2D  # the words and the glow, over the darkness
 
 
-## The words of a stone ({title, text}).
+## The words of a stone ({title, text}), any pronoun tokens filled with the
+## climber's own (the sixth climber's stones: pronouns.gd).
 static func words(tower: String, index: int) -> Dictionary:
 	var list: Array = INSCRIPTIONS.get(tower, [])
 	if list.is_empty():
-		return {"title": "Inscription", "text": "(Inscription to come)"}
-	return list[posmod(index, list.size())]
+		return {"title": "Inscription", "text": ""}
+	var w: Dictionary = list[posmod(index, list.size())]
+	return {"title": Pronouns.fill(String(w["title"])), "text": Pronouns.fill(String(w["text"]))}
 
 
 ## A stone for the floor, maybe: near a room's north wall, on plain floor
