@@ -155,6 +155,7 @@ static var HELP: Dictionary = OutfitterName.named({
 	"pour:eat": "Eats {piece}: your body and your marks share its essence the natural way. You can't steer it.",
 	"pour:mark": "Pours {piece} into {part}: it grows. Its own kind counts fully, any other a little.",
 	"pour:part": "Pours {piece} into your {part}: it soaks toward a new mark there, and leans that mark toward its kind.",
+	"pour:force": "Forces {piece} into {part}, past full: it stretches it a little, at {force} times the essence its use would take, and strains it. Too much strain burns it; past paralyzed a mark burns out and a Node cracks. It asks first, and says where the strain would leave it.",
 	"slot:crystal": "{piece}: {count} essence. Choose it to eat some.",
 	"slot:crystal:empty": "{piece}: none yet. Stairs condense crystals, and {outfitter} pays for every climb.",
 	"slot:tincture": "{piece}: choose it, then choose where it goes.",
@@ -723,6 +724,15 @@ static func facts(m, b: Control, key: String) -> Dictionary:
 			_item_facts(tid, f)
 		elif sel.begins_with("crystal:"):
 			f["piece"] = String(Items.CRYSTAL["name"]) % Essence.display(sel.get_slice(":", 1))
+		if b.has_meta("force_part") and prof != null:  # (Force it: forcing.gd)
+			var fpart := str(b.get_meta("force_part"))
+			f["force"] = str(int(round(float(load("res://scripts/forcing.gd").FORCE["cost"]))))
+			var U = load("res://scripts/unbound.gd")
+			if U.is_on(prof):
+				f["part"] = "your " + U.node_name(fpart)
+			else:
+				var finfo: Dictionary = prof.bonds.get(fpart, {})
+				f["part"] = "your %s mark" % String(load("res://scripts/bonds.gd").BONDS.get(String(finfo.get("id", "")), {}).get("name", fpart))
 		if b.has_meta("pour_part") and prof != null:
 			var part := str(b.get_meta("pour_part"))
 			var info: Dictionary = prof.bonds.get(part, {})

@@ -22,7 +22,8 @@ extends RefCounted
 ##            holds and it has something to say
 ##   if       when the choice shows: on_train, in_play, marked, unbound,
 ##            sworn_known (one of the Sworn, a Maker met, or saved by one),
-##            climbed (on the train after a climb), logged (events to tell)
+##            climbed (on the train after a climb), logged (events to tell),
+##            grown (marked, or Unbound: forcing works on either)
 ##   leave    choosing it ends the talk
 ##   act      ...and then does this: "tour:station" or "tour:train" (the
 ##            Entity's tour, tour.gd)
@@ -90,7 +91,10 @@ static var DIALOGUE: Dictionary = OutfitterName.named({
 		"choices": ["how_flow", "how_tinctures", "how_marks", "how", "bye"]},
 	"how_flow": {"ask": "How does essence flow?", "fact": "rules",
 		"lines": ["Divided, never copied. Of what you bank at a stair, {body} soaks into your body, spread by what each part did: unmarked parts fill toward a new mark. {marks} goes to your marks: it refills what each one's spells used and deepens it; of what they can't take, a little condenses into crystals and the rest goes back to the well. {condense} becomes crystals, always, and body and marks share the rest. Eat a crystal and it flows the same way, without the crystals' share. Only a tincture lets you steer."],
-		"choices": ["how_tinctures", "how_marks", "how", "bye"]},
+		"choices": ["how_tinctures", "how_forcing", "how_marks", "how", "bye"]},
+	"how_forcing": {"ask": "Forcing a Node or mark?", "if": "grown", "fact": "rules",
+		"lines": ["A full mark or Node takes nothing more from a crystal: a mark lets it soak into your body instead, and a Node leaves it a crystal. Force it, the button beside Eat, pushes the essence in anyway. The part stretches a little, a mark deepening or a Node growing, but it costs {force_cost} times the essence its use would take, so using your power stays the way to grow. It's for a part you've neglected. Each crystal forced strains it {force_per}, and it asks first, saying where the strain would leave it. Strained, the part refills a little slower. At {force_burned} strain it burns, as overdrawing burns a mark; at {force_paralyzed} it's paralyzed and can't be used. Push it to {force_break} and a mark burns out, dark for this climb and the next {dark}, counted as a slip toward a Maker; a Node cracks and loses {force_crack} of its size. Strain fades {force_fade_stair} at each stair and {force_fade_climb} as a climb starts. In a climb it strikes at once, mid-fight. The guardians frown on a damaged mark. As for the Unbound who push and push... ask the Husks. If they still answer."],
+		"choices": ["how_burns", "how_flow", "how", "bye"]},
 	"how_tinctures": {"ask": "What are tinctures?", "fact": "rules",
 		"lines": ["A vial of {tincture} essence of one kind. Drink it and you choose where it goes: one mark, where its own kind counts {own}x and any other {other}x, and it's concentrated, {boost}x what banked essence gives, or one unmarked part, toward a new mark there. Vaults and secret rooms hold them, now and then a monster drops one, {outfitter} stocks {store_kinds} each visit, and the Workshop crafts one from {craft} crystals of its kind."],
 		"choices": ["how_flow", "how_new_mark", "how", "bye"]},
@@ -99,7 +103,7 @@ static var DIALOGUE: Dictionary = OutfitterName.named({
 		"choices": ["how_burns", "how_new_mark", "how_synergies", "how", "bye"]},
 	"how_burns": {"ask": "What if I overdraw a mark?", "fact": "rules",
 		"lines": ["Cast with too little essence and the spell still fires, weaker, but the mark burns and its body part is weaker. Overdraw it again while it's burned and it tears health from you and seizes: paralyzed, it can't be cast. Each stair heals one rung, paralyzed to burned to healed. Hold a paralyzed mark's button to force it and it fires, but it burns out: dark for this climb and the next {dark}, a little shallower (never more than a step back), never erased. The guardians frown on it, and the Makers count it as a slip past a barrier."],
-		"choices": ["how_marks", "how", "bye"]},
+		"choices": ["how_marks", "how_forcing", "how", "bye"]},
 	"how_synergies": {"ask": "How do synergies work?",
 		"lines": ["Marks you carry together answer each other. Any two lend each other one trait, about a quarter as strong as the real thing: Stormcaller lends a little charge, Tidecaller a little soak, Warden a thin barrier when you cast, and so on. So every mark's spells pick up a touch of the others'. Twelve pairs go further and make a named synergy instead, like Tempest or Scald. A teammate's marks count while they fight beside you. Your book's Marks section lists them all."],
 		"choices": ["how_marks", "how_states", "how", "bye"]},
@@ -214,7 +218,7 @@ static var DIALOGUE: Dictionary = OutfitterName.named({
 		"choices": ["how_unbound", "how_aura", "how", "bye"]},
 	"how_unbound": {"ask": "How do the Unbound grow?", "if": "unbound", "fact": "rules",
 		"lines": ["Your six body parts are Nodes. Each starts asleep. The essence you bank flows to its natural Node and soaks in, and when enough has soaked in, the Node wakes. Your first wakes after about a climb; the others take a few each, sooner if you route essence to them. Awake, a Node grows by use. What its techniques spend comes back at the stair from the essence you bank into it, and that stretches it a little: slower the bigger it is. Casting more than you bank adds nothing: what you bank, and the strain of pushing your techniques, set the pace. A Node refills best from its own kinds, its natural essence and the essence that leads it; any other kind, routed there or flowing on from a sealed Node, refills only a third as much, the same rule as for marks. A Node wakes at level {ub_minor}, with a minor ability, and grows to level 12 at size {core_cap}: level {ub_tech} brings a young technique (one form, its lead essence only, weaker), {ub_gift} a gift, {ub_full} the full technique, 12 the capstone. One Node to the top takes many climbs; all six, far more."],
-		"choices": ["how_nodes", "how_sealing", "how_drain", "how_unbound_words", "how_aura", "how", "bye"]},
+		"choices": ["how_nodes", "how_sealing", "how_drain", "how_forcing", "how_unbound_words", "how_aura", "how", "bye"]},
 	"how_sealing": {"ask": "Sealing a Node?", "if": "unbound",
 		"lines": ["On the train, on your climber screen's Body tab, you can seal a Node. A sealed Node takes no essence: what would pool there flows on to your biggest open Node, where it refills only a third as much as the Node's own kind would. Sealing gives the Node up: what it holds becomes crystals, and its size, technique, gift, minor ability and attributes are gone. In return each sealed Node makes your open Nodes grow faster from use and hit harder. One Node always stays open, and Seal asks first (Confirm or Cancel). You can unseal a Node later, on the train, but it starts again asleep, at size 0. The marked can't do this: it's the Unbound's choice. Focus trades breadth for depth, not speed."],
 		"choices": ["how_nodes", "how_unbound", "how", "bye"]},
@@ -557,6 +561,9 @@ static func check(main, cond: String) -> bool:
 			return prof != null and not prof.bonds.is_empty() and not Unbound.is_on(prof)
 		"unbound":
 			return prof != null and Unbound.is_on(prof)
+		"grown":
+			# (a mark or an Unbound's Nodes: what forcing works on, forcing.gd)
+			return prof != null and (not prof.bonds.is_empty() or Unbound.is_on(prof))
 		"sworn_known":
 			# (the Sworn: one of them, a Maker met, or an Unbound one of them has saved)
 			var Sworn = load("res://scripts/sworn.gd")
@@ -786,6 +793,16 @@ static func _fact_rules() -> Dictionary:
 		"send_odds": _odds(float(load("res://scripts/sworn.gd").SENDS["chance"])),
 		"send_reward": int(load("res://scripts/sworn.gd").SENDS["reward"]),
 	})
+	# Forcing past full (forcing.gd FORCE, LADDER).
+	var Forcing = load("res://scripts/forcing.gd")
+	f["force_cost"] = _num(float(Forcing.FORCE["cost"]))
+	f["force_per"] = _num(float(Forcing.FORCE["strain"]) * float(Items.CRYSTAL["step"]))
+	f["force_burned"] = int(Forcing.LADDER["burned"])
+	f["force_paralyzed"] = int(Forcing.LADDER["paralyzed"])
+	f["force_break"] = int(Forcing.LADDER["break"])
+	f["force_crack"] = _num(float(Forcing.FORCE["crack"]))
+	f["force_fade_stair"] = _num(float(Forcing.FORCE["fade_stair"]))
+	f["force_fade_climb"] = _num(float(Forcing.FORCE["fade_climb"]))
 	# The workshop's Rune Artist (bench.gd ARTIST, PREMIUM).
 	var Bench = load("res://scripts/bench.gd")
 	f["artist"] = String(Bench.ARTIST["name"])

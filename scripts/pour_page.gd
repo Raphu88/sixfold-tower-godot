@@ -10,6 +10,11 @@ extends RefCounted
 ## mark (its step, and whether the tincture is its own kind) and each
 ## unmarked part (how full it is); press one to drink the tincture into it.
 ##
+## FORCING (forcing.gd): when a mark or Node is full, "Force it" shows
+## beside Eat (and, for the Unbound, beside a full Node on a tincture's
+## card). It always asks first (menu.gd ask), saying where the strain would
+## leave the part; Cancel does nothing.
+##
 ## It opens from the climber's book (the Essence ribbon), from using a
 ## tincture on your belt (items.gd use), from a tincture's card in Your
 ## Car's Loadout and at the Workshop's tincture counter. Back goes where it
@@ -26,6 +31,7 @@ const Entity := preload("res://scripts/entity.gd")
 const Guide := preload("res://scripts/guide.gd")
 const Unbound := preload("res://scripts/unbound.gd")
 const ProfileScript := preload("res://scripts/profile.gd")
+const Forcing := preload("res://scripts/forcing.gd")
 
 var m  # the menu (menu.gd)
 ## Where the page was opened from: "climber" (the book), "loadout", "train"
@@ -132,7 +138,22 @@ func build() -> void:
 		if not (m.inv_sel in keys):
 			m.inv_sel = keys[0]
 	m._show_details(m.inv_sel)
+	if said == "" and _shows_force():
+		var first := Guide.tell("forcing")  # (the first time Force it shows: the Entity explains)
+		if first != "":
+			said = first
+			var fe := Entity.says(said, 34.0 if _small() else 42.0)
+			fe.set_meta("entity", "pour")
+			m.box.add_child(fe)
+			m.box.move_child(fe, row.get_index())
 	m._footer()
+
+
+## True while the card shows a Force it button.
+func _shows_force() -> bool:
+	if m.details == null or not is_instance_valid(m.details):
+		return false
+	return m.details.find_children("*", "Button", true, false).any(func(b): return b.has_meta("force_part"))
 
 
 ## The card for a crystal or a tincture (menu.gd _show_details sends it here).
@@ -166,10 +187,23 @@ func _crystal_card(k: String) -> void:
 		m._detail_text(Flow.TEXT["crystal_flow_body"] % step, UI.DIM)
 	else:
 		m._detail_text(Flow.TEXT["crystal_flow"] % [step, int(round(float(sh["body"]) * 100.0)), int(round(float(sh["marks"]) * 100.0))], UI.DIM)
-	var b: Button = m._button(Flow.TEXT["eat"] % step, _eat.bind(k), m.details)
+	var row := HFlowContainer.new()
+	row.add_theme_constant_override("h_separation", 6)
+	row.add_theme_constant_override("v_separation", 4)
+	m.details.add_child(row)
+	var b: Button = m._button(Flow.TEXT["eat"] % step, _eat.bind(k), row)
 	b.set_meta("help", "pour:eat")
 	UI.keep_text(b)
 	m._primary(b)
+	# Full: Force it, beside Eat (forcing.gd). It asks first.
+	var full: Array = Forcing.targets(prof, k)
+	for part in full:
+		var fb: Button = m._button(force_text(part), _ask_force.bind("crystal", k, part, float(step)), row)
+		fb.set_meta("help", "pour:force")
+		fb.set_meta("force_part", part)
+		UI.keep_text(fb)
+	if not full.is_empty():
+		m._detail_text(Forcing.TEXT["force_head"] % int(round(float(Forcing.FORCE["cost"]))), UI.FAINT)
 
 
 func _tincture_card(id: String) -> void:
@@ -187,13 +221,29 @@ func _tincture_card(id: String) -> void:
 	grid.add_theme_constant_override("v_separation", 2 if _small() else 4)
 	m.details.add_child(grid)
 	for part in Bonds.PARTS:
-		var b: Button = m._button(target_text(part, kind), _drink.bind(id, part), grid)
+		# (a full Node: Force it beside it, forcing.gd; a mark always takes a tincture)
+		var forceable: bool = n > 0 and Unbound.is_on(prof) and Forcing.can_force(prof, part, kind)
+		var at: Node = grid
+		if forceable:
+			var hb := HBoxContainer.new()
+			hb.add_theme_constant_override("separation", 6)
+			hb.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+			grid.add_child(hb)
+			at = hb
+		var b: Button = m._button(target_text(part, kind), _drink.bind(id, part), at)
 		b.set_meta("help", "pour:mark" if prof.bonds.has(part) and not Unbound.is_on(prof) else "pour:part")
 		b.set_meta("pour_part", part)
 		b.custom_minimum_size.y = 28.0 if _small() else 36.0
 		b.disabled = n <= 0
 		UI.keep_text(b)
 		b.alignment = HORIZONTAL_ALIGNMENT_LEFT
+		if forceable:
+			b.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+			var fb: Button = m._button(force_text(part, true), _ask_force.bind("tincture", id, part, float(Flow.TINCTURE["essence"])), at)
+			fb.set_meta("help", "pour:force")
+			fb.set_meta("force_part", part)
+			fb.custom_minimum_size.y = b.custom_minimum_size.y
+			UI.keep_text(fb)
 
 
 ## A target's words: a mark (its bond, its step, its own kind or not) or an
@@ -217,7 +267,42 @@ func target_text(part: String, kind: String) -> String:
 	return Flow.TEXT["target_soak"] % [name, pct]
 
 
+## A Force it button's words: the mark it forces (the marked), and the
+## part's step when it isn't steady ("Force it: Stormcaller  ·  strained").
+func force_text(part: String, short := false) -> String:
+	var prof = _prof()
+	var t := String(Forcing.TEXT["tincture_force" if short else "force"])
+	if not short and not Unbound.is_on(prof) and prof.bonds.has(part):
+		t = String(Forcing.TEXT["force_mark"]) % String(Bonds.BONDS.get(String(prof.bonds[part]["id"]), {}).get("name", Bonds.PART_NAMES[part]))
+	var r: int = Forcing.rung(prof, part, m.main)
+	if r > Forcing.STEADY:
+		t = String(Forcing.TEXT["force_state"]) % [t, Forcing.rung_word(r)]
+	return t
+
+
 # --- actions -------------------------------------------------------------------------
+
+## Force it asks first (the shared pop-up): what it would grow, and where
+## the strain would leave the part. Cancel does nothing. `src` "crystal"
+## (`arg` its kind) or "tincture" (`arg` its id).
+func _ask_force(src: String, arg: String, part: String, amount: float) -> void:
+	var prof = _prof()
+	var kind := arg if src == "crystal" else Flow.tincture_kind(arg)
+	if src == "crystal":
+		amount = minf(amount, prof.crystal_total(kind))
+	if amount <= 0.0 or not Forcing.can_force(prof, part, kind):
+		return
+	var pv: Dictionary = Forcing.preview(prof, part, kind, amount, m.main)
+	m.ask(Forcing.ask_text(prof, part, kind, amount, m.main), Forcing.TEXT["ask_confirm"], _force.bind(src, arg, part), int(pv["after"]) >= Forcing.BURNED, Forcing.TEXT["ask_title"])
+
+
+func _force(src: String, arg: String, part: String) -> void:
+	var lines: Array = m.main.force_crystal(arg, part) if src == "crystal" else m.main.force_tincture(arg, part)
+	var first := Guide.tell("forcing")
+	if first != "":
+		said = first
+	_done(lines)
+
 
 func _eat(kind: String) -> void:
 	var lines: Array = m.main.consume_crystal(kind)

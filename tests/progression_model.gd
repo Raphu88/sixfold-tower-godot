@@ -66,6 +66,12 @@ const BOUGHT_TINCTURES := 0.0
 const MARK_USE := 48.0
 const OTHER_MARK_USE := 24.0
 const MarkUse := preload("res://scripts/mark_use.gd")
+const Forcing := preload("res://scripts/forcing.gd")
+## Forcing past full (forcing.gd): a climber who force-eats every crystal
+## they get, after each stair, as long as the strain stays below the step
+## they'd avoid: "careful" stops short of burned, "reckless" short of a
+## burnout or a crack. "" never forces.
+const FORCE_LIMIT := {"careful": Forcing.BURNED, "reckless": Forcing.BROKEN}
 
 
 ## Runs `climbs` climbs of `pattern` (PATTERNS key). `earned`: a full part
@@ -74,8 +80,9 @@ const MarkUse := preload("res://scripts/mark_use.gd")
 ## MARK_USE: 0 never cast, 10 a spammer). Returns {"steps": [first mark's step after each
 ## climb], "second": the climb the second mark came on (0: none),
 ## "marks_at": [the climb each new mark came on], "xp": [first mark's growth
-## after each climb], "per_climb": growth a climb}.
-static func run(pattern: String, climbs: int, earned := false, bought := BOUGHT_TINCTURES, use := 1.0) -> Dictionary:
+## after each climb], "per_climb": growth a climb, "forced": essence forced
+## past full (`force`: FORCE_LIMIT key, or "" never)}.
+static func run(pattern: String, climbs: int, earned := false, bought := BOUGHT_TINCTURES, use := 1.0, force := "") -> Dictionary:
 	var prof = Profile.new()
 	var cs: float = Flow.default_crystal_share()
 	# The first climb: bondless, three floors of the mark's tower, then the Regard.
@@ -91,12 +98,14 @@ static func run(pattern: String, climbs: int, earned := false, bought := BOUGHT_
 	var others: Array = Towers.ORDER.filter(func(t): return t != OWN_TOWER)
 	var oi := 0
 	var list: Array = PATTERNS[pattern]
+	var forced := 0.0
 	for c in climbs:
 		var how: Dictionary = list[c % list.size()]
 		var tower: String = OWN_TOWER
 		if not bool(how["own"]):
 			tower = others[oi % others.size()]
 			oi += 1
+		Forcing.new_climb(prof)
 		var top := int(how["top"])
 		var last := top if top >= Towers.SUMMIT else top - 1
 		var marked := false
@@ -105,6 +114,9 @@ static func run(pattern: String, climbs: int, earned := false, bought := BOUGHT_
 			for part in prof.bonds:
 				MarkUse.note_use(prof, part, (MARK_USE if part == FIRST_PART else OTHER_MARK_USE) * use)
 			prof.pour(_essence(tower, f), STYLE, cs)
+			Forcing.stair(prof)
+			if force != "":
+				forced += force_marks(prof, force)
 			for k in MIX[tower]:
 				tinctures[k] = float(tinctures.get(k, 0.0)) + KILLS[f - 1] * float(MIX[tower][k]) * float(Profile_drops_tincture())
 			if f == 6:
@@ -129,7 +141,34 @@ static func run(pattern: String, climbs: int, earned := false, bought := BOUGHT_
 		xps.append(float(prof.bonds[FIRST_PART]["xp"]))
 		crystals.append(prof.crystals_held())
 		steps.append(Profile.step_for_xp(float(prof.bonds[FIRST_PART]["xp"])))
-	return {"steps": steps, "second": second, "marks_at": marks_at, "xp": xps, "crystals": crystals}
+	return {"steps": steps, "second": second, "marks_at": marks_at, "xp": xps, "crystals": crystals, "forced": forced}
+
+
+## Force-eats crystals into the first mark (its own kind first), a crystal
+## at a time, while it is full and the strain stays below `how`'s step
+## (FORCE_LIMIT). Returns the essence forced.
+static func force_marks(prof, how: String) -> float:
+	if not prof.bonds.has(FIRST_PART):
+		return 0.0
+	var lim := int(FORCE_LIMIT.get(how, Forcing.BURNED))
+	var own := String(Bonds.BONDS[String(prof.bonds[FIRST_PART]["id"])]["affinity"])
+	var kinds: Array = [own]
+	for k in load("res://scripts/essence.gd").KINDS:
+		if String(k) != own:
+			kinds.append(String(k))
+	var done := 0.0
+	var step := float(load("res://scripts/items.gd").CRYSTAL["step"])
+	for kind in kinds:
+		for _i in 400:
+			var amt := minf(step, prof.crystal_total(kind))
+			if amt < 1.0 or not Forcing.can_force(prof, FIRST_PART, kind):
+				break
+			if int(Forcing.preview(prof, FIRST_PART, kind, amt)["after"]) >= lim:
+				return done
+			amt = prof.take_crystal(kind, step)
+			Forcing.force(prof, FIRST_PART, kind, amt)
+			done += amt
+	return done
 
 
 ## The chance a slain monster leaves a tincture (items.gd DROPS).
@@ -210,7 +249,7 @@ const UB_SPAM := 10.0
 ## kept), as in the game; false shows the pace without it. Returns {"sizes": [after each climb, part -> size], "awake": part
 ## -> the climb it woke (0: never), "top": part -> the climb it reached level
 ## 12 (0: never), "crystals": the crystals held after each climb}.
-static func run_unbound(pattern: String, climbs: int, use := "typical", routing := "natural", sealed := [], drain := true) -> Dictionary:
+static func run_unbound(pattern: String, climbs: int, use := "typical", routing := "natural", sealed := [], drain := true, force := "") -> Dictionary:
 	var U = load("res://scripts/unbound.gd")
 	var Tech = load("res://scripts/technique.gd")
 	var prof = Profile.new()
@@ -242,6 +281,7 @@ static func run_unbound(pattern: String, climbs: int, use := "typical", routing 
 				tower = _ub_journey(prof, U, tower)  # (growing them all: climb the tower that feeds the smallest Node)
 		var last := int(how["top"]) if int(how["top"]) >= Towers.SUMMIT else int(how["top"]) - 1
 		U.new_climb(prof)
+		Forcing.new_climb(prof)
 		if routing == "spread":
 			_ub_spread(prof, U, String(Towers.TOWERS[tower]["essence"]))
 		for f in range(1, last + 1):
@@ -253,6 +293,9 @@ static func run_unbound(pattern: String, climbs: int, use := "typical", routing 
 					else:
 						U.note_use(prof, part, UB_ACTION * k, "action")
 			prof.pour(_essence(tower, f), {}, cs)
+			Forcing.stair(prof)
+			if force != "":
+				force_nodes(prof, force)
 		if last >= Towers.SUMMIT:
 			var best := ""
 			for part in U.PARTS:
@@ -277,6 +320,29 @@ static func run_unbound(pattern: String, climbs: int, use := "typical", routing 
 		if not top.has(part):
 			top[part] = 0
 	return {"sizes": sizes, "awake": woke, "top": top, "crystals": crystals}
+
+
+## Force-eats crystals, each kind into the Node it flows to, a crystal at a
+## time, while that Node is full and its strain stays below `how`'s step
+## (FORCE_LIMIT). Returns the essence forced.
+static func force_nodes(prof, how: String) -> float:
+	var U = load("res://scripts/unbound.gd")
+	var lim := int(FORCE_LIMIT.get(how, Forcing.BURNED))
+	var step := float(load("res://scripts/items.gd").CRYSTAL["step"])
+	var done := 0.0
+	for k in load("res://scripts/essence.gd").KINDS:
+		var kind := String(k)
+		var part: String = U.part_for(prof, kind)
+		for _i in 400:
+			var amt := minf(step, prof.crystal_total(kind))
+			if amt < 1.0 or not Forcing.can_force(prof, part, kind):
+				break
+			if int(Forcing.preview(prof, part, kind, amt)["after"]) >= lim:
+				break
+			amt = prof.take_crystal(kind, step)
+			Forcing.force(prof, part, kind, amt)
+			done += amt
+	return done
 
 
 ## A climber growing all six Nodes travels: away from their own tower they

@@ -64,3 +64,16 @@ func run(smoke) -> void:
 	var P = load("res://scripts/profile.gd")
 	t._check(P.PROVING_GROWTH > 0.0 and P.PROVING_GROWTH < float(P.STEP_XP[1]), "winning the Proving grows a mark %d, less than a step" % int(P.PROVING_GROWTH))
 	t._check(is_equal_approx(P.PROVING_GROWTH, 36.0), "...36 essence, the owner's number (by sixes)")
+	# Forcing past full (forcing.gd) helps, but never beats playing: a climber
+	# who force-eats every crystal they get into the first mark, as far as
+	# the strain allows (short of burned, or recklessly short of a burnout),
+	# stays in the bands and gains at most a climb or two on any step.
+	for how in ["careful", "reckless"]:
+		var forced: Dictionary = Model.run("typical", 50, false, Model.BOUGHT_TINCTURES, 1.0, how)
+		var fs: Dictionary = Model.climbs_to_steps(forced["steps"])
+		t._check(float(forced["forced"]) > 0.0, "a %s forcer forces %d essence into the first mark over 50 climbs" % [how, int(forced["forced"])])
+		for st in TYPICAL:
+			var c := int(fs[st])
+			t._check(c >= TYPICAL[st][0] and c <= TYPICAL[st][1] and c >= int(steps[st]) - 2, "...and still reaches step %d after %d climbs (%d without forcing; %d to %d)" % [st, c, int(steps[st]), TYPICAL[st][0], TYPICAL[st][1]])
+		var ff: Dictionary = Model.climbs_to_steps(Model.run("summits", 50, false, Model.BOUGHT_TINCTURES, 1.0, how)["steps"])
+		t._check(int(ff[12]) >= SUMMITS[12][0] and int(ff[12]) >= int(fast[12]) - 1, "...summiting every climb, step 12 after %d climbs (%d without; at least %d)" % [int(ff[12]), int(fast[12]), SUMMITS[12][0]])

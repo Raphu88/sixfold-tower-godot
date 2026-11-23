@@ -83,6 +83,7 @@ const ClimbShapeScript := preload("res://scripts/climb_shape.gd")
 const Fracture := preload("res://scripts/fracture.gd")  # (the Regard's glimpse of the last fracture)
 const MarkUse := preload("res://scripts/mark_use.gd")  # (marks grow by use, and burns)
 const Flow := preload("res://scripts/essence_flow.gd")
+const Forcing := preload("res://scripts/forcing.gd")  # (essence forced past full: strain, the burn ladder)
 const RivalsScript := preload("res://scripts/rivals.gd")
 const ContractsScript := preload("res://scripts/contracts.gd")
 const WildTowersScript := preload("res://scripts/wild_towers.gd")  # (a beaten guardian's tower runs wild)
@@ -1697,6 +1698,8 @@ func _arrive() -> void:
 			kinds[l] = "rest"
 	var grew: Array = SecretBonds.on_bank(profile, keep, run_flow, profile.path)  # (a secret bond grows from what's banked)
 	grew.append_array(poured["lines"])
+	grew.append_array(Forcing.stair(profile))  # (strain from forcing fades a little: forcing.gd)
+	Forcing.apply(self)  # (...and a part still burned by it stays so)
 	if _near_full_part() != "" and not first_climb and not UnboundRun.Unbound.is_on(profile):
 		tip("earned_mark")  # (a part nearly full: the Entity hints at the sealed wings)
 	for l in grew:
@@ -1931,6 +1934,7 @@ func _enter_camp(lines: Array) -> void:
 	for b in player.bonds.values():
 		b.burned = b.paralyzed  # (the camp's rest heals a rung too: a paralyzed mark is only burned now, mark_use.gd)
 		b.paralyzed = false
+	Forcing.apply(self)  # (strain from forcing doesn't heal by resting: forcing.gd)
 	var said: Array = [Items.CAMP["sub"]]
 	said.append_array(lines.filter(func(l): return not String(l).begins_with("Rested")))
 	var choices: Array = Items.camp_choices(not player.bonds.is_empty(), tower)
@@ -2173,6 +2177,57 @@ func consume_crystal(kind: String) -> Array:
 	return lines
 
 
+## Forces a crystal's essence (Items.CRYSTAL "step" of it) into a full mark
+## or Node, past what it can take (forcing.gd): it stretches it at a higher
+## cost and strains it, and pushed past paralyzed a mark burns out, a Node
+## cracks. The page asks first (pour_page.gd). In a climb it applies at
+## once. Returns the lines to show (empty if it can't be forced).
+func force_crystal(kind: String, part: String) -> Array:
+	if not Forcing.can_force(profile, part, kind):
+		return []
+	var amount: float = profile.take_crystal(kind, float(Items.CRYSTAL["step"]))
+	if amount <= 0.0:
+		return []
+	return _forced(kind, part, amount)
+
+
+## Forces a tincture (Flow.TINCTURE "essence" of its kind, not concentrated)
+## into a full Node or mark, as force_crystal does. Taken from your belt in
+## a climb, from what's packed on the train.
+func force_tincture(id: String, part: String) -> Array:
+	var kind := Flow.tincture_kind(id)
+	if kind == "" or tincture_count(id) <= 0 or not Forcing.can_force(profile, part, kind):
+		return []
+	if on_train:
+		Train.unpack_supply(profile, id)
+	else:
+		player.items[id] = player.item_count(id) - 1
+		if player.item_count(id) <= 0:
+			player.items.erase(id)
+			player.item_sel = player.selected_item()
+	return _forced(kind, part, float(Flow.TINCTURE["essence"]))
+
+
+func _forced(kind: String, part: String, amount: float) -> Array:
+	var res: Dictionary = Forcing.force(profile, part, kind, amount, self)
+	var lines: Array = res["lines"]
+	profile.save()
+	if bool(res["broke"]) and not on_train:
+		if not UnboundRun.Unbound.is_on(profile):
+			_burnout_banner(res["burnout"])  # (it burns out: the banner, as a forced cast's)
+		else:
+			banner = {"title": String(Forcing.TEXT["crack_title"]), "lines": [lines[-1]], "t": 3.5, "pri": 2}
+	_give_bonds()  # (the strain applies at once: forcing.gd apply)
+	if player != null and is_instance_valid(player) and player.is_inside_tree():
+		var col: Color = Essence.color(kind)
+		fx_ring(player.global_position, col, 52.0, 0.5, 4.0)
+		fx_burst(player.global_position, Vector2.UP, Color(1.0, 0.45, 0.3), 10, 140.0)
+	sfx("burn", 1.1, -6.0, 0.0)
+	sfx("glint", 0.8, -6.0, 0.0)
+	tip("forcing")
+	return lines
+
+
 ## A tincture asks where it goes: the crystals page (pour_page.gd), on its
 ## card, from play or the train.
 func open_pour(id := "") -> void:
@@ -2390,6 +2445,9 @@ func _note_climb_start() -> void:
 				b.burned = false
 		if not woke.is_empty():
 			_give_bonds()
+	for l in Forcing.new_climb(profile):  # (strain from forcing fades more as a climb starts: forcing.gd)
+		note_event("mark", String(l))
+	Forcing.apply(self)
 	if summit_blades != null:
 		summit_blades.new_climb()  # (a Summit Blade carried up last time is back in its hiding place)
 	if player != null:
@@ -2978,6 +3036,7 @@ func _give_bonds() -> void:
 	player.refresh_gear()
 	if unbound != null:
 		unbound.give()  # (the Unbound carry techniques in the marks' places)
+	Forcing.apply(self)  # (a part strained by forcing: forcing.gd)
 	Synergies.announce(self)  # (two marks that answer each other: a named synergy, announced the first time)
 
 
@@ -2989,7 +3048,13 @@ func mark_burned_out(part: String) -> void:
 		return
 	var out: Dictionary = MarkUse.burn_out(profile, part)
 	profile.save()
-	var lines: Array = out["lines"]
+	_burnout_banner(out["lines"])
+	_give_bonds()
+
+
+## The burnout's banner, feed, sound and the Entity (a forced cast, or
+## essence forced past paralyzed: forcing.gd).
+func _burnout_banner(lines: Array) -> void:
 	banner = {"title": String(MarkUse.TEXT["burnout_title"]), "lines": lines, "t": 4.5, "pri": 2, "long": true}
 	for l in lines:
 		note_event("mark", String(l), null, false)
@@ -2997,7 +3062,6 @@ func mark_burned_out(part: String) -> void:
 		fx_burst(player.global_position, Vector2.UP, Color(0.35, 0.3, 0.38), 20, 160.0)
 	sfx("regard", 0.6, -6.0, 0.0)
 	tip("mark_burnout")
-	_give_bonds()
 
 
 # --- essence and the Regard ----------------------------------------------------
