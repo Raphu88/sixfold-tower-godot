@@ -357,6 +357,9 @@ func _speech(root: Node, car: String, here: bool) -> void:
 		return
 	if here and not tips.has(car):
 		var said: String = m.main.tip_now("train")
+		var first: String = m.main.story_now("train")  # (its first words on the train, once: entity.gd STORY)
+		if first != "":
+			said = first if said == "" else first + "\n" + said
 		for id in CAR_TIPS.get(car, []) + (_shop_tips() if car == "store" else []) + (Travel.engine_tips(_prof()) if car == "engine" else []):
 			var own: String = m.main.tip_now(id)
 			said = own if said == "" else (said + "\n" + own if own != "" else said)

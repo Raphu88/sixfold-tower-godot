@@ -341,6 +341,8 @@ func _fact_true(prof, f: Dictionary) -> bool:
 		"guardians":
 			var GL = load("res://scripts/guardian_lessons.gd")
 			return not GL.rumour_facts(prof).is_empty() and String(f["rumour"]).length() > 8
+		"rhyme":  # (a line of the counting rhyme: lore, true as long as it's the rhyme's own line)
+			return int(f["line"]) >= 0 and int(f["line"]) < D.RHYME.size() and String(f["rhyme"]) == String(D.RHYME[int(f["line"])])
 	return false
 
 

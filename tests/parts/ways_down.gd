@@ -150,14 +150,14 @@ func _words() -> void:
 		+ var_to_str(Entity.TIPS["teeter"]) + var_to_str(Entity.TIPS["mimic"])).to_lower()
 	var bad: Array = BANNED.filter(func(w): return all.contains(w))
 	_check(bad.is_empty(), "no banned words (%s)" % [bad])
-	# Inscriptions: six a tower, every one a placeholder for the owner.
+	# Inscriptions: six a tower, every one written (the words: tests/parts/story_text.gd).
 	var n := 0
-	var blank := true
+	var written := true
 	for tid in Towers.ORDER:
 		var list: Array = Ins.INSCRIPTIONS.get(tid, [])
 		n += list.size()
-		blank = blank and list.size() == 6 and list.all(func(e): return String(e["text"]) == "(Inscription to come)")
-	_check(blank and n % 6 == 0, "inscriptions: six for each tower (%d, by sixes), each \"(Inscription to come)\" for now" % n)
+		written = written and list.size() == 6 and list.all(func(e): return String(e["text"]).length() > 20)
+	_check(written and n % 6 == 0, "inscriptions: six for each tower (%d, by sixes), every one written" % n)
 	_check(Gl.LOOK.size() == 6 and Gl.LOOK.values().all(func(l): return l["kinds"].size() == 3), "glimpses: each of the six towers has its three, in its own flavour")
 	_check(Holes.TEETER["time"] >= 0.5 and Holes.TEETER["time"] <= 1.0, "a teeter gives you between half a second and a second to step back (%s)" % Holes.TEETER["time"])
 
@@ -483,8 +483,9 @@ func _inscription() -> void:
 	_check(not main.inscriptions.reading(), "from afar its words don't show")
 	p.global_position = Vector2(st["pos"]) + Vector2(0, 34)
 	await t._wait(0.5)
-	_check(main.inscriptions.reading() and main.inscriptions.current()["text"] == "(Inscription to come)", "stand beside it and its words show (a placeholder for now)")
-	_check(main.notices.log.any(func(e): return String(e["text"]).contains("(Inscription to come)")), "...and go into the Entity's log")
+	var shown := String(main.inscriptions.current().get("text", ""))
+	_check(main.inscriptions.reading() and shown == String(Ins.words("manticore", int(st["index"]))["text"]) and shown.length() > 20, "stand beside it and its words show")
+	_check(main.notices.log.any(func(e): return String(e["text"]).contains(shown)), "...and go into the Entity's log")
 	_check(Ins.words("manticore", int(st["index"])) == Ins.INSCRIPTIONS["manticore"][posmod(int(st["index"]), 6)], "...read from its tower's table, by floor")
 
 

@@ -35,6 +35,7 @@ const Draw := preload("res://scripts/draw_util.gd")
 const Bonds := preload("res://scripts/bonds.gd")
 const ProfileScript := preload("res://scripts/profile.gd")
 const Flow := preload("res://scripts/essence_flow.gd")
+const Pronouns := preload("res://scripts/pronouns.gd")  # (fragments about the sixth climber: {they}, {them})
 
 ## The redaction mark: a word is a run of these (its length is the bar's).
 const R := "▇"
@@ -50,7 +51,10 @@ const R := "▇"
 ##   plea_yes / plea_no   its answer to a plea for a change of path
 ##   interrupt   what it says when it interrupts a sibling's meeting
 ##   entity      the Entity's line about it (the Archive, once you've met one)
-##   fragments   its traces' words, one per fragment found (cycling)
+##   fragments   its traces' words, six, one per fragment found (cycling):
+##               the owner's approved words, in its own voice. The sixth
+##               speaks of the climber: {they} / {them} become their pronouns
+##               as it's drawn (redact_into).
 static var MAKERS := {
 	"marks": {
 		"name": "the Maker of Marks", "Name": "The Maker of Marks", "short": "Marks",
@@ -69,14 +73,12 @@ static var MAKERS := {
 		# a placeholder line, the owner's to rewrite (essence_flow.gd EARNED).
 		"grant": ["You kept the rule when no one made you. I wrote this one for you."],
 		"fragments": [
-			"A mark is a door left open. What walks through it is up to you.",
-			"Essence does not choose a body. It chooses a habit.",
-			"Every bond was made to be outgrown. Few climbers try.",
-			"The faint ones are not weak. They are only unfinished.",
-			"Two marks of one kind will argue. Let them.",
-			"Nothing I wrote cannot be rewritten. Only, it costs.",
-			"Those who refuse my marks still carry my ink. It runs looser in them.",
-			"I measure what you spend, not what you hold.",
+			"Every mark I make is a promise kept: this much, and no more.",
+			"I watched the sky split. I will not watch it again.",
+			"The marked are not chained. They are held, as a child is held back from a fire.",
+			"Those who draw raw would be what we are. They do not know what it cost.",
+			"I have counted every climber who refused a mark. I have outlived all of them.",
+			"If the sixth will not take a mark, I will ask {them} myself.",
 		],
 	},
 	"towers": {
@@ -93,14 +95,12 @@ static var MAKERS := {
 		"interrupt": ["Mind where you stand. That floor is mine.", "Ask it what you like. It will not answer as well as stone."],
 		"entity": ["My builder sibling never stops. It would not stop for me, either."],
 		"fragments": [
-			"The seals are not locks. They are questions the tower asks.",
-			"No floor is the same twice. I am not idle.",
-			"A trap no one can cross is a wall. I do not build walls for climbers.",
-			"Where the mortar is cracked, I am listening.",
-			"The stair is always there. I only ask that you earn it.",
-			"Rooms remember who walked them. So do I.",
-			"I built the towers to be climbed, not conquered.",
-			"Every tower leans a little toward its beast. I let it.",
+			"I laid the first stone over the first well with my hands still shaking.",
+			"A tower is a question asked of every climber: how much can you hold?",
+			"Balance is not peace. It is two weights that never stop pressing.",
+			"One of us wants every climber marked. One of us wants to watch them grow wild. I build the stairs between.",
+			"Each beast that falls, a well runs wild, and my stones crack a little further.",
+			"I do not know if the sixth should be stopped. I only know what happens if {they} {are} not.",
 		],
 	},
 	"creatures": {
@@ -117,14 +117,12 @@ static var MAKERS := {
 		"interrupt": ["Gently. That one has hurt my young.", "Speak with care. My children are listening."],
 		"entity": ["My warmest sibling. It loved the monsters before it loved anything else."],
 		"fragments": [
-			"Every creature here was made for a reason. Most of them know it.",
-			"The beasts are not cruel. They are hungry, and they are watching.",
-			"A spared thing remembers. So does its brood.",
-			"Essence is a life, given back. Do not waste what you take.",
-			"The slimes came first. Do not laugh; every beginning is small.",
-			"A champion is only a creature that has been afraid for a long time.",
-			"When a beast falls, something of it comes to you. Carry it kindly.",
-			"My children fight the way you taught them. Look closely.",
+			"I made the beasts from what the wild age left behind, and I loved them.",
+			"The guardians are my children, my servants and my wardens. I could never decide which comes first.",
+			"When a climber draws raw and lives, I feel something I have not felt since I was a person. Hope, or envy.",
+			"The fifth climber made themself into blades. I could not undo it. I did not try.",
+			"Things that grow on their own are dangerous. So was I, once.",
+			"When the sixth comes, I want to see what {they} become{s}.",
 		],
 	},
 }
@@ -1192,6 +1190,7 @@ static func word_lengths(text: String) -> Array:
 static func redact_into(ci, at: Vector2, width: float, text: String, col: Color, size := 13.0, centered := false) -> float:
 	var line_h := size * 1.45
 	if not is_redacted(text):
+		text = Pronouns.fill(text)  # (a line about the sixth climber: their pronouns)
 		if ci is CanvasItem:
 			var font := UI.font("inscription")
 			var lines := _text_lines(font, text, width, size)
@@ -1237,7 +1236,7 @@ static func _text_lines(font: Font, text: String, width: float, size: float) -> 
 static func redact_height(width: float, text: String, size := 13.0) -> float:
 	var line_h := size * 1.45
 	if not is_redacted(text):
-		return line_h * _text_lines(UI.font("inscription"), text, width, size)
+		return line_h * _text_lines(UI.font("inscription"), Pronouns.fill(text), width, size)
 	var unit := size * 0.52
 	var gap := size * 0.45
 	var rows := 1

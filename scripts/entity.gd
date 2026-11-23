@@ -125,6 +125,29 @@ static var LINES := {
 	"tips_on": ["Then I'll speak up."],
 }
 
+## The story's moments: what the Entity says at six turns of a climber's
+## story, once per climber (guide.gd story / story_now). "marked" is for a
+## climber with marks (or none yet), "unbound" for the Unbound ("" says the
+## marked line). The owner's approved words. When each is said:
+##   train            the first time on the train (train_page.gd)
+##   before_regard    arriving on floor 5 of the first climb, before the Regard
+##   after_regard     the Regard (or the refusal) over (main.gd end_regard)
+##   first_guardian   the first tower's guardian beaten (main.gd on_enemy_killed)
+##   three_guardians  the third tower's guardian beaten: the Makers' plea is coming
+##   final            arriving at the summit of the last tower whose guardian stands
+static var STORY := {
+	"train": {"marked": "There you are. Don't look for me in the window; you won't find me. Climb, come back, climb again. I'll keep you alive.", "unbound": ""},
+	"before_regard": {"marked": "The guardian will look at you soon. It will offer you a mark. Everyone takes it. You don't have to be everyone.", "unbound": ""},
+	"after_regard": {"marked": "A good mark. It will grow with you. Remember it was given, though. Things that are given can be asked for back.",
+		"unbound": "No mark. Good. Now everything you draw is yours, and everything that keeps the wells will want it back. Stay close to me."},
+	"first_guardian": {"marked": "It's gone. Its well is running wild under your feet. Feel that? That's what the world was like, before.",
+		"unbound": "Feel that? The well is open. Drink, carefully. This is what they took from everyone."},
+	"three_guardians": {"marked": "They'll ask you to stop. They'll be kind about it. They were kind to me too, once.",
+		"unbound": "They're afraid of you. Good. Don't let them see that you're afraid of them."},
+	"final": {"marked": "Whatever they offer you up there, ask what it cost them. Then ask what it cost me.",
+		"unbound": "This is where I couldn't go. You can. Finish it."},
+}
+
 ## The Archive's groups, in order: [id, name].
 const GROUPS := [
 	["start", "First steps"],
@@ -156,7 +179,7 @@ static var TIPS := {
 		"more": "The title screen shows Continue (the climber played last) above New Climber once a climber exists. New Climber begins a new climber in an empty slot: there are six, and each keeps its own marks, essence, crystals, train, heirlooms, look, name and record. Climbers, on the title screen, shows every slot: choose a card to play that climber, an empty one to begin a new climber there, or Delete under a card to forget a climber for good (it asks twice). Settings are shared by every climber."},
 	"intro": {"group": "start", "name": "The introduction",
 		"tip": "I'll tell you what you need, a line at a time. Next goes on. On later climbers you may skip me.",
-		"more": "A new climber begins on a black screen, where I say a few lines about the train, the towers, the marks and the other way: one idea each. Next (or a tap, Enter or A) goes to the next line, Back to the one before. The first climber hears them all; once a climber has been made on this device, Skip goes straight to making the next one."},
+		"more": "A new climber begins on a black screen, where I say a few lines about the world, the towers and their wells, the train, why people climb, and me: one idea each. Next (or a tap, Enter or A) goes to the next line, Back to the one before. The first climber hears them all; once a climber has been made on this device, Skip goes straight to making the next one."},
 	"create_name": {"group": "start", "name": "Name and pronouns",
 		"tip": "A name, if you like, and how others speak of you. The Dice offers a name; the pronouns are used by everyone who mentions you.",
 		"more": "The first step of a new climber: a name (optional; the Dice picks one) and pronouns: he, she or they. Everyone who speaks of you uses them: me, other climbers, the Noble, the Makers, and the notices and logs. The example line shows how they read. Next goes on to your look. Both can be changed later on the Appearance page (the climber screen's Marks tab, or your car on the train)."},
@@ -1069,6 +1092,13 @@ static func line(key: String, seed := -1, fill := {}) -> String:
 	var list: Array = LINES.get(key, [""])
 	var i := randi() % list.size() if seed < 0 else posmod(seed, list.size())
 	return fill_words(list[i], fill)
+
+
+## A story moment's line (STORY) for a marked climber or an Unbound one.
+static func story_line(id: String, unbound: bool) -> String:
+	var e: Dictionary = STORY.get(id, {})
+	var said := String(e.get("unbound", "")) if unbound else ""
+	return said if said != "" else String(e.get("marked", ""))
 
 
 ## Fills {beast}, {floor}... from `fill` (a "Beast" key is made for each "beast").

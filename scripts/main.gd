@@ -1246,7 +1246,13 @@ func _start_floor(n: int) -> void:
 	if plan.get("summit", false):
 		banner = {"title": "%s AWAITS" % beast_name().to_upper(), "lines": [tower_data().get("beast_hint", "Watch for the glint.")], "t": 3.0}
 		tip("beast")
+		var by: Dictionary = profile.record.get("beasts_by", {}) if profile != null else {}
+		if guardians_beaten() == Towers.ORDER.size() - 1 and int(by.get(tower, 0)) <= 0:
+			story("final")  # (the last guardian standing: entity.gd STORY)
 		sfx_kind("roar", str(tower_data().get("beast_kind", "")), "warn_knight", 1.0, -2.0)  # (the beast takes notice: its roar)
+	# The first climb, the floor before the Regard: the Entity's word on it (entity.gd STORY).
+	if first_climb and not in_camp and n == ClimbShapeScript.regard_floor() - 1 and not _story_unbound():
+		story("before_regard")
 	# Two kinds on the belt (every climb starts with two staples): the Entity
 	# explains the belt wheel, once (not on the very first floor of the first
 	# climb, which has enough to say).
@@ -3287,6 +3293,8 @@ func regard_done() -> bool:
 func end_regard() -> void:
 	if unbound != null and unbound.ask_at_regard():
 		return  # (first: accept the mark, or refuse it)
+	if not regard.is_empty():
+		story("after_regard")  # (marked or refused, the Entity's word on it, once: entity.gd STORY)
 	if climb_shape != null and climb_shape.before_leaving():
 		return  # (the floor-6 Regard: leave or climb on; a slip's refusal: the climb goes on; the ending: climb_shape.gd)
 	# Survived (the beast fell, or the Regard without a fall): first keep an heirloom.
@@ -3582,6 +3590,29 @@ func _high_step_tips() -> void:
 func tip_now(id: String, hold := true) -> String:
 	var said: String = GuideScript.tell(id)
 	return said if said != "" or not hold else GuideScript.still(id)
+
+
+## The Entity's words at a turn of the climber's story (entity.gd STORY),
+## once per climber, the Unbound's own where it has one. story() says it in
+## play; story_now() returns it for a page ("" once said).
+func story(id: String) -> bool:
+	return GuideScript.story(id, _story_unbound())
+
+
+func story_now(id: String) -> String:
+	return GuideScript.story_now(id, _story_unbound())
+
+
+func _story_unbound() -> bool:
+	return profile != null and UnboundRun.Unbound.is_on(profile)
+
+
+## How many towers' guardians this climber has beaten (the record's beasts_by).
+func guardians_beaten() -> int:
+	if profile == null:
+		return 0
+	var by: Dictionary = profile.record.get("beasts_by", {})
+	return Towers.ORDER.filter(func(tid): return int(by.get(tid, 0)) > 0).size()
 
 
 func menu_open() -> bool:
@@ -4481,6 +4512,11 @@ func on_enemy_killed(e) -> void:
 		profile.note_beast(tower)
 		Renown.on_beast(profile, beast_name())
 		GuideScript.say("beast_slain", {"beast": beast_name()})
+		var beaten := guardians_beaten()  # (the story's turns, said once: entity.gd STORY)
+		if beaten == 1:
+			story("first_guardian")
+		elif beaten == 3:
+			story("three_guardians")
 		_beast_piece(e)
 	# Overcharge: a charged foe's death throws lightning to everything near it.
 	if e.overcharge_t > 0.0:

@@ -17,8 +17,7 @@ extends RefCounted
 ## Also here: the one-time clearing of climbers made before this new start
 ## (clear_old_once), with a notice on the title screen explaining why.
 ##
-## TEXT marked PLACEHOLDER is the owner's to rewrite: the story and the
-## purpose of the towers are still to be written.
+## INTRO holds the owner's approved story words; any line is easy to rewrite here.
 
 const Slots := preload("res://scripts/slots.gd")
 const Gear := preload("res://scripts/gear.gd")
@@ -27,20 +26,22 @@ const Renown := preload("res://scripts/renown.gd")
 const Pronouns := preload("res://scripts/pronouns.gd")
 
 ## The introduction: what the Entity says on the black screen, in order, one
-## idea a line. [what it covers (for the owner), the line]. PLACEHOLDER lines.
+## idea a line. [what it covers (for the owner), the line]. The owner's
+## approved words. (Screen 5 says "your home station": the intro comes
+## before the questions, so the home isn't chosen yet.)
 static var INTRO := [
-	["The train and the towers",
-		"[Placeholder] Six towers stand at the edges of the world, and a single train runs between them. You are on it now; you remember boarding, and the conductor's nod as the doors closed."],
-	["Why the towers exist",
-		"[Placeholder] The towers were raised for a purpose no one agrees on. They test whoever climbs them, and they keep what they learn."],
-	["What marks are",
-		"[Placeholder] Climb, and the tower takes notice. It leaves a mark on the part of you that served you best, and the mark grows into a bond with power in it."],
-	["Those who refuse the mark",
-		"[Placeholder] Some refuse the mark. They take essence into their bodies raw and shape it themselves, with no bond to guide it."],
-	["What each path costs and offers",
-		"[Placeholder] A mark is steady, and it chooses for you. The raw way is freer and slower, and the towers do not love it. Both ask for everything in the end."],
-	["The core essences",
-		"[Placeholder] Beneath every essence are two: Making and Unmaking, the Makers' own. All the rest comes from them. Remember that, when you meet them."],
+	["The world nearly unmade, and the six who held it",
+		"The Sixfold was nearly unmade once. People drew every essence at once, raw and unmeasured, until the world began to tear. Six of them held it together."],
+	["The towers, the wells and the guardians",
+		"Their work still stands: six towers over six wells of essence, and in each a guardian beast that hands the essence out safely, as marks."],
+	["The dead land and the Turning",
+		"Between the towers the land is dead or deadly. Only the Turning crosses it, a train that runs on essence and circles the six cities."],
+	["Why people climb",
+		"Climbing is how the world goes on. Crystals from the towers light the cities, and marked climbers win fame, power and coin. Most climbers are young. Most come down marked."],
+	["You, on the train",
+		"You boarded at your home station. You remember the conductor's nod as the doors closed, and the tower growing in the window."],
+	["The Entity",
+		"Something boarded with you. Nobody else can see it. Every climber has one, and nobody talks about it much. It has no name. People call it the Entity, and it is already talking."],
 ]
 
 ## The questions, in order. Each: "id", "ask" (the Entity's question), and
