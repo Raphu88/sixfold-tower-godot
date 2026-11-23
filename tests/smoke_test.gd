@@ -8585,7 +8585,7 @@ func _entity_tests() -> void:
 	_slay(main.enemies()[0])
 	await _frames(2)
 	_check(prof.count("beasts") == 1 and int(prof.record["beasts_by"].get("gryphon", 0)) == 1, "...beasts slain, by tower")
-	_check(Guide.queue.any(func(q): return q["kind"] == "say" and q["key"] == "beast_slain"), "a beast slain: the Entity has a word")
+	_check(Guide.queue.any(func(q): return q["kind"] == "say" and (q["key"] == "beast_slain" or q["key"] == "")), "a beast slain: the Entity has a word (the first guardian's story line takes its place)")
 	Guide.queue.clear()
 	p.dead = false
 	p.hurt_t = 0.0

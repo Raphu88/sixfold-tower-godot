@@ -301,6 +301,7 @@ func reset() -> void:
 	lost = []
 	provings = {}
 	record = {}
+	guardians = {}  # (a fresh climber faces fresh guardians: no lessons from the last one's kills)
 	path = ""
 	flow = 0.0
 	appearance = Appearance.DEFAULTS.duplicate()
