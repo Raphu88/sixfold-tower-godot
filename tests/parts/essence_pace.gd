@@ -63,6 +63,12 @@ func run(smoke) -> void:
 	var amount: float = prof.take_crystal("stone", 10.0)
 	prof.pour({"stone": amount}, {}, 0.0, false)
 	_check(is_equal_approx(U.size(prof, "back"), size0) and prof.crystal_total("stone") == 10.0, "eating a crystal into a full Node it hasn't used grows nothing, and it stays a crystal")
+	# Forcing (forcing.gd) is the only way past full: it spends crystals and
+	# never makes any. A typical climber who force-eats every crystal holds
+	# fewer after ten climbs; the strain, not the crystals, is the brake.
+	var forcer: Dictionary = Model.run("typical", 10, false, Model.BOUGHT_TINCTURES, 1.0, "careful")
+	var fc := float(forcer["crystals"][9])
+	_check(fc < ten and fc >= ten - float(forcer["forced"]) - ten * 0.05 and fc > 0.0, "a climber who force-eats every crystal holds %d after ten climbs (%d forced; %d without), crystals left over: the strain holds them back" % [int(fc), int(forcer["forced"]), int(ten)])
 
 
 func _check(cond: bool, what: String) -> void:

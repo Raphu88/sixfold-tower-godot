@@ -340,6 +340,15 @@ func _pace() -> void:
 	var all_top: int = U.PARTS.map(func(pt): return int(routed["top"][pt])).max()
 	var all_ok: bool = U.PARTS.all(func(pt): return int(routed["top"][pt]) > 0) and all_top >= ALL_TOP[0] and all_top <= ALL_TOP[1]
 	_check(all_ok, "all six at level 12 takes %d climbs (%d to %d)" % [all_top, ALL_TOP[0], ALL_TOP[1]])
+	# Forcing past full (forcing.gd) never beats playing: force-eating every
+	# crystal into the Node it flows to, short of burned, the main Node and
+	# all six get to level 12 no sooner than the bands allow.
+	var forced: Dictionary = M.run_unbound("typical", 45, "typical", "natural", [], true, "careful")
+	var fto := int(forced["top"][main_part])
+	_check(fto >= MAIN_TOP[0] and fto <= MAIN_TOP[1] and fto >= top - 1, "a climber who force-eats every crystal: the main Node at level 12 after %d climbs (%d without; %d to %d)" % [fto, top, MAIN_TOP[0], MAIN_TOP[1]])
+	var froute: Dictionary = M.run_unbound("typical", 80, "typical", "spread", [], true, "careful")
+	var fall: int = U.PARTS.map(func(pt): return int(froute["top"][pt])).max()
+	_check(U.PARTS.all(func(pt): return int(froute["top"][pt]) > 0) and fall >= ALL_TOP[0], "...and all six at level 12 after %d climbs, no sooner than %d (%d without forcing)" % [fall, ALL_TOP[0], all_top])
 
 
 func _words() -> void:
