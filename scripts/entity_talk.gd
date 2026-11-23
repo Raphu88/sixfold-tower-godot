@@ -89,7 +89,7 @@ static var DIALOGUE: Dictionary = OutfitterName.named({
 		"lines": ["Monsters, caches and finished tasks give essence. You carry it until a stair banks it, and a fall loses what you carry. At a stair it splits three ways: {body} to your body, {marks} to your marks, {condense} into crystals, the train's money."],
 		"choices": ["how_flow", "how_tinctures", "how_marks", "how", "bye"]},
 	"how_flow": {"ask": "How does essence flow?", "fact": "rules",
-		"lines": ["Divided, never copied. Of what you bank at a stair, {body} soaks into your body, spread by what each part did: unmarked parts fill toward a new mark. {marks} goes to your marks: it refills what each one's spells used and deepens it, and what they can't take condenses into crystals. {condense} becomes crystals; To crystals, in Settings, sets that share, and body and marks share the rest. Eat a crystal and it flows the same way, without the crystals' share. Only a tincture lets you steer."],
+		"lines": ["Divided, never copied. Of what you bank at a stair, {body} soaks into your body, spread by what each part did: unmarked parts fill toward a new mark. {marks} goes to your marks: it refills what each one's spells used and deepens it; of what they can't take, a little condenses into crystals and the rest goes back to the well. {condense} becomes crystals, always, and body and marks share the rest. Eat a crystal and it flows the same way, without the crystals' share. Only a tincture lets you steer."],
 		"choices": ["how_tinctures", "how_marks", "how", "bye"]},
 	"how_tinctures": {"ask": "What are tinctures?", "fact": "rules",
 		"lines": ["A vial of {tincture} essence of one kind. Drink it and you choose where it goes: one mark, where its own kind counts {own}x and any other {other}x, and it's concentrated, {boost}x what banked essence gives, or one unmarked part, toward a new mark there. Vaults and secret rooms hold them, now and then a monster drops one, {outfitter} stocks {store_kinds} each visit, and the Workshop crafts one from {craft} crystals of its kind."],
@@ -278,7 +278,7 @@ static var DIALOGUE: Dictionary = OutfitterName.named({
 		"lines": ["As I have them. {marks}"],
 		"choices": ["marks_grow", "marks_new", "start", "bye"]},
 	"marks_grow": {"ask": "How do marks grow?", "fact": "money",
-		"lines": ["By use, refilled from essence you bank at a stair: {marks} of it goes to your marks, refilling what each one's spells used and deepening it. A mark you never cast barely grows. {condense} becomes crystals: To crystals, in Settings. A tincture puts its essence into the one mark you choose."],
+		"lines": ["By use, refilled from essence you bank at a stair: {marks} of it goes to your marks, refilling what each one's spells used and deepening it. A mark you never cast barely grows. {condense} becomes crystals. A tincture puts its essence into the one mark you choose."],
 		"choices": ["marks_new", "start", "bye"]},
 	"marks_new": {"ask": "Will I get another mark?", "fact": "soak",
 		"lines": ["{soak}"],
@@ -696,7 +696,7 @@ static func _fact_soak(main) -> Dictionary:
 static func _fact_money(main) -> Dictionary:
 	var prof = main.profile if main != null else null
 	var M = load("res://scripts/menu.gd")
-	var share := Train.condense_share(M.settings)
+	var share := Train.condense_share()
 	var sh: Dictionary = Flow.shares(share)
 	return {"crystals": int(prof.crystals_held()) if prof != null else 0, "condense": "%d%%" % int(round(share * 100.0)),
 		"body": "%d%%" % int(round(float(sh["body"]) * 100.0)), "marks": "%d%%" % int(round(float(sh["marks"]) * 100.0))}

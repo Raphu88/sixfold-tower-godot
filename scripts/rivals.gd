@@ -111,7 +111,7 @@ static var RULES := {
 	"duel_renown": 6, "duel_gear": 0.5, "duel_ward": 1, "duel_bonus": 1.5, "duel_time": 120.0,
 	"team_share": 0.5, "team_drops": 0.5, "team_renown": 3, "ally_taken": 0.6, "ally_leave": 0.2,
 	"rescue_cost": 0.25, "rescue_renown": 8, "gift_crystals": 15.0,
-	"greed_essence": 18.0, "greed_per_floor": 4.0, "greed_row": 1, "greed_renown": 5,
+	"greed_essence": 15.75, "greed_per_floor": 3.5, "greed_row": 1, "greed_renown": 5,
 	"trade_offers": 3, "fair_low": 0.6, "fair_high": 1.6, "trade_crystals": 12.0, "trade_per_floor": 1.5,
 	"kept": 24,
 }

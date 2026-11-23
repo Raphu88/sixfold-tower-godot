@@ -152,7 +152,7 @@ static var TEXT := {
 	"wisp_hides": "The wisp hides",
 }
 ## When it's done: essence at the stair (this, plus this much a floor).
-static var REWARD := {"essence": 6.0, "per_floor": 2.0, "light": 230.0}
+static var REWARD := {"essence": 5.25, "per_floor": 1.75, "light": 230.0}
 
 ## Dev tool and tests: when set, every floor of rooms gets this kind.
 static var forced := ""

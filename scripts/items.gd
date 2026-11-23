@@ -40,7 +40,7 @@ const DROP_CHANCE := 0.09
 ##   tincture_chance    the chance a kill that left neither leaves a tincture
 ##                      of its essence instead (essence_flow.gd; never on the
 ##                      bondless first climb)
-static var DROPS := {"essence_chance": 0.08, "essence_base": 3.0, "essence_per_floor": 0.4, "fallen_item": 0.2, "handy_weight": 3.0, "rare_weight": 0.3,
+static var DROPS := {"essence_chance": 0.08, "essence_base": 2.625, "essence_per_floor": 0.35, "fallen_item": 0.2, "handy_weight": 3.0, "rare_weight": 0.3,
 	"tincture_chance": 0.012}
 
 ## Items lying on the floor fade after this many seconds.

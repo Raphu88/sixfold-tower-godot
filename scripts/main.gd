@@ -1670,11 +1670,11 @@ func _arrive() -> void:
 	if healed >= 1.0:
 		lines.append("Rested: +%d health" % int(healed))
 	# Bank the essence gathered on this floor, split three ways
-	# (essence_flow.gd): your body, your marks, and crystals (the setting,
-	# train.gd CONDENSE_*). The stair's line says how much went where.
-	var poured: Dictionary = profile.pour(run_essence, run_soak, Train.condense_share(MenuScript.settings))
+	# (essence_flow.gd): your body, your marks, and crystals (a fixed share:
+	# essence_flow.gd SPLIT). The stair's line says how much went where.
+	var poured: Dictionary = profile.pour(run_essence, run_soak, Train.condense_share())
 	var keep: Dictionary = poured["keep"]
-	var banked := float(poured["body"]) + float(poured["marks"])
+	var banked := float(poured["body"]) + float(poured["marks"]) - float(poured.get("over", 0.0))  # (what went into you: not what your marks or Nodes couldn't take)
 	for part in poured.get("refilled", {}):
 		if player.bonds.has(part):  # (what each mark used comes back into its pool: mark_use.gd)
 			var rb = player.bonds[part]
@@ -3137,7 +3137,7 @@ func soak_coming(part: String) -> float:
 	var carried := 0.0
 	for k in run_essence:
 		carried += float(run_essence[k])
-	var sh: Dictionary = Flow.shares(Train.condense_share(MenuScript.settings))
+	var sh: Dictionary = Flow.shares(Train.condense_share())
 	var body: float = float(sh["body"]) + (0.0 if not profile.bonds.is_empty() else float(sh["marks"]))
 	var style: Dictionary = profile.natural_style(run_soak)
 	var total := 0.0

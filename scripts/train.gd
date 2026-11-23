@@ -24,7 +24,7 @@ extends RefCounted
 ##
 ## Essence crystals are the only currency (profile.gd keeps them as
 ## {kind, amount}, one crystal of each kind). Every price is in one kind of
-## essence. Crystals come from condensing at every stair (CONDENSE_*), the
+## essence. Crystals come from condensing at every stair (condense_share), the
 ## outfitter's pay for every climb (CLIMB_PAY), selling, and prizes. Names, words,
 ## prices and numbers live here so they're easy to change.
 
@@ -113,17 +113,13 @@ const ANY := "any"
 static var ANY_PRICE := {"scroll": 60}
 
 ## Condensing (at every stair, the first climb's too): the crystals' part of
-## the split (essence_flow.gd SPLIT): this share of the essence you bank
-## becomes essence crystals, per kind and in proportion (whole essence only:
-## a kind with too little for one whole essence goes to your body and marks
-## in full), and your body and your marks share the rest. Crystals are the
-## train's money. Settings changes the share (CONDENSE_CHOICES, in percent);
-## it's kept with the settings (menu.gd), so a new climber keeps it. (Before
-## the split the default was 20%: a settings file from then that still held
-## it moves to the new default once, menu.gd load_settings_from.)
-const CONDENSE_DEFAULT := "30"
-const CONDENSE_OLD_DEFAULT := "20"
-const CONDENSE_CHOICES := [["0", "0%"], ["10", "10%"], ["20", "20%"], ["30", "30%"], ["50", "50%"]]
+## the split, a fixed share in data (essence_flow.gd SPLIT "crystals", in the
+## Data editor): that share of the essence you bank becomes essence crystals,
+## per kind and in proportion (whole essence only: a kind with too little for
+## one whole essence goes to your body and marks in full), and your body and
+## your marks share the rest. Crystals are the train's money. (It was once a
+## setting, "To crystals": the owner fixed it, and an old saved value is
+## ignored: condense_share.)
 ## The outfitter's pay for a climb, however it ends (a fall too): crystals of
 ## the tower's kind, PER_FLOOR for every floor reached and PER_BEST more for
 ## every floor past your best in that tower before the climb.
@@ -231,11 +227,9 @@ static var TEXT: Dictionary = OutfitterName.named({
 	"depart_none": "nothing in your pack",
 	"depart_risk": "Fall, and your pack and belt are lost; your stash, heirlooms and crystals are safe.",
 	"last": "last climbed",
-	# Condensing at the stair (main.gd _arrive), its setting, and the outfitter's pay for a climb
+	# Condensing at the stair (main.gd _arrive), and the outfitter's pay for a climb
 	"banked": "Banked %d essence",
 	"condensed": "%d condensed into crystals",
-	"condense_setting": "To crystals",
-	"condense_note": "At each stair the essence you bank splits three ways: this share condenses into crystals (the train's money), and your body and your marks share the rest.",
 	"pay": "{outfitter} pays for your climb: +%s",
 	# The Library: the Entity's Archive on its shelves, read at the lectern
 	"bookcase": "The Entity's Archive  ·  %s",
@@ -368,12 +362,9 @@ static func item_sell(id: String) -> Array:
 # --- condensing and the outfitter's pay ------------------------------------------------
 
 ## The share of banked essence that condenses into crystals at a stair (0 to
-## 1), from the settings (menu.gd: "condense", in percent).
-static func condense_share(settings: Dictionary) -> float:
-	var pct := str(settings.get("condense", CONDENSE_DEFAULT))
-	if not CONDENSE_CHOICES.any(func(c): return c[0] == pct):
-		pct = CONDENSE_DEFAULT
-	return clampf(float(pct) / 100.0, 0.0, 1.0)
+## 1): fixed, essence_flow.gd SPLIT "crystals" (no longer a setting).
+static func condense_share() -> float:
+	return load("res://scripts/essence_flow.gd").default_crystal_share()
 
 
 ## What the outfitter pays for a climb that reached `reached` in a tower whose

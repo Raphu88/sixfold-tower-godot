@@ -33,7 +33,7 @@ static var TEXT := {
 }
 ## dust_every: seconds between dust falls when near; dust_near: how near (px);
 ## cache: essence (base, per floor); gear_chance: an alcove cache also holds gear.
-static var RULES := {"dust_every": [2.2, 4.5], "dust_near": 260.0, "cache_base": 10.0, "cache_per_floor": 3.0, "gear_chance": 0.4,
+static var RULES := {"dust_every": [2.2, 4.5], "dust_near": 260.0, "cache_base": 8.75, "cache_per_floor": 2.625, "gear_chance": 0.4,
 	"stub": [2, 3], "reach": 30.0}
 
 var main

@@ -7,7 +7,7 @@ extends RefCounted
 ## the Entity has told them (guide.gd: the tips said and the Archive).
 ##
 ## The settings file (user://sixfold.cfg) is shared by every climber: the
-## settings (volume, HUD size, lighting, the "To crystals" share...),
+## settings (volume, HUD size, lighting...),
 ## controller setup (pad.gd), tips on or off, and which slot was played last
 ## ("slots" section).
 ##

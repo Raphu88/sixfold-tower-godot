@@ -47,7 +47,7 @@ static var TEXT := {
 	"shortcut": "Your bond: %s",
 }
 ## Essence in the reward: this, plus this much per floor.
-const REWARD := Vector2(10.0, 4.0)
+const REWARD := Vector2(8.75, 3.5)
 ## A failure's ambush: this many monsters, plus one per this many floors.
 const AMBUSH := Vector2i(2, 4)
 ## After a failure the puzzle resets once its ambush is dead, or after this long.

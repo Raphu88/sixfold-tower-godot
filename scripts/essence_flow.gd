@@ -11,10 +11,12 @@ extends RefCounted
 ##   marks     goes to your marks: it refills what each mark's spells drew
 ##             on the floor and deepens it by that use (mark_use.gd: own
 ##             kind pays fully, others a third; an unused mark takes only a
-##             trickle); what they leave condenses into crystals too
+##             trickle); of what they leave, OVERFLOW "crystals" condenses
+##             into crystals and the rest goes back to the well
 ##   crystals  condenses into essence crystals, the train's money
-## The crystal share is the "To crystals" setting (train.gd CONDENSE_*); the
-## body and the marks share what's left in SPLIT's proportions. With no mark
+## The crystal share is fixed (SPLIT "crystals": it was once a setting, "To
+## crystals"); the body and the marks share what's left in SPLIT's
+## proportions. With no mark
 ## to take it (the first climb), the marks' share goes to the body; the
 ## Unbound send everything but the crystals to their Nodes (unbound.gd).
 ##
@@ -38,9 +40,18 @@ extends RefCounted
 const Essence := preload("res://scripts/essence.gd")
 const OutfitterName := preload("res://scripts/outfitter_name.gd")
 
-## The split at a stair, in percent. "crystals" is only the default: the
-## setting chooses it, and body and marks keep their proportions of the rest.
-static var SPLIT := {"body": 30.0, "marks": 40.0, "crystals": 30.0}
+## The split at a stair, in percent: "crystals" condenses into crystals, and
+## body and marks share the rest in their proportions. (The owner's fixed
+## share, 20%, since the "To crystals" setting went: chosen with the drops at
+## seven eighths of what they were, so what flows into you is what it was at
+## 30% and the pace holds, while crystals come about 40% slower.)
+static var SPLIT := {"body": 30.0, "marks": 40.0, "crystals": 20.0}
+## What the marks or an Unbound's Nodes can't take at a stair (use already
+## refilled, a Node full): this share of it condenses into crystals, and the
+## rest goes back to the well. (It all condensed once: a climber who seldom
+## cast turned nearly everything banked into crystals, far past the split.)
+## Eating a crystal is never lost: what can't go in stays a crystal.
+static var OVERFLOW := {"crystals": 0.2}
 
 ## Tinctures: the essence each holds; how much of it soaks into an unmarked
 ## part (the body share soaks at profile.gd SOAK_RATE); what crafting one

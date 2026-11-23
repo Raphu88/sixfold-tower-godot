@@ -5,7 +5,7 @@ extends RefCounted
 ## the tower you choose steers which bonds you'll form. (Story to come.)
 
 const ORDER := ["gryphon", "kraken", "wyvern", "manticore", "firebird", "chimera"]
-const ESSENCE_BONUS := 1.5  # extra essence of the tower's kind per kill
+const ESSENCE_BONUS := 1.3125  # extra essence of the tower's kind per kill (7/8 of 1.5: essence_flow.gd SPLIT)
 
 ## How tall every tower is: the beast waits on the summit floor. (The first,
 ## bondless climb stops sooner: profile.gd's FIRST_CLIMB_FLOORS.)

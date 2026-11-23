@@ -61,9 +61,9 @@ static var SCENARIOS := {
 }
 ## What a grade pays: essence (base, per floor) and renown.
 static var GRADES := {
-	"gold": {"essence": 14.0, "per_floor": 3.0, "renown": 8, "name": "Gold"},
-	"silver": {"essence": 9.0, "per_floor": 2.0, "renown": 4, "name": "Silver"},
-	"bronze": {"essence": 5.0, "per_floor": 1.0, "renown": 2, "name": "Bronze"},
+	"gold": {"essence": 12.25, "per_floor": 2.625, "renown": 8, "name": "Gold"},
+	"silver": {"essence": 7.875, "per_floor": 1.75, "renown": 4, "name": "Silver"},
+	"bronze": {"essence": 4.375, "per_floor": 0.875, "renown": 2, "name": "Bronze"},
 	"none": {"essence": 0.0, "per_floor": 0.0, "renown": 0, "name": "No grade"},
 }
 static var TEXT := {

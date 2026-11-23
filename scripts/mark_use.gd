@@ -65,7 +65,7 @@ static var TEXT := {
 	"deepened": "Your %s mark deepens with use",
 	"step_up": "%s grows to step %d%s",
 	"no_longer_faint": "Your %s mark is no longer faint",
-	"left": "What your marks couldn't take condensed: %d into crystals",
+	"left": "What your marks couldn't take: %d condensed into crystals, the rest went back to the well",
 	"healed_one": "Your %s mark stirs again, still burned",
 	# A cast.
 	"burned": "%s burned!",
