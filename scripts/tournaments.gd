@@ -139,7 +139,7 @@ static func station_name(station: String) -> String:
 	return String(Stations.station(station).get("name", station))
 
 
-## "The Tournament Manager is at (Kraken's city); next, (Wyvern's city)."
+## "The Tournament Manager is at Tidemoor; next, Forgehaven."
 static func where_line(profile) -> String:
 	var h := here(profile)
 	if h == Travel.current(profile):

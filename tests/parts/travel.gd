@@ -81,9 +81,9 @@ func _stations() -> void:
 		banners[str(s.get("banner"))] = true
 		if Travel.tower_of(id) != String(s["tower"]) or Travel.station_for(String(s["tower"])) != id or Stations.stops(id) != ["gym", "arena", "noble", "board"]:
 			ok = false
-		if not String(s["name"]).begins_with("(") or not String(s["noble"]).begins_with("("):
-			ok = false  # (placeholder names, the owner's to write)
-	t._check(ok, "each station is near its tower, has the same stops (Training, Tournament, the Noble, the Renown Board) and placeholder names")
+		if String(s["name"]) == "" or String(s["name"]).begins_with("(") or String(s["noble"]) == "" or String(s["noble"]).begins_with("("):
+			ok = false  # (the owner's names, no placeholders left)
+	t._check(ok, "each station is near its tower, has the same stops (Training, Tournament, the Noble, the Renown Board) and its own name and Noble")
 	t._check(nobles.size() == 6 and lamps.size() == 6 and banners.size() == 6, "each station has its own Noble and its own colours (%d nobles, %d lamps, %d banners)" % [nobles.size(), lamps.size(), banners.size()])
 	t._check(Titles.GROUPS.any(func(g): return String(g[0]) == "travel") and Renown.TITLES.size() > 0, "titles are shared by every Noble: one table, with a Train fares benefit group")
 
