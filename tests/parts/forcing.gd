@@ -343,8 +343,8 @@ func _entity() -> void:
 	var tip: Dictionary = E.TIPS.get("forcing", {})
 	_check(tip.has("tip") and tip.has("more") and String(tip["tip"]).length() < 140, "the Entity explains forcing the first time (a short line and an Archive account)")
 	_check(String(tip.get("more", "")).contains("guardians") and String(tip.get("more", "")).contains("Husks"), "...warning that guardians frown on damaged marks, and hinting at the Husks")
-	var how: Array = Talk.DIALOGUE["how"]["choices"]
-	_check(how.has("how_forcing") and String(Talk.DIALOGUE["how_forcing"]["ask"]) == "Forcing a Node or mark?", "'How does it work?' has 'Forcing a Node or mark?'")
+	var reached: bool = ["how_marks", "how_unbound", "how_tinctures"].any(func(k): return Talk.DIALOGUE.has(k) and (Talk.DIALOGUE[k]["choices"] as Array).has("how_forcing"))
+	_check(reached and String(Talk.DIALOGUE["how_forcing"]["ask"]) == "Forcing a Node or mark?", "'How does it work?' reaches 'Forcing a Node or mark?' (from marks, Nodes and tinctures)")
 	var line: String = Talk.line_for(main, "how_forcing")
 	_check(line.contains(str(int(F.LADDER["burned"]))) and line.contains("Husks") and not line.contains("{"), "its answer has the live numbers: %s" % line)
 	# The first time Force it shows, the Entity says so on the page.
