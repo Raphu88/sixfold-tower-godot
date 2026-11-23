@@ -101,6 +101,7 @@ const BODY := "res://scripts/rival.gd"
 ##   trade_crystals, trade_per_floor     crystals they offer in a swap
 ##   kept                        how many met rivals the climber remembers
 static var RULES := {
+	"wild_chance": 0.5,  # in a wild tower, a met climber (trading, teaming up, thanking you) speaks of it (wild_towers.gd)
 	"rumour_chance": 0.5,  # a met climber (trading, teaming up, thanking you) passes on a rumour of the guardians, once any has fallen
 	"entity_chance": 0.06, "rhyme_chance": 0.06,  # rarely, in passing (when no rumour is): their own Entity, or a line of the counting rhyme
 	"chance": 0.45, "from": 2, "per_climb": 2, "sure_by": 3, "return_chance": 0.35, "return_steps": 1, "grow_mark": 0.3,
@@ -455,6 +456,11 @@ func _line(k: String, rec: Dictionary) -> String:
 			var rhyme: Array = load("res://scripts/dining.gd").RHYME
 			if not rhyme.is_empty():
 				said += " " + String(LINES["rhyme"][randi() % LINES["rhyme"].size()]).replace("{rhyme}", String(rhyme[randi() % rhyme.size()]))
+	# In a wild tower they speak of it now and then (wild_towers.gd RUMOURS "rival").
+	if k in ["trade", "team", "gift"] and main != null and main.profile != null and randf() < float(RULES.get("wild_chance", 0.5)):
+		var Wild = load("res://scripts/wild_towers.gd")
+		if Wild.floor_wild(main):
+			said += " " + Wild.rumour(main.profile, "rival", String(main.tower))
 	return said
 
 

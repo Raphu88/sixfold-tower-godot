@@ -129,6 +129,7 @@ static var RHYME := [
 ## the words to say it with. A monster's weakness fills that Bestiary line.
 static var RUMORS := [
 	{"id": "guardians", "fact": "guardians", "lines": ["{rumour}"]},  # (what the guardians learned from each other's deaths: guardian_lessons.gd)
+	{"id": "wild", "fact": "wild", "lines": ["{rumour}"]},  # (a tower whose well runs wild: wild_towers.gd RUMOURS "dining")
 	{"id": "handy", "fact": "handy", "lines": ["\"Going up {tower}? Carry {item}: {why}.\""]},
 	{"id": "weakness", "fact": "weakness", "lines": ["\"{monster}? {weak}. Learned that the hard way.\""]},
 	{"id": "beast", "fact": "beast", "lines": ["\"{beast} waits at the top of {tower}. {hint}\""]},
@@ -550,6 +551,8 @@ static func fact(prof, name: String, tower: String, who := "") -> Dictionary:
 			return fact_guardians(prof)
 		"rhyme":
 			return fact_rhyme()
+		"wild":
+			return fact_wild(prof, tower)
 	return {}
 
 
@@ -559,6 +562,13 @@ static func fact_rhyme() -> Dictionary:
 		return {}
 	var i := randi() % RHYME.size()
 	return {"type": "rhyme", "line": i, "rhyme": String(RHYME[i])}
+
+
+## A tower whose well runs wild (wild_towers.gd): {} while none is.
+static func fact_wild(prof, tower: String) -> Dictionary:
+	var W = load("res://scripts/wild_towers.gd")
+	var r: String = W.rumour(prof, "dining", tower)
+	return {"type": "wild", "rumour": r, "towers": W.wild_list(prof)} if r != "" else {}
 
 
 ## What the guardians have learned from each other's deaths (guardian_lessons.gd): {} before any has fallen.

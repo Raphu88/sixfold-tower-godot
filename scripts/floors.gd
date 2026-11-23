@@ -1998,10 +1998,15 @@ static func puddles(room: Rect2, pillars: Array, start: Vector2) -> Array:
 	return list
 
 
-## How much tougher monsters are on a floor (health, damage).
+## How much tougher monsters are on a floor (health, damage), times
+## wild_tough: a wild tower's empowered monsters (wild_towers.gd tough, set
+## by main.gd for each floor; Vector2.ONE everywhere else).
+static var wild_tough := Vector2.ONE
+
+
 static func toughness(floor_num: int) -> Vector2:
 	var f := float(maxi(floor_num - 1, 0))
-	return Vector2(1.0 + float(CURVE["health"]) * f, 1.0 + float(CURVE["damage"]) * f)
+	return Vector2(1.0 + float(CURVE["health"]) * f, 1.0 + float(CURVE["damage"]) * f) * wild_tough
 
 
 static func _pick(floor_num: int, budget: float, knights: int, mix: Dictionary = {}) -> String:

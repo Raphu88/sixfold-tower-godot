@@ -87,3 +87,10 @@ const ARCHER := Color(0.62, 0.5, 0.3)
 const KNIGHT := Color(0.66, 0.7, 0.8)
 const PLUME := Color(0.75, 0.2, 0.18)
 static var DANGER := Color(1.0, 0.3, 0.25)
+## A wild tower (wild_towers.gd): wild essence's colour (its storms, the
+## map's sign), a strike's bright core, and the tint a wild tower's stone
+## takes (WILD_TINT_K of the way toward WILD_TINT).
+static var WILD := Color(0.74, 0.48, 1.0)
+static var WILD_HOT := Color(0.96, 0.86, 1.0)
+static var WILD_TINT := Color(0.8, 0.66, 1.0)
+static var WILD_TINT_K := 0.18

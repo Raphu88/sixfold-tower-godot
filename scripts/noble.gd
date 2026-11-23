@@ -28,6 +28,8 @@ static var LINES := {
 ## How often the Noble's greeting carries a rumour of what the guardians
 ## have learned (guardian_lessons.gd), once any guardian has fallen.
 static var RUMOUR_CHANCE := 0.6
+## How often a Noble whose own tower isn't wild speaks of one that is.
+static var WILD_CHANCE := 0.4
 
 static var TEXT := {
 	"titles": "Titles",
@@ -69,12 +71,20 @@ static func line(key: String) -> String:
 
 
 ## The Noble's greeting: a line, and now and then (RUMOUR_CHANCE; `chance`
-## for tests) a rumour of what the guardians have learned.
-static func greet(prof, chance := -1.0) -> String:
+## for tests) a rumour of what the guardians have learned. At a `station`
+## whose tower runs wild the Noble always speaks of it (it's their city);
+## elsewhere, now and then (WILD_CHANCE), of a wild tower (wild_towers.gd).
+static func greet(prof, chance := -1.0, station := "") -> String:
 	var said := line("greet")
 	var r: String = load("res://scripts/guardian_lessons.gd").rumour(prof)
 	if r != "" and randf() < (RUMOUR_CHANCE if chance < 0.0 else chance):
 		said += " " + line("rumour") + " " + r
+	var Wild = load("res://scripts/wild_towers.gd")
+	var own: String = load("res://scripts/travel.gd").tower_of(station) if station != "" else ""
+	if (own != "" and Wild.is_wild(prof, own)) or randf() < (WILD_CHANCE if chance < 0.0 else chance):
+		var w: String = Wild.noble_word(prof, station)
+		if w != "":
+			said += " " + w
 	return said
 
 
