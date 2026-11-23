@@ -1039,8 +1039,7 @@ func _again(key: String, words: Array, sound: String, focus := "") -> void:
 	picks[stop] = key
 	if focus != "":
 		m._want_focus = {"meta": "station_do", "value": focus}
-	if m.main != null:
-		m.main.sfx(sound, 1.0, -4.0, 0.0)
+	m.feedback(m.DONE_KINDS.get(sound, "choose"), sound)  # (its sound, and a flash on the button)
 	m.open("station")
 
 

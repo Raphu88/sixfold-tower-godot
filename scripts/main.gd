@@ -224,7 +224,6 @@ var counting_hits := false  # while a spell is cast: count the foes it hits
 var weapon_blow := false  # while a weapon's blow lands (player.gd _strike): main.on_hit's blows are the weapon's
 var cast_hits := 0
 var blow_ctx := {}  # while a cast's blows land: their essences, form group and Node or mark (guardian_lessons.gd ctx_of)
-var new_climber_t := 0.0
 ## How the climber looks, worked out from profile.appearance once per change
 ## (appearance.gd look()): the climber screen's figure draws from it.
 var climber_look := {}
@@ -900,15 +899,8 @@ func _process(delta: float) -> void:
 			get_tree().reload_current_scene()
 		return
 	recall_ask_t -= delta / maxf(Engine.time_scale, 0.01)
-	new_climber_t -= delta / maxf(Engine.time_scale, 0.01)
-	if Input.is_action_just_pressed("new_climber"):
-		if new_climber_t > 0.0:
-			new_climber()
-			return
-		new_climber_t = 3.0
-		var CT: Dictionary = ClimbersPage.TEXT
-		banner = {"title": CT["over_banner"], "lines": [CT["over_again"] % (CT["over_tap"] if touch_active else CT["over_key"]), Pronouns.fill(CT["over_lost"])], "t": 3.0, "pri": 2}
-		sfx("warn_knight", 1.2, -6.0, 0.0)
+	if Input.is_action_just_pressed("new_climber") and menu != null and not menu.is_open() and menu._can_open():
+		menu.ask_start_over()  # (N: the pause menu opens, asking first: the confirmation pop-up)
 	if Input.is_action_just_pressed("floor_map") and portals != null:
 		portals.open_map()  # (the floor map: portals.gd, floor_map.gd; it closes itself)
 	if Input.is_action_just_pressed("toggle_music") and audio != null:

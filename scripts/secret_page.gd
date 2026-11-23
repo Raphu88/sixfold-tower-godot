@@ -14,8 +14,6 @@ const UI := preload("res://scripts/ui.gd")
 const Draw := preload("res://scripts/draw_util.gd")
 
 const TAB := ["core", "Core"]
-## A change of path is confirmed by a second press within this long (ms).
-const ARM_MS := 4000
 
 
 ## The Core tab's contents, into the menu's page.
@@ -132,9 +130,9 @@ static func _developer(menu, col: Color) -> void:
 	else:
 		menu._note(SB.TEXT["path_line"] % [int(prof.flow), int(SB.PATH_CHANGE_COST)])
 		var row2: HBoxContainer = menu._row()
-		var armed: bool = Time.get_ticks_msec() - int(menu.get_meta("path_armed", -99999)) < ARM_MS
-		var b2: Button = menu._button(menu.Nav.fill(SB.TEXT["path_confirm"], menu.main) if armed else "Let your %s go" % Secret.display(prof.path), _path.bind(menu), row2)
+		var b2: Button = menu._button(SB.TEXT["path_let_go"] % Secret.display(prof.path), _ask_path.bind(menu), row2)
 		b2.set_meta("path_change", true)
+		b2.set_meta("asks", true)  # (it opens the pop-up)
 		b2.disabled = not train
 		if not train:
 			row2.add_child(menu._small_label(SB.TEXT["path_only_train"], menu.FAINT))
@@ -305,18 +303,21 @@ static func _tune(menu, spell_id: String, mode: String) -> void:
 	menu.open("climber", menu.opened_direct)
 
 
-## The Developer lets the path go (a second press confirms): all its flow
+## Letting the path go asks first (the confirmation pop-up: menu.gd ask).
+static func _ask_path(menu) -> void:
+	var prof = menu.main.profile
+	if prof.path == "":
+		return
+	menu.ask(SB.TEXT["path_line"] % [int(prof.flow), int(SB.PATH_CHANGE_COST)], SB.TEXT["path_let_go"] % Secret.display(prof.path), _path.bind(menu), true, SB.TEXT["path_ask_title"])
+
+
+## The Developer lets the path go (Confirm in the pop-up): all its flow
 ## flows out of the shadow (drawn on the page), and a new path starts from nothing.
 static func _path(menu) -> void:
 	var main = menu.main
 	var prof = main.profile
 	if not main.on_train or prof.path == "" or SB.bond_of(prof) != "developer":
 		return
-	if Time.get_ticks_msec() - int(menu.get_meta("path_armed", -99999)) >= ARM_MS:
-		menu.set_meta("path_armed", Time.get_ticks_msec())
-		menu.open("climber", menu.opened_direct)
-		return
-	menu.remove_meta("path_armed")
 	if not SB.spend_crystals(prof, SB.PATH_CHANGE_COST):
 		menu.toast = "Needs %d crystal essence (you hold %d)" % [int(SB.PATH_CHANGE_COST), int(SB.crystals_held(prof))]
 		menu.toast_t = 3.0

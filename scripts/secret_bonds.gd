@@ -444,7 +444,8 @@ static var TEXT := {
 	"path_title": "CHANGE YOUR PATH",
 	"path_line": "Resets your path: all its flow (%d banked) flows out of your shadow, and a new path starts from nothing at the next great foe. Costs %d crystal essence.",
 	"path_none": "You have no path yet: the first great foe offers the choice.",
-	"path_confirm": "{again} to let it go",
+	"path_let_go": "Let your %s go",
+	"path_ask_title": "Change your path?",
 	"path_done": "Your %s flows out of your shadow",
 	"path_only_train": "On the train, between climbs.",
 	# --- depth 3 to 5 ---

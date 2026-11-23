@@ -344,7 +344,7 @@ func _place(stake: int) -> void:
 	if why == "":
 		got = String(Dining.TEXT["bet_placed"]) % [String(rec.get("name", "")), Dining.bet_name(offer, true)]
 		pick = -1
-		m.main.sfx("pickup", 1.0, -4.0, 0.0)
+		m.feedback("buy", "pickup")  # (its sound, and a flash on the button)
 	else:
 		got = why
 	m.open("train")
@@ -355,7 +355,7 @@ func _trade(i: int) -> void:
 	var res := Dining.trade(prof, m.main.player, _rec(), i)
 	got = String(res.get("text", ""))
 	if res.get("ok", false):
-		m.main.sfx("pickup", 0.95, -4.0, 0.0)
+		m.feedback("buy", "pickup")
 	m.open("train")
 
 

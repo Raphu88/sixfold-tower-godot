@@ -66,7 +66,7 @@ func _pronouns() -> void:
 	ok = ok and Talk.fill("{They} {were} brave.", {}) == "She was brave."
 	ok = ok and Help.tidy(Entity.fill_words(String(Help.HELP["rail:exit"]), {})).contains("as she is")
 	_check(ok, "the Entity's tips, its talk and its button help use the climber's pronouns")
-	_check(Pronouns.fill(String(ClimbersPage.TEXT["over_lost"])) == "Her marks and all her growth will be lost.", "Start over speaks of the climber with their pronouns")
+	_check(Pronouns.fill(String(ClimbersPage.TEXT["over_text"]) % "Mira").contains("Her marks and growth"), "Start over speaks of the climber with their pronouns")
 	Pronouns.current = keep
 
 

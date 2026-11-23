@@ -9,10 +9,10 @@ extends RefCounted
 ##     colour: what it holds condenses into crystals; its size, technique,
 ##     gift, minor ability and attributes are gone; unsealed later it starts
 ##     asleep at size 0), what the open Nodes gain, and "Seal the ... Node".
-##     The first press only arms it ("Press again to seal ..."): the second,
-##     within ARM_MS, seals. The last open Node can't be sealed.
-##   a sealed Node: what it means now, and "Unseal the ... Node" (one press:
-##     it starts again asleep, at size 0).
+##     A press opens the confirmation pop-up (menu.gd ask) with the warning;
+##     its Confirm seals. The last open Node can't be sealed.
+##   a sealed Node: what it means now, and "Unseal the ... Node" (it asks
+##     first too: it starts again asleep, at size 0).
 ## Off the train, a sealed Node says it's sealed and where to change it.
 ## The Entity: a first-time moment when the tab first offers sealing
 ## (node_seal), one on sealing (node_sealed) and one on unsealing
@@ -28,7 +28,8 @@ static var TEXT := {
 	"warn": "Sealing your %s gives it up: what it holds (%s) condenses into crystals, and its size (%s), technique, gift, minor ability and attributes are gone. Unsealed later, it starts again asleep, at size 0.",
 	"warn_asleep": "Sealing your sleeping %s gives up what has soaked into it. Unsealed later, it starts again asleep, at size 0.",
 	"seal": "Seal the %s",
-	"seal_again": "{again} to seal the %s",
+	"seal_title": "Seal the %s?",
+	"unseal_title": "Unseal the %s?",
 	"unseal": "Unseal the %s",
 	"sealed_note": "Your %s is sealed: it takes no essence and gives nothing. Your %d sealed %s make your open Nodes grow %d%% faster from use and hit %d%% harder.",
 	"unseal_note": "Unsealed, it starts again asleep, at size 0, and your open Nodes lose its share of the bonus.",
@@ -41,8 +42,6 @@ static var TEXT := {
 	"levels": "Your %s is sealed. It has no levels while it stays sealed: unseal it on the train and it starts again asleep, at size 0.",
 	"tree": "sealed",
 }
-## How long the first press of Seal stays armed (ms).
-const ARM_MS := 4000
 
 
 ## A sealed Node on the figure (the climber screen's and the Tree's), into a
@@ -87,9 +86,10 @@ static func build(menu, part: String) -> void:
 		if not menu.compact():
 			_label(menu, TEXT["unseal_note"], menu.FAINT)
 		var row: HBoxContainer = menu._row()
-		var ub: Button = menu._button(TEXT["unseal"] % name, _do_unseal.bind(menu, part), row)
+		var ub: Button = menu._button(TEXT["unseal"] % name, _ask_unseal.bind(menu, part), row)
 		ub.set_meta("help", "ub_unseal")
 		ub.set_meta("seal_part", part)
+		ub.set_meta("asks", true)  # (it opens the pop-up)
 		ub.custom_minimum_size.x = 240.0 if not menu.compact() else 200.0
 		UI.keep_text(ub)
 		return
@@ -102,15 +102,12 @@ static func build(menu, part: String) -> void:
 		var warn: String = TEXT["warn"] % [name, held_text(prof, part), Unbound._num(Unbound.size(prof, part))] if Unbound.awake(prof, part) else TEXT["warn_asleep"] % name
 		_label(menu, warn, UI.BAD).set_meta("seal_warn", part)
 	var row2: HBoxContainer = menu._row()
-	var armed := armed_for(menu) == part
-	var sb: Button = menu._button(menu.Nav.fill(TEXT["seal_again"], main) % name if armed else TEXT["seal"] % name, _do_seal.bind(menu, part), row2)
+	var sb: Button = menu._button(TEXT["seal"] % name, _ask_seal.bind(menu, part), row2)
 	sb.set_meta("help", "ub_seal")
 	sb.set_meta("seal_part", part)
-	sb.set_meta("seal_armed", armed)
+	sb.set_meta("asks", true)  # (it opens the pop-up)
 	sb.disabled = last
 	sb.custom_minimum_size.x = 240.0 if not menu.compact() else 200.0
-	if armed:
-		sb.add_theme_color_override("font_color", UI.BAD)
 	UI.keep_text(sb)
 
 
@@ -130,26 +127,26 @@ static func _label(menu, text: String, col: Color) -> Label:
 	return l
 
 
-## The Node whose Seal is armed now ("" for none).
-static func armed_for(menu) -> String:
-	var a: Dictionary = menu.get_meta("seal_armed", {})
-	if a.is_empty() or Time.get_ticks_msec() - int(a.get("ms", 0)) >= ARM_MS:
-		return ""
-	return String(a.get("part", ""))
-
-
 # --- pressing ------------------------------------------------------------------------------
 
-## Seal: the first press arms it, the second (within ARM_MS) seals.
+## Seal: it asks first (the pop-up, with the warning).
+static func _ask_seal(menu, part: String) -> void:
+	var prof = menu.main.profile
+	var name := Unbound.node_name(part)
+	var warn: String = TEXT["warn"] % [name, held_text(prof, part), Unbound._num(Unbound.size(prof, part))] if Unbound.awake(prof, part) else TEXT["warn_asleep"] % name
+	menu.ask(warn, TEXT["seal"] % name, _do_seal.bind(menu, part), true, TEXT["seal_title"] % name)
+
+
+## Unseal: it asks first (the pop-up: it starts again asleep, at size 0).
+static func _ask_unseal(menu, part: String) -> void:
+	var name := Unbound.node_name(part)
+	menu.ask(TEXT["unseal_note"], TEXT["unseal"] % name, _do_unseal.bind(menu, part), false, TEXT["unseal_title"] % name)
+
+
+## Seal (Confirm in the pop-up).
 static func _do_seal(menu, part: String) -> void:
 	var main = menu.main
 	var prof = main.profile
-	if armed_for(menu) != part:
-		menu.set_meta("seal_armed", {"part": part, "ms": Time.get_ticks_msec()})
-		main.sfx("ui_confirm", 0.8, -4.0, 0.0)
-		_redraw(menu, "ub_seal")
-		return
-	menu.remove_meta("seal_armed")
 	var got: Dictionary = Unbound.seal(prof, part, bool(main.on_train))
 	if bool(got["ok"]):
 		main.sfx("craft_rune", 0.7, -2.0, 0.0)

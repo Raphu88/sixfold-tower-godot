@@ -12,10 +12,12 @@ extends RefCounted
 ##     the focus returning to what opened the page. In a text box they only
 ##     leave the box.
 ##   - Q / E and LB / RB switch tabs (the physical keys, whatever the layout).
-##   - The mouse wheel and the right stick scroll; sliders never take the wheel.
+##   - The mouse wheel, a finger, Page Up / Down (LT / RT) and the right stick
+##     scroll, quickly and smoothly (scroller.gd); sliders never take the wheel.
+##   - What can't be undone asks first, in a pop-up (confirm_pop.gd, menu.gd ask).
 ##   - Single lists (the rail, the title's buttons, the appearance rows, the
 ##     cards) wrap round; grids and long pages stop at their edges.
-##   - Prompts follow the last thing used ("Press again" / "Tap again").
+##   - Prompts follow the last thing used.
 ##
 ## menu.gd, main.gd (the card screens) and pad_setup.gd call in here.
 

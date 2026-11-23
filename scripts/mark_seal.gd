@@ -10,9 +10,9 @@ extends RefCounted
 ##
 ## On the climber screen's Marks tab, on the train only: a section under the
 ## marks with what the seal is, a warning (flat, in the warning colour) and
-## "Break the seal". The first press only arms it ("Press again to break the
-## seal"); the second, within ARM_MS, breaks it. Off the train the section
-## only says where it can be done.
+## "Break the seal". A press opens the confirmation pop-up (menu.gd ask) with
+## the warning; its Confirm breaks it. Off the train the section only says
+## where it can be done.
 ## The Entity: a first-time moment when the tab first shows the seal
 ## (mark_seal) and one on breaking it (mark_seal_broken); "How does it
 ## work?" has "The seal on a faint mark?"; the button has hover/hold help
@@ -30,14 +30,12 @@ static var TEXT := {
 	"note": "Your faint %s mark still carries the guardian's seal. Until the mark has grown to full strength, you can break the seal: the mark comes away, and you are Unbound.",
 	"warn": "Breaking the seal is for good. Your %s mark is gone, and every mark with it; your body takes essence raw, in six Nodes, as the Unbound do. In the cities the Unbound pass as marked, but some are found out.",
 	"break": "Break the seal",
-	"break_again": "{again} to break the seal",
+	"ask_title": "Break the seal?",
 	"broken": "The seal breaks. The mark fades from your %s. You are Unbound.",
 	"off_train": "Your faint %s mark carries a seal. It can be broken only on the train.",
 	"not_now": "There is no seal to break.",
 	"grown": "Your %s mark has grown to full strength. Its seal is gone.",
 }
-## How long the first press of Break the seal stays armed (ms).
-const ARM_MS := 4000
 
 
 ## Puts the seal on a faint first mark (main.gd _grant_regard, a fall before
@@ -126,14 +124,11 @@ static func build(menu) -> void:
 	_label(menu, TEXT["note"] % mark, menu.DIM).set_meta("mark_seal_note", part)
 	_label(menu, TEXT["warn"] % mark, UI.BAD).set_meta("mark_seal_warn", part)
 	var row: HBoxContainer = menu._row()
-	var armed := armed(menu)
-	var b: Button = menu._button(menu.Nav.fill(TEXT["break_again"], main) if armed else String(TEXT["break"]), _do_break.bind(menu), row)
+	var b: Button = menu._button(String(TEXT["break"]), _ask_break.bind(menu), row)
 	b.set_meta("help", "mark_seal_break")
 	b.set_meta("mark_seal", part)
-	b.set_meta("mark_seal_armed", armed)
+	b.set_meta("asks", true)  # (it opens the pop-up)
 	b.custom_minimum_size.x = 240.0 if not menu.compact() else 200.0
-	if armed:
-		b.add_theme_color_override("font_color", UI.BAD)
 	UI.keep_text(b)
 
 
@@ -145,22 +140,19 @@ static func _label(menu, text: String, col: Color) -> Label:
 	return l
 
 
-## True while the first press of Break the seal is armed.
-static func armed(menu) -> bool:
-	var ms := int(menu.get_meta("mark_seal_armed", -1))
-	return ms >= 0 and Time.get_ticks_msec() - ms < ARM_MS
+## Break the seal: it asks first (the pop-up, with the warning).
+static func _ask_break(menu) -> void:
+	var prof = menu.main.profile
+	var part := sealed_part(prof)
+	if part == "":
+		return
+	menu.ask(TEXT["warn"] % _mark_name(prof, part), String(TEXT["break"]), _do_break.bind(menu), true, String(TEXT["ask_title"]))
 
 
-## Break the seal: the first press arms it, the second (within ARM_MS) breaks it.
+## Breaks the seal (Confirm in the pop-up).
 static func _do_break(menu) -> void:
 	var main = menu.main
 	var prof = main.profile
-	if not armed(menu):
-		menu.set_meta("mark_seal_armed", Time.get_ticks_msec())
-		main.sfx("ui_confirm", 0.8, -4.0, 0.0)
-		load("res://scripts/body_move.gd")._redraw(menu, "mark_seal_break")
-		return
-	menu.remove_meta("mark_seal_armed")
 	var got := break_seal(prof, bool(main.on_train))
 	if bool(got["ok"]):
 		main.sfx("crit", 0.5, -2.0, 0.0)

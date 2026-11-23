@@ -341,13 +341,17 @@ func _tree_choice() -> void:
 	if act.size() == 1:
 		act[0].pressed.emit()
 		await t._frames(2)
-	_check(TR.mark_choice(main.profile, "stormcaller", 2) == "", "the first press only arms it (it's for good)")
-	act = t._all_buttons(menu).filter(func(b): return b.get_meta("tree_act", "") == "choose")
-	_check(act.size() == 1 and act[0].text.begins_with("Press again"), "...asking for a second press (%s)" % (act[0].text if act.size() == 1 else ""))
+	_check(TR.mark_choice(main.profile, "stormcaller", 2) == "" and menu.asking() and menu.pop.title_l.text.contains("Ball Lightning"), "a press only asks (it's for good): the confirmation pop-up")
+	await t._confirm(false)
+	_check(TR.mark_choice(main.profile, "stormcaller", 2) == "" and not menu.asking(), "...Cancel chooses nothing")
+	act = t._all_buttons(menu).filter(func(b): return b.get_meta("tree_act", "") == "choose" and not b.is_queued_for_deletion())
 	if act.size() == 1:
 		act[0].pressed.emit()
 		await t._frames(2)
-	_check(TR.mark_choice(main.profile, "stormcaller", 2) == "ball_lightning", "the second press chooses it")
+	var flashes0: int = menu.flash.flashes
+	await t._confirm(true)
+	await t._frames(1)
+	_check(TR.mark_choice(main.profile, "stormcaller", 2) == "ball_lightning" and menu.flash.flashes > flashes0, "Confirm chooses it (with a flash)")
 	_check("ball_lightning" in main.player.bonds["hand"].spells().map(func(sp): return sp["id"]), "...and the mark casts it at once")
 	buds = menu.find_children("*", "Button", true, false).filter(func(b): return b.has_meta("bud"))
 	_check(buds.any(func(b): return String(b.get_meta("bud")).ends_with("|chain_lightning") and b.get_meta("bud_state") == "passed"), "Chain Lightning shows as passed on")
@@ -371,11 +375,10 @@ func _tree_choice() -> void:
 	if learn.size() == 1:
 		learn[0].pressed.emit()
 		await t._frames(2)
-		learn = t._all_buttons(menu).filter(func(b): return b.get_meta("tree_act", "") == "learn")
-		if learn.size() == 1:
-			learn[0].pressed.emit()
-			await t._frames(2)
-	_check("quick" in TR.owned_variations(prof), "...two presses, and it's theirs")
+		_check(not ("quick" in TR.owned_variations(prof)) and menu.asking(), "...it asks first")
+		await t._confirm(true)
+		await t._frames(1)
+	_check("quick" in TR.owned_variations(prof), "...Confirm, and it's theirs")
 	menu.close()
 	await t._frames(2)
 

@@ -87,6 +87,7 @@ var drag_last := Vector2.ZERO
 var drag_start := 0.0  # where the train stood
 var drag_moved := 0.0
 var drag_scroll: ScrollContainer = null
+var stopped_glide := false  # the touch now down stopped a card's glide (its lift presses nothing)
 var drag_rail := false  # the touch began on the rail (it doesn't move the train)
 var drag_samples: Array = []  # [msec, x] for the flick's speed
 var mouse_down := false
@@ -1192,8 +1193,10 @@ func input(event: InputEvent) -> bool:
 				touch_slider = null
 			elif drag_axis == "x":
 				_drag_end()
-			elif drag_moved < SWIPE:
+			elif drag_moved < SWIPE and not stopped_glide:
 				tap(event.position)
+			elif drag_axis == "y":
+				m.scroller.release()  # (a flick carries on: scroller.gd)
 			drag_axis = ""
 			drag_scroll = null
 			# A phone: switch to the bigger phone layout (after the tap, so the
@@ -1221,6 +1224,8 @@ func input(event: InputEvent) -> bool:
 				touch_slider = null
 				if drag_axis == "x":
 					_drag_end()
+				elif drag_axis == "y":
+					m.scroller.release()
 				drag_axis = ""
 				drag_scroll = null
 				if held_button != null:
@@ -1290,6 +1295,7 @@ func _drag_begin(at: Vector2) -> void:
 	drag_axis = ""
 	drag_start = view.pos
 	drag_scroll = _scroll_at(at)
+	stopped_glide = m.scroller.touch_down()  # (a touch while a card glides only stops it: it presses nothing)
 	drag_rail = _on_rail(at)
 	touch_slider = null if drag_rail else _slider_at(at)
 	drag_samples = [[Time.get_ticks_msec(), at.x]]
@@ -1297,7 +1303,7 @@ func _drag_begin(at: Vector2) -> void:
 
 func _drag_move(at: Vector2, rel: Vector2) -> void:
 	if drag_rail and drag_moved >= SWIPE and m.rail.pane != null and rel != Vector2.ZERO:
-		m.rail.pane.scroll_vertical -= int(rel.y)  # (a rail too tall for a short screen scrolls)
+		m.scroller.drag(m.rail.pane, rel.y)  # (a rail too tall for a short screen scrolls)
 	if drag_rail or touch_slider != null:
 		return  # (a finger on the rail: a tap there, never a swipe of the train; on a slider: the slider)
 	var d := at - drag_from
@@ -1324,7 +1330,7 @@ func _drag_move(at: Vector2, rel: Vector2) -> void:
 		if drag_samples.size() > 6:
 			drag_samples.pop_front()
 	elif drag_axis == "y" and drag_scroll != null and rel != Vector2.ZERO:
-		drag_scroll.scroll_vertical -= int(rel.y)
+		m.scroller.drag(drag_scroll, rel.y)  # (it follows the finger, fractions kept: scroller.gd)
 
 
 ## Let go of the train: it settles on the next car if it moved far (or
@@ -1351,6 +1357,7 @@ func tap(pos: Vector2) -> void:
 	var b := _button_at(pos)
 	if b == null or b.disabled:
 		return
+	m._note_press(pos, b)
 	if b.toggle_mode:
 		b.button_pressed = not b.button_pressed  # (emits toggled)
 	else:
@@ -1685,29 +1692,23 @@ func _cost_lines(cost: Dictionary, label: String) -> String:
 	return Bench.short_of(_prof(), cost)
 
 
-## A bench button that asks first: the first press says "Press again" (or "Tap again"), the
-## second does it. `ask` names this exact choice (m.sell_ask holds it).
-func _ask_button(parent: Node, text: String, again: String, ask: String, why: String, meta: String, meta_val: String) -> Button:
+## A bench button that asks first: a press opens the confirmation pop-up
+## (menu.gd ask) saying what will happen (`question`); its Confirm, named
+## like the button, does it. `ask` names this exact choice.
+func _ask_button(parent: Node, text: String, question: String, ask: String, why: String, meta: String, meta_val: String) -> Button:
 	var full: String = m.inv_sel + "|" + ask
-	var asking: bool = m.sell_ask == full
-	var b: Button = m._button(m.Nav.fill(again, m.main) if asking else text, _ask.bind(full), parent)
+	var b: Button = m._button(text, _ask.bind(full, question, text), parent)
 	b.custom_minimum_size.y = 40
 	b.disabled = why != ""
 	b.set_meta(meta, meta_val)
+	b.set_meta("asks", true)  # (it opens the pop-up)
 	UI.keep_text(b)  # (its words whole: smaller, then wrapped, never cut)
-	if asking and why == "":
-		m._primary(b)
 	return b
 
 
-func _ask(full: String) -> void:
-	if m.sell_ask != full:
-		m.sell_ask = full
-		m.toast = ""
-		m.open("train")
-		return
-	m.sell_ask = ""
-	_bench_do(full.get_slice("|", 0).substr(6), full.get_slice("|", 1))
+func _ask(full: String, question: String, text: String) -> void:
+	var what := full.get_slice("|", 1)
+	m.ask(question, text, _bench_do.bind(full.get_slice("|", 0).substr(6), what), what.begins_with("break") or what.begins_with("join"))
 
 
 ## Why on a card, in red ("Can't: needs 12 more Fire").
@@ -1953,7 +1954,7 @@ func _pick_trait(i: int) -> void:
 	m.open("train")
 
 
-## Does what a bench button asked (pressed twice): `thing` is the card's
+## Does what a bench button asked (once its pop-up is confirmed): `thing` is the card's
 ## piece or item, `ask` the choice ("temper", "retrait:0:air", "join:pack:1",
 ## "inscribe:warding", "break").
 func _bench_do(thing: String, ask: String) -> void:
@@ -2182,12 +2183,16 @@ func _offer_card(i: int) -> void:
 
 # --- actions ------------------------------------------------------------------------
 
+## A choice made on the train: what it did (a toast), the outfitter's (or
+## the Entity's) word, its sound and a flash on the button (menu.gd feedback:
+## coins for buying and selling, the bench's own sounds for its work, "ui_back"
+## and a red flash when it couldn't be done).
 func _done(text: String, say: String, sound: String) -> void:
 	m.toast = text
 	m.toast_t = 3.0
 	if say != "":
 		m.train_say = say
-	m.main.sfx(sound, 1.0, -4.0, 0.0)
+	m.feedback(m.DONE_KINDS.get(sound, "make"), sound)
 	m.open("train")
 
 

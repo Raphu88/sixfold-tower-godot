@@ -63,6 +63,9 @@ const Bestiary := preload("res://scripts/bestiary.gd")
 const Charms := preload("res://scripts/charms.gd")
 const Offhand := preload("res://scripts/offhand.gd")  # (the off-hand slot: offhand.gd)
 const ItemPool := preload("res://scripts/item_pool.gd")  # (every essence item's own pool: filtering essence in)
+const Scroller := preload("res://scripts/scroller.gd")  # (every page's scrolling: the wheel, a finger's drag and flick, page jumps, keeping the scroll)
+const ConfirmPop := preload("res://scripts/confirm_pop.gd")  # (the pop-up that asks before something big: ask)
+const PressFlash := preload("res://scripts/press_flash.gd")  # (the flash on a button when something is bought, sold or chosen: feedback)
 
 static var GOLD: Color:  # (UI.GOLD, read each time: the Data editor can change it)
 	get: return UI.GOLD
@@ -75,7 +78,7 @@ static var FAINT: Color:  # (UI.FAINT, read each time: the Data editor can chang
 const SETTINGS_PATH := "user://sixfold.cfg"
 
 ## How wide each page's panel is (it shrinks to fit a small screen).
-const WIDTHS := {"pause": 440.0, "settings": 660.0, "controls": 660.0, "confirm_new": 440.0, "library": 760.0,
+const WIDTHS := {"pause": 440.0, "settings": 660.0, "controls": 660.0, "library": 760.0,
 	"dev": 660.0, "data": 860.0, "climber": 800.0, "inventory": 800.0, "mark": 800.0, "train": 860.0,
 	"create": 960.0, "appearance": 960.0, "climbers": 860.0, "loadout": 980.0, "stash": 980.0, "station": 920.0,
 	"talk": 620.0, "pour": 860.0}
@@ -144,7 +147,6 @@ var toast_t := 0.0
 ## no timer; another page lets it go.
 var said_toast := ""
 var _said_toast_on := ""
-var confirm_back := ""  # the page "Cancel" returns to
 var backdrop: Control  # the title screen's drawing (title.gd), behind the title and its pages
 var shade: ColorRect
 var center: CenterContainer
@@ -177,7 +179,7 @@ var train_store := "shop"  # the store car: its shelves ("shop") or selling ("se
 var train_bench := "brew"  # the workshop car's counter (bench.gd)
 var train_tower := ""  # the engine: the tower chosen for the next climb
 var bench_pick := 0  # Retrait: which of a piece's traits to replace
-var sell_ask := ""  # a piece asked to be sold: a second press sells it
+var sell_ask := ""  # (kept for old callers: selling and the bench ask in a pop-up now, ask)
 var train_say := ""  # the outfitter's (or the Entity's) answer to the last choice
 var train_board := "towers"  # the engine's destination board: "towers" or "stations"
 var train_station := ""  # the engine: a station chosen instead of a tower ("" for none)
@@ -204,7 +206,7 @@ var talk_from := ""
 # opens (the others are pages within them: a mark, controller setup, the
 # Start over question).
 var rail
-const RAIL_PAGES := ["pause", "climber", "mark", "inventory", "library", "settings", "padsetup", "controls", "dev", "data", "confirm_new", "train", "loadout", "stash", "station"]
+const RAIL_PAGES := ["pause", "climber", "mark", "inventory", "library", "settings", "padsetup", "controls", "dev", "data", "train", "loadout", "stash", "station"]
 const RAIL_ROOTS := ["pause", "climber", "inventory", "library", "settings", "controls", "dev", "loadout", "stash"]
 var nav_keys := false  # the last thing pressed was a key or the controller (not a click or tap)
 var _rail_focus := false  # after building the page, put the focus back on the rail
@@ -229,6 +231,21 @@ var _down := {}  # keys, buttons, sticks and fingers seen going down and not yet
 ## that drifts past its deadzone would otherwise keep them for ever).
 const PROMPTS_WAIT_MS := 2000
 var inv_armed := ""  # the slot pressed once (an item's second press uses it)
+## Scrolling (scroller.gd): the wheel, a finger's drag and flick, page jumps,
+## the right stick; and keeping each page's scroll when it's built again.
+var scroller = Scroller.new()
+## The pop-up that asks before something big (confirm_pop.gd, ask).
+var pop: Control
+## The flash on what was just bought, sold or chosen (press_flash.gd, feedback).
+var flash: Control
+var _built_view := ""  # the page (and tab) last built (_view_key): built again as it was, its scroll stays
+var _press_at := Vector2.ZERO  # where the last click or tap let go (feedback flashes the button there)
+var _press_ms := -100000
+var _press_rect := Rect2()  # the button that click or tap pressed
+var _fb_rect := Rect2()  # (Confirm in the pop-up: the button that opened it)
+var _fb_frame := -1  # the frame feedback played its sound (the page built after it is quiet)
+var _touch_stopped := false  # the finger down now stopped a glide (it presses nothing)
+var _trig_down := {}  # LT / RT held (a page jump each press)
 
 
 func _ready() -> void:
@@ -265,6 +282,10 @@ func _ready() -> void:
 	helper = EntityHelper.new()  # (over the page and the rail)
 	helper.menu = self
 	add_child(helper)
+	flash = PressFlash.new()  # (over the page, the train and the rail)
+	add_child(flash)
+	pop = ConfirmPop.new()  # (over everything; in the tree only while it asks: ask)
+	pop.menu = self
 	panel = PanelContainer.new()
 	center.add_child(panel)
 	scroll = ScrollContainer.new()
@@ -319,12 +340,28 @@ func _input(event: InputEvent) -> void:
 		nav_keys = false
 	if page == "" or page == "painter":
 		return  # (the room painter reads its own input: painter.gd)
+	# The pop-up asking first (confirm_pop.gd) takes every press while it
+	# shows: taps and right-clicks here, clicks on its buttons, the keys in
+	# _process (Left / Right, Esc / B); Enter, Space or A press its button.
+	if pop.visible:
+		if pop.input(event) or Nav.is_dir_event(event):
+			get_viewport().set_input_as_handled()
+		elif event is InputEventKey and event.pressed and (event.physical_keycode == KEY_Q or event.physical_keycode == KEY_E):
+			get_viewport().set_input_as_handled()
+		return
+	if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT and not event.pressed:
+		_note_press(event.position)  # (feedback's flash: the button the click let go on)
 	if _typing():
 		# A text box: Esc or B leave the box, and nothing more.
 		if event.is_action_pressed("ui_cancel") or event.is_action_pressed("pause"):
 			_leave_field()
 			_back_frame = Engine.get_process_frames()
 			get_viewport().set_input_as_handled()
+		return
+	# The wheel: the list or page under the pointer moves a good step, eased
+	# (scroller.gd); Page Up / Page Down (LT / RT), Home and End jump.
+	if _scroll_input(event):
+		get_viewport().set_input_as_handled()
 		return
 	# The Entity on the train: a click or tap on its sphere, a finger held
 	# on a button for its explanation (entity_helper.gd).
@@ -371,6 +408,7 @@ func _input(event: InputEvent) -> void:
 		if event.pressed:
 			touch_from = event.position
 			touch_moved = 0.0
+			_touch_stopped = scroller.touch_down()  # (a touch while the page glides only stops it)
 			_swipe = Vector2.ZERO
 			touch_rail = rail.visible and rail.get_global_rect().has_point(event.position)
 			_touch_began = true
@@ -378,10 +416,12 @@ func _input(event: InputEvent) -> void:
 			if touch_slider != null:
 				_slide_to(touch_slider, event.position)
 		else:
-			if touch_slider == null and touch_moved < 14.0 and _touch_began:
+			if touch_slider == null and touch_moved < Scroller.DRAG and _touch_began and not _touch_stopped:
 				_tap(event.position)  # (not the lift of a press that opened the menu: the Climber button's, say)
 			elif _is_swipe() and _touch_began:
 				_cycle(-1 if _swipe.x > 0.0 else 1)  # (the book: a swipe turns the page)
+			elif touch_moved >= Scroller.DRAG:
+				scroller.release()  # (a flick carries on)
 			touch_slider = null
 			_touch_began = false
 			# A phone: switch to the bigger phone layout (after the tap, so the
@@ -396,10 +436,10 @@ func _input(event: InputEvent) -> void:
 		_swipe = event.position - touch_from
 		if touch_slider != null:
 			_slide_to(touch_slider, event.position)
-		elif touch_moved >= 14.0 and touch_rail and rail.pane != null:
-			rail.pane.scroll_vertical -= int(event.relative.y)  # (a rail too tall for a short screen)
-		elif touch_moved >= 14.0 and not (page == "climber" and absf(_swipe.x) > absf(_swipe.y)):
-			scroll.scroll_vertical -= int(event.relative.y)
+		elif touch_moved >= Scroller.DRAG and touch_rail and rail.pane != null:
+			scroller.drag(rail.pane, event.relative.y)  # (a rail too tall for a short screen)
+		elif touch_moved >= Scroller.DRAG and not (page == "climber" and absf(_swipe.x) > absf(_swipe.y)):
+			scroller.drag(_drag_target(touch_from), event.relative.y)  # (the page follows the finger)
 		get_viewport().set_input_as_handled()
 
 
@@ -448,6 +488,7 @@ func _tap(pos: Vector2) -> void:
 			return
 	if b == null or b.disabled:
 		return
+	_note_press(pos, b)
 	if b.has_method("tap_at"):
 		b.tap_at(pos)  # (an option row: its arrows and swatches)
 	elif b.toggle_mode:
@@ -471,6 +512,18 @@ func _process(delta: float) -> void:
 	_refresh_prompts()
 	if page == "painter":
 		return  # (the room painter reads its own keys: painter.gd)
+	scroller.update(delta)
+	if pop.visible:
+		# The pop-up asking first: Esc or B cancel; the arrows move between its two buttons.
+		if Input.is_action_just_pressed("ui_cancel") or Input.is_action_just_pressed("pause"):
+			pop.cancel()
+		elif is_inside_tree():
+			rep.update()
+			for a in Nav.DIRS:
+				if rep.pulse(a):
+					pop.step()
+		_layout()
+		return
 	if _typing():
 		# Typing a name: the keys are letters, not shortcuts (Esc leaves the field: _input).
 		_layout()
@@ -500,13 +553,14 @@ func _process(delta: float) -> void:
 		# The detail page's text isn't focusable: up and down scroll it.
 		var v := Input.get_axis("ui_up", "ui_down")
 		if absf(v) > 0.2:
-			scroll.scroll_vertical += int(v * 700.0 * delta)
-	# The right stick scrolls the page (on the train, the card of the car you're in).
+			scroller.nudge(scroll, v * Nav.SCROLL_SPEED * delta)
+	# The right stick scrolls the page (on the train, what the focus is in,
+	# in the car you're in), faster the longer it's held (scroller.gd).
 	var rs := Nav.stick_scroll()
 	if page != "" and absf(rs) > 0.2:
-		var sc := _scroll_target()
-		if sc != null:
-			sc.scroll_vertical += int(rs * Nav.SCROLL_SPEED * delta)
+		scroller.stick(_scroll_target(), rs, delta)
+	else:
+		scroller.stick(null, 0.0, delta)
 	# The arrows, the d-pad and the stick: a step per press, repeating while held.
 	if page != "" and is_inside_tree():
 		rep.update()
@@ -674,7 +728,7 @@ func toggle(which: String) -> void:
 			open(which, true)
 			if which == "climber":
 				_arm_peek()
-	elif page != "title" and page != "confirm_new":
+	elif page != "title":
 		open(which, opened_direct)
 
 
@@ -684,6 +738,9 @@ func _can_open() -> bool:
 
 ## Esc, B or the Back button: back a page, or out of the menu.
 func go_back() -> void:
+	if pop.visible:
+		pop.cancel()  # (the pop-up asking first: Cancel)
+		return
 	if page == "talk":
 		leave_talk()
 		return
@@ -731,9 +788,7 @@ func _go_back() -> void:
 		else:
 			rail.focus_current()
 		return
-	if page == "confirm_new":
-		open(confirm_back)
-	elif page == "padsetup":
+	if page == "padsetup":
 		if _on_train() and not opened_from_title:
 			train_car = "settings"  # (back to the Settings & Controls car)
 			_want_focus = {"meta": "setting", "value": "padsetup"}
@@ -841,8 +896,8 @@ func rail_item() -> String:
 			return "resume"
 		"climber", "mark":
 			return "climber"
-		"padsetup", "controls", "confirm_new":
-			return "settings"  # (controller setup, the controls list and Start over live in Settings & Controls)
+		"padsetup", "controls":
+			return "settings"  # (controller setup and the controls list live in Settings & Controls)
 		"data":
 			return "dev"
 		"train":
@@ -1016,6 +1071,15 @@ func open(which: String, direct := false) -> void:
 		which = "loadout"  # (on the train your gear is the Loadout: the pack and stash are the train's)
 	var was_closed := page == ""
 	var prev := page
+	# The same page (and tab) built again after a press: every scroll on it
+	# stays where it was (scroller.gd keep_from); another page starts at its top.
+	var view := _view_key(which)
+	var same_view: bool = not was_closed and view == _built_view and is_inside_tree()
+	var snap: Dictionary = Scroller.snapshot(self) if same_view else {}
+	if not same_view:
+		scroller.cancel_keep()
+	if pop.visible and which != page:
+		pop.close()  # (another page: the question is dropped)
 	var switching := (which != page or which == "climber" or which == "mark") and not _quiet  # (a new tab or mark too)
 	# What had the focus here, so going back can put it there again (nav.gd).
 	if page != "" and which != page and is_inside_tree():
@@ -1113,13 +1177,15 @@ func open(which: String, direct := false) -> void:
 		c.get_parent().remove_child(c)
 		c.queue_free()
 	details = null
-	if (keep < 0 or which == "mark") and not _quiet:
-		scroll.scroll_vertical = 0  # (another mark starts at its top)
-	if main != null and which != "title" and keep < 0 and not _quiet: main.sfx(("ui_bag" if which == "inventory" else "ui_open") if was_closed else "ui_confirm")
+	if not same_view:
+		scroll.scroll_vertical = 0  # (another page, tab or mark starts at its top)
+		scroller.stop()
+	if main != null and which != "title" and keep < 0 and not _quiet and _fb_frame != Engine.get_process_frames(): main.sfx(("ui_bag" if which == "inventory" else "ui_open") if was_closed else "ui_confirm")
 	# (how its lines on the page are sent away, for the device in use: entity.gd says)
 	Entity.away_how = String(Entity.TEXT["away_touch"]) if main != null and main.touch_active else \
 		((("R3" if main.pad_ps else "RS") if main != null and main.pad_active else String(Entity.TEXT["away_keys"])))
 	call("_page_" + which)
+	_built_view = view
 	_prompts_for = _input_mode()  # (input_changed: written for the input in use)
 	var list := focusables()
 	var first := _first_focus(which, list) if not list.is_empty() else -1
@@ -1129,6 +1195,8 @@ func open(which: String, direct := false) -> void:
 		rail.refresh(rail_item(), _on_train(), compact(), main.touch_active, main.pad_active, main.pad_ps)
 		_link_rail(list[first] if first >= 0 else null)
 	_layout()
+	if same_view:
+		scroller.keep_from(self, snap)  # (the scrolls put back, as the new page takes its size)
 	ArrangeUI.tag_page(self)  # (what Arrange mode can move on this page)
 	# On a phone nothing has the focus (a tap is its own highlight).
 	if main != null and main.touch_active:
@@ -1195,8 +1263,6 @@ func _first_focus(which: String, list: Array) -> int:
 			first = station_page.first_focus(list)
 		elif which == "create" or which == "appearance":
 			first = maxi(0, list.find(look_page.first_focus))
-		elif which == "confirm_new":
-			first = maxi(0, list.map(func(b): return b.get_meta("cancel", false)).find(true))  # (Cancel: the safe one)
 		elif which == "climbers":
 			# (on the current climber's card)
 			first = maxi(0, list.map(func(b): return b.get_meta("climber_slot", 0)).find(Slots.current()))
@@ -1361,9 +1427,207 @@ func _focus_card() -> void:
 ## What the right stick scrolls: the page, or on the train the car's card.
 func _scroll_target() -> ScrollContainer:
 	if page == "train":
+		# What the focus is in (the store's list, a card, the car's pane), else the card, else the pane.
+		var f: Control = get_viewport().gui_get_focus_owner() if is_inside_tree() else null
+		var p: Node = f.get_parent() if f != null and train_page._in_car(f) else null
+		while p != null and p != train_view:
+			if p is ScrollContainer and Scroller.can_scroll(p):
+				return p
+			p = p.get_parent()
 		var sc = train_page.card_scrolls.get(train_car)
+		if sc != null and is_instance_valid(sc) and Scroller.can_scroll(sc):
+			return sc
+		var pane = train_page.car_scrolls.get(train_car)
+		if pane != null and is_instance_valid(pane) and Scroller.can_scroll(pane):
+			return pane
 		return sc if sc != null and is_instance_valid(sc) else null
 	return scroll
+
+
+## The page or list under a point that a finger drags (the deepest that can
+## scroll), else the page.
+func _drag_target(at: Vector2) -> ScrollContainer:
+	var sc := Scroller.scroll_at(center, at)
+	return sc if sc != null else scroll
+
+
+## The wheel over a scroll (the deepest under the pointer that can move),
+## Page Up / Page Down, Home / End, and LT / RT. True if it was used.
+func _scroll_input(event: InputEvent) -> bool:
+	if event is InputEventMouseButton and event.pressed and (event.button_index == MOUSE_BUTTON_WHEEL_UP or event.button_index == MOUSE_BUTTON_WHEEL_DOWN):
+		var sc: ScrollContainer = null
+		if rail.visible and rail.get_global_rect().has_point(event.position):
+			sc = rail.pane if rail.pane != null and Scroller.can_scroll(rail.pane) else null
+		elif page == "train":
+			sc = train_page._scroll_at(event.position)
+		else:
+			sc = Scroller.scroll_at(center, event.position)
+		if sc == null or not Scroller.can_scroll(sc):
+			return false  # (on the train: the next car)
+		var notches: float = event.factor if event.factor > 0.0 else 1.0
+		scroller.wheel(sc, notches if event.button_index == MOUSE_BUTTON_WHEEL_DOWN else -notches)
+		return true
+	if event is InputEventKey and event.pressed and event.physical_keycode in [KEY_PAGEUP, KEY_PAGEDOWN, KEY_HOME, KEY_END]:
+		var sc := _scroll_target()
+		if sc == null or not Scroller.can_scroll(sc):
+			return false
+		match event.physical_keycode:
+			KEY_PAGEUP:
+				scroller.page(sc, -1.0)
+			KEY_PAGEDOWN:
+				scroller.page(sc, 1.0)
+			KEY_HOME:
+				scroller.edge(sc, false)
+			KEY_END:
+				scroller.edge(sc, true)
+		return true
+	if event is InputEventJoypadMotion and event.device == Controls.PAD_DEVICE and (event.axis == JOY_AXIS_TRIGGER_LEFT or event.axis == JOY_AXIS_TRIGGER_RIGHT):
+		var id: int = event.axis
+		if not _trig_down.has(id) and event.axis_value >= Controls.TRIGGER_PRESS:
+			_trig_down[id] = true
+			var sc := _scroll_target()
+			if sc != null and Scroller.can_scroll(sc):
+				scroller.page(sc, 1.0 if id == JOY_AXIS_TRIGGER_RIGHT else -1.0)
+		elif _trig_down.has(id) and event.axis_value <= Controls.TRIGGER_RELEASE:
+			_trig_down.erase(id)
+		return true
+	return false
+
+
+## What a page shows, to tell it built again as it was (its scroll kept)
+## from another page or tab (from its top).
+func _view_key(which: String) -> String:
+	match which:
+		"climber":
+			return which + ":" + climber_tab
+		"mark":
+			return which + ":" + mark_part
+		"library":
+			return which + ":" + library_tab
+		"settings":
+			return which + ":" + settings_tab
+		"inventory":
+			return which + ":" + inv_view
+		"train":
+			return "%s:%s:%s:%s" % [which, train_store, train_bench, train_board]
+		"station":
+			return which + ":" + str(station_page.stop)
+		"data":
+			return "%s:%s:%s" % [which, data_page.tab, data_page.section]
+		"talk", "intro", "create_name", "quiz", "title":
+			return which + ":%d" % Time.get_ticks_usec()  # (each step its own)
+	return which
+
+
+# --- asking first, and answering a choice ---------------------------------------
+
+## Asks before something big (a pop-up, confirm_pop.gd): `text` says what
+## will happen, `confirm` names the action (its button), `action` runs on
+## Confirm. Cancel, Esc, B, a right-click or a tap outside does nothing.
+## `danger`: it can't be undone (Confirm in red).
+func ask(text: String, confirm: String, action: Callable, danger := false, title := "") -> void:
+	pop.source_rect = pressed_rect()
+	if not pop.is_inside_tree():
+		add_child(pop)  # (last: over the page, the rail and the train)
+	else:
+		move_child(pop, get_child_count() - 1)
+	text = Pronouns.fill(text)  # (a line that speaks of the climber: their pronouns)
+	var then := func():
+		_fb_rect = pop.source_rect  # (the flash lands on the button that asked)
+		action.call()
+		_fb_rect = Rect2()
+	pop.open(text, confirm, then, danger, title)
+	if main != null:
+		main.sfx("ui_open", 1.15, -6.0, 0.0)
+
+
+## True while the pop-up asks.
+func asking() -> bool:
+	return pop != null and pop.visible
+
+
+## The pop-up closed: out of the tree (once its press is over), and on keys
+## or a controller, back onto the button that opened it.
+func pop_closed() -> void:
+	(func():
+		if not pop.visible and pop.is_inside_tree():
+			remove_child(pop)).call_deferred()
+	if main != null and main.touch_active:
+		return
+	var at: Rect2 = pop.source_rect
+	if at.size.x <= 0.0:
+		return
+	(func():
+		if pop.visible or not is_inside_tree():
+			return
+		var f := get_viewport().gui_get_focus_owner()
+		if f != null and f.is_visible_in_tree() and not pop.is_ancestor_of(f):
+			return
+		for c in focusables():
+			if is_instance_valid(c) and c.is_visible_in_tree() and c.get_global_rect().has_point(at.get_center()):
+				_quiet = true
+				c.grab_focus()
+				_quiet = false
+				return).call_deferred()
+
+
+## How each kind of choice answers (feedback): its sound (from the sound
+## bank), pitch and volume, and the colour of its flash (a ui.gd colour).
+static var FEEDBACK := {
+	"buy": {"sound": "buy", "pitch": 1.0, "db": -2.0, "col": "gilt"},
+	"sell": {"sound": "sell", "pitch": 1.0, "db": -2.0, "col": "gilt"},
+	"choose": {"sound": "glint", "pitch": 1.2, "db": -6.0, "col": "good"},
+	"make": {"sound": "craft", "pitch": 1.0, "db": -4.0, "col": "gilt"},
+	"back": {"sound": "ui_back", "pitch": 1.0, "db": -4.0, "col": "dim"},
+}
+## The train's and the Loadout's answers (train_page.gd / loadout_page.gd
+## _done) name a sound: the kind of feedback it is ("make" for the rest:
+## the bench's work).
+static var DONE_KINDS := {"buy": "buy", "sell": "sell", "ui_confirm": "choose", "armor_on": "choose", "clear": "choose", "ui_back": "back"}
+var feedback_log: Array = []  # the kinds answered (tests)
+
+
+## Something was bought, sold, chosen, equipped or learned: its sound and a
+## short flash on the button pressed. `sound` plays instead of the kind's own;
+## `play` false: only the flash (the game already made its own sound).
+func feedback(kind: String, sound := "", play := true) -> void:
+	var fb: Dictionary = FEEDBACK.get(kind, FEEDBACK["choose"])
+	var snd: String = sound if sound != "" else String(fb["sound"])
+	if main != null and snd != "" and play:
+		main.sfx(snd, float(fb["pitch"]) if sound == "" else 1.0, float(fb["db"]), 0.0)
+	_fb_frame = Engine.get_process_frames()
+	var col: Color = {"gilt": UI.GILT_HI, "good": UI.GOOD, "bad": UI.BAD, "dim": UI.DIM}.get(String(fb["col"]), UI.GILT_HI)
+	var r: Rect2 = _fb_rect if _fb_rect.size.x > 0.0 else pressed_rect()
+	if flash != null:
+		flash.flash(r, col)
+	feedback_log.append(kind)
+
+
+## The button just pressed, on screen: the one a click or tap let go on
+## (a moment ago), else the one the keys are on.
+func pressed_rect() -> Rect2:
+	if not nav_keys and Time.get_ticks_msec() - _press_ms < 600 and _press_rect.size.x > 0.0:
+		return _press_rect
+	var f: Control = get_viewport().gui_get_focus_owner() if is_inside_tree() else null
+	if f != null and is_ancestor_of(f) and f.is_visible_in_tree() and not pop.is_ancestor_of(f):
+		return f.get_global_rect()
+	return Rect2()
+
+
+## A click or tap let go at `at` (on `b`, if known): feedback flashes it.
+func _note_press(at: Vector2, b: Control = null) -> void:
+	_press_at = at
+	_press_ms = Time.get_ticks_msec()
+	if b == null:
+		for c in find_children("*", "BaseButton", true, false):
+			var bb: Control = c
+			if pop.is_ancestor_of(bb) or not bb.is_visible_in_tree() or not bb.get_global_rect().has_point(at):
+				continue
+			var sc := Nav.scroll_of(bb)
+			if sc != null and not sc.get_global_rect().has_point(at):
+				continue
+			b = bb
+	_press_rect = b.get_global_rect() if b != null else Rect2()
 
 
 ## The controller, keyboard or touch took over: the page's prompts change
@@ -1495,7 +1759,10 @@ func close() -> void:
 			open("train")
 		return
 	if main != null: main.sfx("ui_close")
+	if pop.visible:
+		pop.close()
 	page = ""
+	_built_view = ""
 	opened_direct = false
 	get_tree().paused = false
 	Engine.time_scale = 1.0
@@ -3460,17 +3727,23 @@ func _item_key() -> String:
 	return "G"
 
 
-func _use_item(id: String) -> void:
+func _use_item(id: String, sure := false) -> void:
 	var p = main.player
 	if p == null or p.item_count(id) <= 0:
 		return
+	if id == "scroll" and not main.first_climb:
+		if not sure:
+			# Reading the recall scroll ends the climb: it asks first (the pop-up).
+			ask(Items.RECALL["ask_menu"], Items.RECALL["read"], _use_item.bind(id, true), true, Items.RECALL["ask_title"])
+			return
+		main.recall_ask_t = float(Items.RECALL["confirm"])  # (asked already: this use reads it)
 	var before: String = p.item_sel
 	p.item_sel = id
 	var used_name := Items.item_name(id)
 	if p.use_item():
 		toast = "Used: %s" % used_name
 	else:
-		toast = Items.RECALL["ask_menu"] if id == "scroll" and main.recall_ask_t > 0.0 else "It would do nothing now."
+		toast = "It would do nothing now."
 		if id == "scroll" and main.first_climb:
 			toast = Items.RECALL["first_climb"]
 		p.item_sel = before
@@ -3490,11 +3763,13 @@ func _consume_crystal(kind: String) -> void:
 func _take_floor(into := "") -> void:
 	if main.take_gear_here(into):
 		inv_sel = "gear:" + _hand_slot(main.player)
+		feedback("choose", "", false)  # (a flash: the game made its own sound)
 	open("inventory", opened_direct)
 
 
 func _pack_floor() -> void:
 	if main.pack_gear_here():
+		feedback("choose", "", false)
 		inv_view = "pack"
 		inv_sel = "pack:%d" % (main.player.pack.size() - 1)
 	open("inventory", opened_direct)
@@ -3503,6 +3778,7 @@ func _pack_floor() -> void:
 func _wear_pack(i: int, into: String) -> void:
 	if main.wear_from_pack(i, into):
 		inv_sel = "pack:%d" % i
+		feedback("choose", "", false)
 	open("inventory", opened_direct)
 
 
@@ -3518,7 +3794,7 @@ func _feed_item(slot: String) -> void:
 	if not (g is Dictionary) or g.is_empty() or ItemPool.filter_why(main) != "":
 		return
 	if ItemPool.refill_carried(main, g) == "":
-		main.sfx("craft", 1.1, -4.0, 0.0)
+		feedback("make")
 		main.note_event("gear", ItemPool.TEXT["filtered"] % Gear.display(g), Gear.color(g))
 	inv_sel = "gear:" + slot
 	open("inventory", opened_direct)
@@ -3530,7 +3806,7 @@ func _feed_offhand() -> void:
 	if g.is_empty():
 		return
 	if Offhand.refill_unbanked(main, g) == "":
-		main.sfx("craft", 1.1, -4.0, 0.0)
+		feedback("make")
 		main.note_event("gear", Charms.TEXT["refilled"] % Gear.display(g), Gear.color(g))
 	inv_sel = "gear:offhand"
 	open("inventory", opened_direct)
@@ -3544,7 +3820,7 @@ func _feed_charm() -> void:
 		return
 	if Charms.refill_unbanked(main, g) == "":
 		main.player.refresh_gear()
-		main.sfx("craft", 1.1, -4.0, 0.0)
+		feedback("make")
 		main.note_event("gear", Charms.TEXT["refilled"] % Gear.display(g), Gear.color(g))
 	inv_sel = "gear:charm"
 	open("inventory", opened_direct)
@@ -3697,21 +3973,19 @@ func leave_station() -> void:
 
 # --- the dev tool ------------------------------------------------------------------
 
-func _ask_new(back: String) -> void:
-	confirm_back = back
-	open("confirm_new")
+## N in play: the pause menu, asking straight away whether to start over.
+func ask_start_over() -> void:
+	if page == "":
+		open("pause")
+	_ask_new()
 
 
-## Start over: this climber only (their slot starts again; the others are kept).
-func _page_confirm_new() -> void:
+## Start over (this climber only: their slot starts again; the others are
+## kept): it asks first (the confirmation pop-up, Cancel focused).
+func _ask_new(_back := "") -> void:
 	var CT: Dictionary = ClimbersPage.TEXT
 	var who: String = str(main.profile.appearance.get("name", ""))
-	_header(CT["over_title"], "")
-	_text(CT["over_text"] % (who if who != "" else CT["over_this"]), TEXT, true)
-	_gap()
-	var row := _grid(2)
-	_button(CT["over"], _new_climber, row)
-	_button(CT["cancel"], go_back, row).set_meta("cancel", true)
+	ask(CT["over_text"] % (who if who != "" else CT["over_this"]), CT["over"], _new_climber, true, CT["over_title"])
 
 
 func _page_dev() -> void:

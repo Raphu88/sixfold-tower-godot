@@ -424,20 +424,19 @@ func _cards_and_words() -> void:
 	if refill.size() == 1:
 		refill[0].pressed.emit()
 		await t._frames(2)
-		refill = t._car_buttons("bench_do", "refill")
-		if refill.size() == 1:
-			refill[0].pressed.emit()
-			await t._frames(2)
-	_check(C.charges(prof.wear["charm"]) == 1, "...pressed twice, it's charged again")
+		await t._confirm(true)
+		await t._frames(2)
+	_check(C.charges(prof.wear["charm"]) == 1, "...pressed and confirmed in the pop-up, it's charged again")
 	menu.inv_sel = "bench:craft:lucky_knot"
 	menu.open("train")
 	await t._frames(4)
 	var n0: int = prof.chest.size()
-	for i in 2:
-		var cb: Array = t._car_buttons("bench_do", "craft")
-		if cb.size() == 1:
-			cb[0].pressed.emit()
-			await t._frames(2)
+	var cb: Array = t._car_buttons("bench_do", "craft")
+	if cb.size() == 1:
+		cb[0].pressed.emit()
+		await t._frames(2)
+		await t._confirm(true)
+		await t._frames(2)
 	_check(prof.chest.size() == n0 + 1 and G.base_id(prof.chest.back()) == "lucky_knot", "...and Craft it makes a charm, into the stash")
 	menu.close()
 	await t._frames(2)

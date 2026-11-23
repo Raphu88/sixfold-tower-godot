@@ -100,7 +100,6 @@ func _seal_on_tab() -> void:
 	Seal.place(prof, "hand")
 	prof.regarded = true
 	main.first_climb = false
-	menu.remove_meta("mark_seal_armed")
 	main.on_train = false
 	menu.climber_tab = "marks"
 	menu.open("climber")
@@ -117,12 +116,17 @@ func _seal_on_tab() -> void:
 	if b != null:
 		b.pressed.emit()
 	await t._frames(3)
+	_check(not Unbound.is_on(prof) and menu.asking() and menu.pop.text_l.text.contains("Unbound"), "a press only asks: the confirmation pop-up, with the warning")
+	await t._confirm(false)
+	await t._frames(2)
+	_check(not Unbound.is_on(prof) and not menu.asking() and _btn(menu) != null, "...Cancel changes nothing")
 	b = _btn(menu)
-	_check(not Unbound.is_on(prof) and b != null and bool(b.get_meta("mark_seal_armed", false)) and b.text.to_lower().contains("again"), "the first press only asks again (%s)" % (b.text if b != null else "none"))
 	if b != null:
 		b.pressed.emit()
+	await t._frames(2)
+	await t._confirm(true)
 	await t._frames(4)
-	_check(Unbound.is_on(prof) and _btn(menu) == null and menu.page == "climber", "the second press breaks it: Unbound, and the tab shows the Body")
+	_check(Unbound.is_on(prof) and _btn(menu) == null and menu.page == "climber", "Confirm breaks it: Unbound, and the tab shows the Body")
 	menu.close()
 	main.on_train = false
 	await t._frames(2)

@@ -1,6 +1,6 @@
 extends RefCounted
 ## Sealing a Node (unbound.gd seal/unseal, node_seal.gd on the Body tab):
-## only an Unbound, only on the train, a second press to confirm with a
+## only an Unbound, only on the train, the confirmation pop-up with a
 ## clear warning; what the Node held condenses into crystals; routing and
 ## banked essence skip a sealed Node (most of what would pool there
 ## condenses on the way, a little reaches the open Nodes); each sealed Node
@@ -190,7 +190,7 @@ func _in_menu() -> void:
 	var prof = main.profile
 	prof.saving = false
 	main.touch._set_active(false)
-	for m in ["node_pick", "move_from", "move_kind", "move_to", "seal_armed", "seal_told"]:
+	for m in ["node_pick", "move_from", "move_kind", "move_to", "seal_told"]:
 		menu.remove_meta(m)
 	# Off the train: no Seal button.
 	main.on_train = false
@@ -201,7 +201,7 @@ func _in_menu() -> void:
 	_check(_one("ub_seal") == null and _one("ub_unseal") == null, "off the train the Body tab offers no sealing")
 	menu.close()
 	await t._frames(2)
-	# On the train: the warning, then a second press.
+	# On the train: the warning, then the confirmation pop-up.
 	main.on_train = true
 	menu.open("climber")
 	await t._frames(3)
@@ -213,14 +213,19 @@ func _in_menu() -> void:
 	if sb != null:
 		sb.pressed.emit()
 	await t._frames(3)
-	sb = _one("ub_seal")
-	_check(not U.sealed(prof, "throat") and sb != null and bool(sb.get_meta("seal_armed", false)) and sb.text.to_lower().contains("again"), "the first press only asks again (%s)" % (sb.text if sb != null else "none"))
+	_check(not U.sealed(prof, "throat") and menu.asking() and menu.pop.text_l.text.contains("crystals") and menu.pop.yes.text.contains("Throat"), "a press only asks: the pop-up, with the warning (%s)" % menu.pop.text_l.text)
+	await t._confirm(false)
+	await t._frames(2)
+	_check(not U.sealed(prof, "throat") and not menu.asking(), "...Cancel seals nothing")
 	Engine.set_meta("sixfold_tips", true)  # (the Entity's words, live for this press)
 	main.GuideScript.forget()
+	sb = _one("ub_seal")
 	if sb != null:
 		sb.pressed.emit()
+	await t._frames(2)
+	await t._confirm(true)
 	await t._frames(3)
-	_check(U.sealed(prof, "throat") and prof.crystal_total("water") > c0, "the second press seals it; what it held is crystals now")
+	_check(U.sealed(prof, "throat") and prof.crystal_total("water") > c0, "Confirm seals it; what it held is crystals now")
 	var tip_words := String(load("res://scripts/entity.gd").TIPS["node_sealed"]["tip"]).left(24)
 	_check(t._all_labels(menu.box).any(func(l): return not l.is_queued_for_deletion() and l.text.contains(tip_words)), "the Entity says what sealing did, there on the page")
 	Engine.remove_meta("sixfold_tips")
@@ -246,7 +251,7 @@ func _in_menu() -> void:
 			routes = t._all_buttons(menu).filter(func(b): return not b.is_queued_for_deletion() and b.has_meta("route") and b.get_meta("route") == "water")
 			_check(routes.size() == 1 and U.part_for(prof, "water") != "throat", "routing skips the sealed Node (press %d: %s)" % [i + 1, U.part_for(prof, "water")])
 	_check(load("res://scripts/tree_view.gd")._head(prof, "throat").contains("sealed"), "the Tree names it sealed")
-	# Unseal: one press.
+	# Unseal: it asks first too.
 	menu.climber_tab = "marks"
 	menu.set_meta("node_pick", "throat")
 	menu.open("climber", true)
@@ -254,6 +259,9 @@ func _in_menu() -> void:
 	var ub := _one("ub_unseal")
 	if ub != null:
 		ub.pressed.emit()
+	await t._frames(2)
+	_check(U.sealed(prof, "throat") and menu.asking(), "Unseal asks first")
+	await t._confirm(true)
 	await t._frames(3)
 	_check(not U.sealed(prof, "throat") and U.size(prof, "throat") == 0.0 and not U.awake(prof, "throat"), "Unseal opens it again, asleep at size 0")
 	# A tap on a phone, and the page fits 844x390.
@@ -269,11 +277,14 @@ func _in_menu() -> void:
 		await t._frames(2)
 		await t._tap_at(tb.get_global_rect().get_center())
 		await t._frames(3)
-		tb = _one("ub_seal")
-	_check(tb != null and bool(tb.get_meta("seal_armed", false)) and tb.text.contains("Tap again"), "a tap arms Seal; on a phone it says Tap again (%s)" % (tb.text if tb != null else "none"))
+	var view_r: Rect2 = t.root.get_visible_rect()
+	_check(menu.asking() and view_r.encloses(menu.pop.card.get_global_rect()) and not U.sealed(prof, "back"), "a tap on Seal opens the pop-up, which fits the phone (%s in %s)" % [menu.pop.card.get_global_rect(), view_r])
+	if menu.asking():
+		await t._tap_at(menu.pop.no.get_global_rect().get_center())
+		await t._frames(2)
+	_check(not menu.asking() and not U.sealed(prof, "back"), "...and a tap on Cancel closes it, nothing sealed")
 	var problems: Array = t._fit_problems("body tab sealing 844x390", menu.panel, t.root.get_visible_rect())
 	_check(problems.is_empty(), "the Body tab with its seal fits a phone (%d problems): %s" % [problems.size(), problems.slice(0, 6)])
-	menu.remove_meta("seal_armed")
 	main.touch._set_active(false)
 	t.root.size = was_size
 	menu.close()

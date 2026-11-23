@@ -655,7 +655,7 @@ class Sweep:
 			["climber", "abilities"], ["climber", "tree"], ["climber", "marks"], ["climber", "essence"], ["climber", "record"],
 			["mark", "hand"], ["mark", "legs"], ["mark", "brow"], ["mark", "heart"], ["mark", "throat"], ["mark", "back"],
 			["library", ""], ["library", "bestiary"], ["inventory", "worn"], ["inventory", "pack"], ["inventory", "heirlooms"],
-			["dev", ""], ["data", ""], ["confirm_new", ""], ["climbers", ""], ["talk", "start"], ["talk", "marks"], ["talk", "tower_hazards"],
+			["dev", ""], ["data", ""], ["climbers", ""], ["talk", "start"], ["talk", "marks"], ["talk", "tower_hazards"],
 			["pour", "crystal"], ["pour", "tincture"]]
 		for t in Appearance.TABS:
 			list.append(["appearance", t[0]])

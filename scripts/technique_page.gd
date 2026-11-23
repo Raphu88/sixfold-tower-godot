@@ -44,7 +44,7 @@ static var TEXT := {
 	"back_title": "Let the tower beasts mark you again",
 	"back_desc": "The Developer's exception: you stop being Unbound. The densest part takes a mark (its bond chosen by what's pooled there), and the rest of your raw essence makes your next marks come sooner.",
 	"back_press": "Mark me again",
-	"back_again": "{again} to be marked again",
+	"back_ask": "You stop being Unbound, for good: your densest part takes a mark, and the rest of your raw essence makes your next marks come sooner.",
 	"back_train": "Only on the train.",
 	"part_tech": "Technique: %s",
 	"part_tech_at": "A technique at level %d",
@@ -52,7 +52,6 @@ static var TEXT := {
 	"gift_at": "At level %d: %s",
 	"climber_note": "Each Node has a size (its density: how much it can hold, 120 at most) and what it holds. A Node sleeps until banked essence has soaked into it; awake, it grows as you use it: what its techniques spend comes back from the essence you bank into it, and stretches it a little. Every 10 of size is a level: 3 wakes it (a minor ability), 5 a gift, 6 a technique, 12 its capstone. On the train you can seal a Node: it gives up so the open ones grow deeper.",
 }
-const ARM_MS := 4000
 
 
 # --- the climber screen ------------------------------------------------------------------
@@ -190,20 +189,20 @@ static func core_section(menu) -> void:
 		return
 	menu._section(TEXT["back_title"])
 	menu._note(TEXT["back_desc"])
-	var armed: bool = Time.get_ticks_msec() - int(menu.get_meta("unbound_back", -99999)) < ARM_MS
-	var b: Button = menu._button(menu.Nav.fill(TEXT["back_again"], menu.main) if armed else TEXT["back_press"], _go_back.bind(menu))
+	var b: Button = menu._button(TEXT["back_press"], _ask_back.bind(menu))
+	b.set_meta("asks", true)  # (it opens the pop-up)
 	b.disabled = not main.on_train
 	if not main.on_train:
 		menu.box.add_child(menu._small_label(TEXT["back_train"], menu.FAINT))
 
 
+## Marked again: it asks first (the confirmation pop-up: menu.gd ask).
+static func _ask_back(menu) -> void:
+	menu.ask(TEXT["back_ask"], TEXT["back_press"], _go_back.bind(menu), true, TEXT["back_title"])
+
+
 static func _go_back(menu) -> void:
 	var main = menu.main
-	if Time.get_ticks_msec() - int(menu.get_meta("unbound_back", -99999)) >= ARM_MS:
-		menu.set_meta("unbound_back", Time.get_ticks_msec())
-		menu.open("climber", menu.opened_direct)
-		return
-	menu.remove_meta("unbound_back")
 	var got: Dictionary = Unbound.return_to_marks(main.profile)
 	main.profile.save()
 	main._give_bonds()

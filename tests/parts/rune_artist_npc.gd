@@ -143,11 +143,9 @@ func _in_the_car() -> void:
 	if temper.size() == 1:
 		temper[0].pressed.emit()
 		await t._frames(2)
-		temper = t._car_buttons("bench_do", "temper")
-		if temper.size() == 1:
-			temper[0].pressed.emit()
-			await t._frames(2)
-	_check(int(prof.heirlooms["melee"]["rank"]) == 1 and prof.crystal_total("blade") == 70.0, "pressed twice: tempered, 30 Blade paid (20 + 10 premium)")
+		await t._confirm(true)
+		await t._frames(2)
+	_check(int(prof.heirlooms["melee"]["rank"]) == 1 and prof.crystal_total("blade") == 70.0, "pressed and confirmed: tempered, 30 Blade paid (20 + 10 premium)")
 	# A phone: the Rune Artist and the counters still fit.
 	main.touch._set_active(true)
 	menu.open("train")
