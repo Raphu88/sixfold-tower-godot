@@ -47,6 +47,12 @@ extends RefCounted
 ##     their growth from refilled use (SEAL "growth") and their techniques'
 ##     power (SEAL "power"). Unsealing is allowed: the Node starts asleep at
 ##     size 0. (seal, unseal, sealed, growth_mult, seal_power.)
+##   A FALL DRAINS THEM (drain): the guardians hunt the Unbound, and a fall
+##     (after the first climb) drains DRAIN "share" of what every Node holds
+##     back into the well, keeping a trace of each Node's lead; sizes and the
+##     core essence are kept, and the next stairs refill them. Now and then
+##     one of the Sworn saves them from it (sworn.gd). Drained too often,
+##     climbers say, the Unbound are hollowed into Husks (the Bestiary).
 ##   On the climber screen's Body tab (body_move.gd), whenever no monster is
 ##   after the climber, essence can be MOVED from one awake Node to another,
 ##   or fed to a sleeping one; a share of it is the price (MOVE_COST):
@@ -124,6 +130,14 @@ static var USE := {"cast": 2.0, "boost": 2.0, "action": 0.5, "other": 1.0 / 3.0}
 ## (tests/progression_model.gd run_unbound with `sealed`; held by
 ## tests/parts/sealing.gd).
 static var SEAL := {"growth": 0.04, "power": 0.06, "flow": 1.0}
+## A fall drains what the Nodes hold back into the well (drain): "share" of
+## each essence in every Node goes (a measured choice: draining all of it
+## would push all six Nodes to level 12 past the owner's pace, 79 climbs
+## against tests/parts/unbound_cup.gd ALL_TOP's 66 to 78; two thirds keeps
+## it at 77), each Node keeping at least a "trace" of its lead essence (its
+## shape: lead, technique, minor ability). Sizes and the core essence are
+## kept. "husk_talk": after this many drained falls the Entity speaks of the Husks.
+static var DRAIN := {"share": 0.67, "trace": 1.0, "husk_talk": 3}
 ## Attributes from the Nodes' sizes: an attribute's bonus is half its cap
 ## (profile.gd ATTRIBUTE_CAP) at "half" size counted for its essence.
 static var ATTR := {"half": 60.0}
@@ -269,6 +283,8 @@ static var TEXT := {
 	"sealed_line": "Sealed your %s: what it held condensed into %d crystals",
 	"unseal_open": "Your %s isn't sealed",
 	"unsealed_line": "Unsealed your %s: it starts again asleep, at size 0",
+	# A fall (drain): the fall screen's first line.
+	"fall_drained": "Caught and drained: %d essence from your Nodes runs back into the well. Their sizes are kept; the next stairs refill them.",
 }
 
 
@@ -472,6 +488,57 @@ static func new_climb(prof) -> void:
 ## bank adds nothing).
 static func end_stair(prof) -> void:
 	state(prof)["used"] = {}
+
+
+## An Unbound's fall (main.gd on_player_died): the guardians catch them and
+## what their Nodes HOLD is drained back into the well (lost: not crystals):
+## DRAIN "share" of every essence in every Node, each Node keeping at least a
+## TRACE of its lead essence (DRAIN "trace"), so a Node keeps its shape: its
+## lead, its technique and its minor ability. Their SIZES are kept, and so
+## is the core essence (the Makers' own, not the well's). The next stairs'
+## banked essence tops them up again (settle_into fills what a Node holds
+## before it refills use, so growth waits while they refill). Returns
+## {"total": essence drained, "parts": {part: amount}} (nothing for the marked).
+static func drain(prof) -> Dictionary:
+	var out := {"total": 0.0, "parts": {}}
+	if not is_on(prof):
+		return out
+	var st := state(prof)
+	var trace := maxf(0.0, float(DRAIN.get("trace", 1.0)))
+	var stay := 1.0 - clampf(float(DRAIN.get("share", 1.0)), 0.0, 1.0)
+	for part in PARTS:
+		var o := own(prof, part)
+		if o <= 0.0001:
+			continue
+		var p := primary(prof, part)
+		var left := {}
+		for k in mix(prof, part):
+			var a := amount(prof, part, k) * stay
+			if k == p:
+				a = maxf(a, minf(trace, amount(prof, part, k)))
+			if a > 0.01:
+				left[k] = a
+		var keep := 0.0
+		for k in left:
+			keep += float(left[k])
+		var gone := o - keep
+		if gone > 0.0001:
+			out["parts"][part] = gone
+			out["total"] = float(out["total"]) + gone
+		if not left.is_empty():
+			prof.part_density[part] = left
+		else:
+			prof.part_density.erase(part)
+			st["primary"].erase(part)
+	st["used"] = {}
+	st["drained"] = int(st.get("drained", 0)) + (1 if float(out["total"]) > 0.0001 else 0)
+	Core.sync(prof)
+	return out
+
+
+## How many times the climber has been drained (the Husk lore, the Entity's words).
+static func drained_count(prof) -> int:
+	return int(state(prof).get("drained", 0))
 
 
 # --- where essence goes ----------------------------------------------------------------

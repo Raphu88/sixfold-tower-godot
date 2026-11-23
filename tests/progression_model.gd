@@ -198,10 +198,12 @@ const UB_SPAM := 10.0
 ## that isn't). Each summit condenses into the biggest awake Node that isn't
 ## full. `sealed`: the Nodes sealed on the train after the first climb
 ## (unbound.gd seal: a focused Unbound; their essence flows to the open
-## Nodes). Returns {"sizes": [after each climb, part -> size], "awake": part
+## Nodes). `drain`: a climb that ends below the summit is a fall, and a fall
+## drains what the Nodes hold back into the well (unbound.gd drain; sizes
+## kept), as in the game; false shows the pace without it. Returns {"sizes": [after each climb, part -> size], "awake": part
 ## -> the climb it woke (0: never), "top": part -> the climb it reached level
 ## 12 (0: never)}.
-static func run_unbound(pattern: String, climbs: int, use := "typical", routing := "natural", sealed := []) -> Dictionary:
+static func run_unbound(pattern: String, climbs: int, use := "typical", routing := "natural", sealed := [], drain := true) -> Dictionary:
 	var U = load("res://scripts/unbound.gd")
 	var Tech = load("res://scripts/technique.gd")
 	var prof = Profile.new()
@@ -250,6 +252,8 @@ static func run_unbound(pattern: String, climbs: int, use := "typical", routing 
 					best = part
 			if best != "":
 				U.condense(prof, best, String(Towers.TOWERS[tower]["essence"]))
+		elif drain:
+			U.drain(prof)  # (a fall: what the Nodes hold goes back to the well; sizes kept)
 		var now := {}
 		for part in U.PARTS:
 			now[part] = U.size(prof, part)

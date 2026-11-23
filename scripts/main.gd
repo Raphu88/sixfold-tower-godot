@@ -52,6 +52,7 @@ const ProvingScript := preload("res://scripts/proving.gd")
 const Secret := preload("res://scripts/secret.gd")
 const Appearance := preload("res://scripts/appearance.gd")
 const MakersScript := preload("res://scripts/makers.gd")
+const SwornScript := preload("res://scripts/sworn.gd")  # (the Sworn: their status, the Makers' errands, the rescue)
 const MirrorScript := preload("res://scripts/mirror.gd")
 const SecretBonds := preload("res://scripts/secret_bonds.gd")
 const SecretToolsScript := preload("res://scripts/secret_tools.gd")
@@ -275,6 +276,9 @@ var lost_cache_chance := 0.0 if Engine.has_meta("sixfold_test") else Lost.CACHE_
 var lost_cache := {}  # this floor's lost cache: {pos, entries (profile.lost entries), taken}
 var fall_note: Array = []  # what the fall took, for the fall screen
 var fall_mark_roll := -1.0  # tests: stands in for the chance a fall leaves a faint mark (main.fall_mark)
+var sworn_rescued := false  # one of the Sworn has saved this Unbound from a fall this climb (sworn.gd: at most once a climb)
+var sworn_roll := -1.0  # tests: stands in for the chance one of the Sworn steps in (sworn.gd RESCUE "chance")
+var drained := {}  # what this fall drained from an Unbound's Nodes back into the well (unbound.gd drain)
 ## After the Regard, a fall shows what it took for a moment, then you're back
 ## on the train: on your own after FALL_WAIT seconds, or at once on a tap, a
 ## confirm key, R or the controller's View (not in the first FALL_GRACE
@@ -1795,6 +1799,7 @@ func _arrive() -> void:
 	player.set_physics_process(true)
 	sfx("clear", 0.8, -8.0, 0.0)
 	makers.on_arrive()  # (in the quiet after the stair, a Maker may show itself)
+	SwornScript.on_arrive(self)  # (a Maker's errand for its Sworn: done once its floor is reached)
 	climb_shape.after_arrive()  # (floor 6 of the first climb: the Regard; floor 6 again: the Lethal Proving offered)
 
 
@@ -2371,6 +2376,8 @@ func _note_climb_start() -> void:
 	climb_paid = false
 	pay_line = ""
 	noticed = []
+	sworn_rescued = false  # (one of the Sworn may step in once a climb: sworn.gd)
+	drained = {}
 	if climb_shape != null:
 		climb_shape.new_climb()
 	var woke: Array = []
@@ -2406,6 +2413,7 @@ func pay_climb() -> String:
 	Dining.settle(self)  # (wagers made in the Dining car are paid or lost: dining.gd)
 	if contracts != null:
 		contracts.on_climb_end(player != null and player.dead)  # (a thing carried out is safe; a fall drops it: contracts.gd)
+	SwornScript.on_climb_end(self)  # (now and then a Maker sends its Sworn somewhere: sworn.gd)
 	var kind: String = tower_data()["essence"]
 	var amount: int = Train.climb_pay(floor_num, climb_best0)
 	if amount < 1:
@@ -3220,6 +3228,14 @@ func on_player_died() -> void:
 		var faint := fall_mark(fall_mark_roll)  # (a full part may take a faint mark as you fall)
 		if faint != "":
 			fall_note.append(faint)
+		if UnboundRun.Unbound.is_on(profile):
+			# Caught: what the Nodes hold drains back into the well (sizes kept: unbound.gd drain).
+			drained = UnboundRun.Unbound.drain(profile)
+			if float(drained.get("total", 0.0)) >= 0.5:
+				fall_note.push_front(String(UnboundRun.Unbound.TEXT["fall_drained"]) % int(round(float(drained["total"]))))
+				tip("unbound_drained")
+				if UnboundRun.Unbound.drained_count(profile) >= int(UnboundRun.Unbound.DRAIN.get("husk_talk", 3)):
+					tip("unbound_husks")  # (drained again and again: the Entity speaks of the Husks)
 		pay_climb()  # (the outfitter pays for the floors all the same: shown on the fall screen)
 	profile.save()
 	GuideScript.moment("death", "death", {"floor": floor_num, "beast": beast_name()})
@@ -3939,7 +3955,9 @@ func proving_spare() -> bool:
 		return true  # (the station's arena: a fall loses the event, never the climber)
 	if rivals != null and rivals.spare():
 		return true  # (a duel with a rival: knocked down, never killed: rivals.gd)
-	return proving != null and proving.spare()
+	if proving != null and proving.spare():
+		return true
+	return SwornScript.try_rescue(self, sworn_roll)  # (a hunted Unbound: now and then one of the Sworn steps in, once a climb)
 
 
 ## Every floor of rooms gets this kind of puzzle ("" for the usual mix);

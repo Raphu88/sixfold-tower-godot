@@ -21,6 +21,7 @@ extends RefCounted
 ##            first question; a choice is shown only when its node's `if`
 ##            holds and it has something to say
 ##   if       when the choice shows: on_train, in_play, marked, unbound,
+##            sworn_known (one of the Sworn, a Maker met, or saved by one),
 ##            climbed (on the train after a climb), logged (events to tell)
 ##   leave    choosing it ends the talk
 ##   act      ...and then does this: "tour:station" or "tour:train" (the
@@ -73,7 +74,7 @@ static var DIALOGUE := {
 	# to "how"'s choices.
 	"how": {"ask": "How do things work here?",
 		"lines": ["Which part? I'll keep it short.", "Ask. The rules are simpler than they look. Mostly."],
-		"choices": ["how_controls", "how_start", "how_grace", "how_training", "how_stamina", "how_essence", "how_marks", "how_burns", "how_new_mark", "how_part_fills", "how_dodge", "how_synergies", "how_renown", "how_travel", "how_titles", "how_contracts", "how_tourney", "how_manager", "how_climb", "how_first_mark", "how_barrier", "how_fall", "how_belt", "how_wheel", "how_states", "how_handy", "how_charms", "how_workshop", "how_offhand", "how_item_pool", "how_gear", "how_summit", "how_deeds", "how_bags", "how_shop", "how_ward", "how_secret", "how_portals", "how_aura", "how_unbound", "how_nodes", "how_sealing", "how_unbound_words", "how_unbound_techniques", "how_bestiary", "how_guardians", "how_wild", "how_rivals", "how_dining", "how_bets", "how_duels", "how_glows", "how_ways_down", "how_foes", "start", "bye"]},
+		"choices": ["how_controls", "how_start", "how_grace", "how_training", "how_stamina", "how_essence", "how_marks", "how_burns", "how_new_mark", "how_part_fills", "how_dodge", "how_synergies", "how_renown", "how_travel", "how_titles", "how_contracts", "how_tourney", "how_manager", "how_climb", "how_first_mark", "how_barrier", "how_fall", "how_belt", "how_wheel", "how_states", "how_handy", "how_charms", "how_workshop", "how_offhand", "how_item_pool", "how_gear", "how_summit", "how_deeds", "how_bags", "how_shop", "how_ward", "how_secret", "how_portals", "how_aura", "how_unbound", "how_nodes", "how_sealing", "how_drain", "how_sworn", "how_unbound_words", "how_unbound_techniques", "how_bestiary", "how_guardians", "how_wild", "how_rivals", "how_dining", "how_bets", "how_duels", "how_glows", "how_ways_down", "how_foes", "start", "bye"]},
 	"how_controls": {"ask": "What are the controls?", "fact": "controls",
 		"lines": ["{controls_how}", "{controls_list}", "Press H any time to show or hide this list in the corner of the screen. Settings & Controls lets you change any key."],
 		"choices": ["how", "bye"]},
@@ -203,10 +204,16 @@ static var DIALOGUE := {
 		"choices": ["how_unbound", "how", "bye"]},
 	"how_unbound": {"ask": "How do the Unbound grow?", "if": "unbound", "fact": "rules",
 		"lines": ["Your six body parts are Nodes. Each starts asleep. The essence you bank flows to its natural Node and soaks in, and when enough has soaked in, the Node wakes. Your first wakes after about a climb; the others take a few each, sooner if you route essence to them. Awake, a Node grows by use. What its techniques spend comes back at the stair from the essence you bank into it, and that stretches it a little: slower the bigger it is. Casting more than you bank adds nothing: what you bank, and the strain of pushing your techniques, set the pace. A Node refills best from its own kinds, its natural essence and the essence that leads it; any other kind, routed there or flowing on from a sealed Node, refills only a third as much, the same rule as for marks. A Node wakes at level {ub_minor}, with a minor ability, and grows to level 12 at size {core_cap}: level {ub_tech} brings a young technique (one form, its lead essence only, weaker), {ub_gift} a gift, {ub_full} the full technique, 12 the capstone. One Node to the top takes many climbs; all six, far more."],
-		"choices": ["how_nodes", "how_sealing", "how_unbound_words", "how_aura", "how", "bye"]},
+		"choices": ["how_nodes", "how_sealing", "how_drain", "how_unbound_words", "how_aura", "how", "bye"]},
 	"how_sealing": {"ask": "Sealing a Node?", "if": "unbound",
 		"lines": ["On the train, on your climber screen's Body tab, you can seal a Node. A sealed Node takes no essence: what would pool there flows on to your biggest open Node, where it refills only a third as much as the Node's own kind would. Sealing gives the Node up: what it holds becomes crystals, and its size, technique, gift, minor ability and attributes are gone. In return each sealed Node makes your open Nodes grow faster from use and hit harder. One Node always stays open, and Seal asks a second press. You can unseal a Node later, on the train, but it starts again asleep, at size 0. The marked can't do this: it's the Unbound's choice. Focus trades breadth for depth, not speed."],
 		"choices": ["how_nodes", "how_unbound", "how", "bye"]},
+	"how_drain": {"ask": "What happens when I fall?", "if": "unbound", "fact": "rules",
+		"lines": ["The guardians hunt the Unbound. Fall, after your first climb, and you're caught: {drain_share} of what each Node holds drains back into the well. Lost, not crystals. Each Node keeps a trace of the essence that leads it, so your techniques stay yours, and the sizes, the levels and your core essence aren't touched. The next stairs fill your Nodes again before they refill your use, so you grow a little slower for a climb. The fall screen says how much went. And now and then, {rescue_odds} falls, once a climb at most, one of the Sworn steps in first. Climbers say the husks on the stairs were Unbound once, drained until nothing came back."],
+		"choices": ["how_sworn", "how_unbound", "how", "bye"]},
+	"how_sworn": {"ask": "Who are the Sworn?", "if": "sworn_known", "fact": "rules",
+		"lines": ["Climbers who took a Maker's secret bond: a good answer when one shows itself, and its core mark. That makes you one of its Sworn, and your climber screen says whose. Now and then, {send_odds} climbs, it sends you somewhere: a floor of a tower it names. Reach it in any climb and it pays {send_reward} crystals of that tower's essence. One errand at a time. The Makers fear the Unbound and admire them, so they send their Sworn to stop the guardians catching them: {rescue_odds} falls, once a climb at most, one steps in before the drain."],
+		"choices": ["how_drain", "how", "bye"]},
 	"how_nodes": {"ask": "What are Nodes?", "if": "unbound", "fact": "rules",
 		"lines": ["A Node is one of your six body parts, the Unbound's way: the Hand, Legs, Heart, Brow, Throat and Back Nodes. An awake Node has two numbers. What it holds: the essence that powers its techniques; the first essence in it leads, two more at most add their touch, and you can move it between Nodes on your climber screen's Body tab, for a quarter. And its size, its density: how much it can hold, {core_cap} at most. Moving never changes a size; only use does. Your Nodes' sizes give your attributes, each Node counting for the essences it holds. A sleeping Node holds nothing and shows no numbers."],
 		"choices": ["how_unbound", "how_unbound_words", "how", "bye"]},
@@ -540,6 +547,10 @@ static func check(main, cond: String) -> bool:
 			return prof != null and not prof.bonds.is_empty() and not Unbound.is_on(prof)
 		"unbound":
 			return prof != null and Unbound.is_on(prof)
+		"sworn_known":
+			# (the Sworn: one of them, a Maker met, or an Unbound one of them has saved)
+			var Sworn = load("res://scripts/sworn.gd")
+			return prof != null and (Sworn.is_sworn(prof) or load("res://scripts/makers.gd").has_met(prof) or (Unbound.is_on(prof) and int(Sworn.state(prof).get("rescued", 0)) > 0))
 		"climbed":
 			return bool(main.on_train) and prof != null and prof.climbs > 0
 		"logged":
@@ -548,6 +559,12 @@ static func check(main, cond: String) -> bool:
 
 
 # --- facts: the game as it is now -----------------------------------------------------------
+
+## A chance as words: "about 1 in 6".
+static func _odds(p: float) -> String:
+	if p <= 0.0:
+		return "never"
+	return "about 1 in %d" % maxi(1, int(round(1.0 / p)))
 
 ## The tower talked about: the one you're in, or on the train the one chosen
 ## at the engine (else the last one climbed).
@@ -754,6 +771,10 @@ static func _fact_rules() -> Dictionary:
 		"early": int(Flow.EARNED["last_floor"]), "fall_chance": "%d%%" % int(round(float(Flow.FALL_MARK["chance"]) * 100.0)),
 		"core_cap": int(Unbound.Core.CAP), "aura_steps": ", ".join(load("res://scripts/secret.gd").STEPS.map(func(v): return str(int(v)))),
 		"ub_level": int(Unbound.LEVEL_SIZE), "ub_minor": Unbound.MINOR_LEVEL, "ub_gift": Unbound.GIFT_LEVEL, "ub_tech": Unbound.TECH_LEVEL, "ub_full": Unbound.FULL_TECH_LEVEL,
+		"drain_share": "%d%%" % int(round(float(Unbound.DRAIN["share"]) * 100.0)),
+		"rescue_odds": _odds(float(load("res://scripts/sworn.gd").RESCUE["chance"])),
+		"send_odds": _odds(float(load("res://scripts/sworn.gd").SENDS["chance"])),
+		"send_reward": int(load("res://scripts/sworn.gd").SENDS["reward"]),
 	})
 	# The workshop's Rune Artist (bench.gd ARTIST, PREMIUM).
 	var Bench = load("res://scripts/bench.gd")
