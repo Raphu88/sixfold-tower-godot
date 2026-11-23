@@ -41,6 +41,7 @@ const Essence := preload("res://scripts/essence.gd")
 const Towers := preload("res://scripts/towers.gd")
 const Shop := preload("res://scripts/shop.gd")
 const Needs := preload("res://scripts/tower_needs.gd")
+const OutfitterName := preload("res://scripts/outfitter_name.gd")
 
 ## The branches: [id, name], left to right round the trunk (prices and
 ## stock on its left, gifts and info on its right).
@@ -156,8 +157,8 @@ static var STOCK_ODDS := {"fine": 50, "rare": 45, "storied": 5}
 static var OLD_UPGRADES := {"wide_rack": ["wide_rack", 1], "scroll": ["scroll_aside", 2], "stock": ["better_stock", 4],
 	"discount": ["regular", 6], "order": ["special_order", 8]}  # (ranks on the twelve-rank ladder: renown.gd OLD_RANKS)
 
-static var TEXT := {
-	"title": "The outfitter's upgrades",
+static var TEXT: Dictionary = OutfitterName.named({
+	"title": "{outfitter}'s upgrades",
 	"trunk": "Rank",
 	"trunk_name": "%s: his stock",
 	"trunk_rank": "Rank %d of %d  ·  %d renown",
@@ -200,14 +201,14 @@ static var TEXT := {
 	"tower_tip_none": "For %s: nothing special to pack.",
 	"best": "His pick for you: %s.",
 	"belt_gift": "His gift as you leave: %s on your belt.",
-	"hint": "The outfitter's hint: %s lies to the %s of where you start.",
+	"hint": "{outfitter}'s hint: %s lies to the %s of where you start.",
 	"handy_tag": "Handy",
 	"best_tag": "Best",
 	"unique": "Offered once",
 	"unique_note": "A relic he brought out for you. It waits here until you buy it, and won't come again.",
 	"unique_empty": "Nothing waits here.",
 	"compass": ["east", "south-east", "south", "south-west", "west", "north-west", "north", "north-east"],
-}
+})
 
 
 # --- state -------------------------------------------------------------------------------

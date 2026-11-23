@@ -36,6 +36,7 @@ extends RefCounted
 ## has a small chance (FALL_MARK) to leave a faint mark on it.
 
 const Essence := preload("res://scripts/essence.gd")
+const OutfitterName := preload("res://scripts/outfitter_name.gd")
 
 ## The split at a stair, in percent. "crystals" is only the default: the
 ## setting chooses it, and body and marks keep their proportions of the rest.
@@ -63,7 +64,7 @@ static var EARNED := {"last_floor": 6, "maker": "marks", "near": 0.75}
 ## A fall with a fully soaked part: the chance it takes a faint mark.
 static var FALL_MARK := {"chance": 0.12}
 
-static var TEXT := {
+static var TEXT: Dictionary = OutfitterName.named({
 	# The stair's line: what was banked and where it went.
 	"split": "Banked %d: %d to your body, %d to your marks, %d into crystals",
 	"split_body": "Banked %d: %d to your body, %d into crystals",
@@ -85,7 +86,7 @@ static var TEXT := {
 	"open": "Crystals and tinctures",
 	"crystals_head": "Crystals  ·  eat one: it flows the natural way",
 	"tinctures_head": "Tinctures  ·  drink one: you choose where",
-	"tinctures_none": "No tinctures. Vaults and secret rooms hold them, the outfitter sells one kind each visit, and the Workshop crafts them from crystals.",
+	"tinctures_none": "No tinctures. Vaults and secret rooms hold them, {outfitter} sells one kind each visit, and the Workshop crafts them from crystals.",
 	"tinctures_none_play": "No tinctures on your belt. Vaults and secret rooms hold them, and now and then a monster leaves one.",
 	"crystal_card": "%d %s essence in your crystal.",
 	"crystal_flow": "Eaten, %d flows the natural way: %d%% to your body, %d%% offered to your marks (they take what refills and deepens what you cast; the rest soaks into your body). You can't steer it.",
@@ -114,7 +115,7 @@ static var TEXT := {
 	"granted": "Essence takes hold in your %s: the %s mark",
 	# A fall that leaves a faint mark.
 	"fall_mark": "As you fall, essence takes hold in your full %s: a faint %s mark",
-}
+})
 
 
 ## The split as fractions {body, marks, crystals}, the crystals at `crystal_share`

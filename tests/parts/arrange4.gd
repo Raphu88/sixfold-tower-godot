@@ -253,7 +253,14 @@ func _taps_still_work() -> void:
 	# The store: the Upgrade tree sign (a narrow car) or the tree's board
 	# beside the goods (a wide one), and the placard's Buy button, moved.
 	await _go("store")
-	if AUI.node("train.store.sign") != null:
+	var fold: Control = AUI.node("train.store.sign")
+	var folded := false
+	if fold != null and fold.has_meta("store_upgrades"):
+		# (a wide car: Joel's Upgrades sign, the tree folded under it: open it)
+		folded = not bool(m.settings["store_upgrades"])
+		m.train_page.store.set_upgrades(true)
+		await t._frames(6)
+	if AUI.node("train.store.sign") != null and not AUI.node("train.store.sign").has_meta("store_upgrades"):
 		L.set_override("train.store.sign", {"anchor": "own", "x": 0.03, "y": -0.04, "scale": 1.1})
 		AUI.apply_all()
 		await t._frames(3)
@@ -277,6 +284,8 @@ func _taps_still_work() -> void:
 			await t._tap_at(node.get_global_transform_with_canvas() * (node.size / 2.0))
 			await t._frames(6)
 		_check(node != null and m.inv_sel == String(node.get_meta("slot")), "a tap on a node of the moved tree shows its card (%s)" % m.inv_sel)
+	if folded:
+		m.settings["store_upgrades"] = false
 	m.train_page._set_store("shop")
 	await t._frames(6)
 	prof.add_crystal("stone", 400.0)

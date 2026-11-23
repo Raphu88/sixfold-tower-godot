@@ -17,11 +17,15 @@ extends RefCounted
 ## compact LIST, a row per thing (its icon, name, price and the green or red
 ## arrow against what you'd wear), in a column that scrolls.
 ##
-## Beside the goods: the outfitter (what he says) over his UPGRADE TREE
-## (outfit_tree.gd, outfitter.gd), when the car is wide enough for it; on a
-## narrower screen (a phone, a big Interface size) the tree is its own view
-## of the car, behind the Upgrade tree sign under him. The placard (a
-## choice's card) is on the right.
+## Beside the goods: the outfitter (outfitter_name.gd: Joel), what he says,
+## and his UPGRADE TREE (outfit_tree.gd, outfitter.gd). When the car is wide
+## enough the tree stands under him, folded or open: its Upgrades sign (an
+## arrow and its name) folds it away to the sign, so Joel is drawn big in
+## the room it leaves, and opens it again; the choice is saved (the
+## "store_upgrades" setting, menu.gd), folded by default so the tree never
+## fills a wide window. On a narrower screen (a phone, a big Interface size)
+## the tree is its own view of the car, behind the Upgrade tree sign under
+## him. The placard (a choice's card) is on the right.
 
 const Train := preload("res://scripts/train.gd")
 const Shop := preload("res://scripts/shop.gd")
@@ -33,6 +37,8 @@ const Renown := preload("res://scripts/renown.gd")
 const Outfitter := preload("res://scripts/outfitter.gd")
 const OutfitTree := preload("res://scripts/outfit_tree.gd")
 const VesselPage := preload("res://scripts/vessel_page.gd")
+const Entity := preload("res://scripts/entity.gd")
+const Guide := preload("res://scripts/guide.gd")
 const StorageView := preload("res://scripts/storage_view.gd")
 
 ## Sizes on a computer and on a phone ([computer, phone], view px).
@@ -40,6 +46,8 @@ const PLACARD := [340.0, 290.0]
 const GAP := [16.0, 10.0]
 const SIDE := [190.0, 140.0]  # the outfitter's column, with the tree in its own view
 const TREE := [250.0, 330.0]  # the tree beside the goods: at least, at most
+const JOEL_COL := 400.0  # his column, the tree folded: at most this wide (more room for him)
+const FOLD_H := [42.0, 40.0]  # the Upgrades sign's height (big enough for a finger)
 const GOODS_MIN := 330.0  # the goods beside the tree: at least this wide
 const ROW_H := [36.0, 36.0]  # a list's rows (big enough for a finger)
 ## Room kept spare across the car (the car's own scroll bar, if a tall card brings it).
@@ -51,6 +59,9 @@ var listed := false  # the last build showed the goods as a list
 var tree_beside := false  # the last build had the tree beside the goods
 var goods_scroll: ScrollContainer = null
 var tree_view: Control = null
+var upgrades_open := false  # the last build showed the tree open under him (beside the goods)
+var fold_sign: Button = null  # the Upgrades sign that folds and opens it (beside the goods), or null
+var joel: Control = null  # Joel as the last build drew him: his bust, or his face beside his words
 
 
 func _init(train_page) -> void:
@@ -79,6 +90,55 @@ func tree_fits() -> bool:
 	return _area().x >= TREE[0] + GOODS_MIN + PLACARD[0] + GAP[0] * 2.0 + SLACK
 
 
+## Beside the goods, is the tree open under him? The saved choice, or a
+## way in that asked for the tree (its own view on a narrower screen, or
+## one of its nodes' cards chosen: a node just bought stays in sight).
+func upgrades_wanted() -> bool:
+	return bool(m.settings.get("store_upgrades", false)) or m.train_store == "tree" or String(m.inv_sel).begins_with("tree:")
+
+
+## Opens or folds the tree under him, saves the choice, and builds the car again.
+func set_upgrades(open: bool) -> void:
+	m.settings["store_upgrades"] = open
+	m.save_settings()
+	m.train_store = "shop"
+	m.toast = ""
+	if not open and String(m.inv_sel).begins_with("tree:"):
+		m.inv_sel = ""  # (folded, its card goes with it: the goods' first shows)
+		m.train_sel["store"] = ""
+	if open and Entity.TIPS.has("shop_tree") and not Guide.told("shop_tree"):
+		tp.tips.erase("store")  # (the Entity's first word on the tree, now it shows)
+	m._want_focus = {"meta": "store_upgrades", "value": "close" if open else "open"}
+	m.open("train")
+
+
+## The Upgrades sign: an arrow (down while the tree is open, right while
+## it's folded), its name and how many of its nodes are yours.
+func _fold(parent: Node, open: bool) -> Button:
+	var prof = tp._prof()
+	var txt := "%s  ·  %s" % [_t("upgrades_fold"), _t("upgrades_count") % [Outfitter.bought_count(prof), Outfitter.ORDER.size()]]
+	var b: Button = m._button(txt, set_upgrades.bind(not open), parent)
+	b.custom_minimum_size.y = _i(FOLD_H)
+	b.alignment = HORIZONTAL_ALIGNMENT_LEFT
+	b.set_meta("store_upgrades", "close" if open else "open")
+	b.set_meta("help", "store_upgrades:" + ("close" if open else "open"))
+	tp._brass(b, open)
+	for st in ["normal", "hover", "pressed", "focus", "disabled"]:
+		var sb: StyleBox = b.get_theme_stylebox(st)
+		if sb != null and b.has_theme_stylebox_override(st):
+			sb.content_margin_left = maxf(sb.content_margin_left, 34.0)
+	UI.keep_text(b)
+	var arrow := Chevron.new()
+	arrow.open = open
+	arrow.anchor_bottom = 1.0
+	arrow.offset_left = 9.0
+	arrow.offset_right = 29.0
+	arrow.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	b.add_child(arrow)
+	fold_sign = b
+	return b
+
+
 # --- the page ------------------------------------------------------------------------------
 
 func build(root: Node) -> void:
@@ -90,14 +150,20 @@ func build(root: Node) -> void:
 	var gap := _i(GAP)
 	var plac := _i(PLACARD)
 	tree_beside = tree_fits()
+	upgrades_open = tree_beside and upgrades_wanted()
 	var view: String = "shop" if tree_beside else m.train_store
-	var side := clampf(area.x - GOODS_MIN - plac - gap * 2.0 - SLACK, TREE[0], TREE[1]) if tree_beside else _i(SIDE)
+	var room_x := area.x - GOODS_MIN - plac - gap * 2.0 - SLACK
+	var side := _i(SIDE)
+	if tree_beside:
+		side = clampf(room_x, TREE[0], TREE[1]) if upgrades_open else clampf(room_x, TREE[0], JOEL_COL)
 	var tall := area.y - (70.0 if String(tp.tips.get("store", "")) != "" else 0.0) - 8.0
 	var row: HBoxContainer = tp._main_row(root)
 	row.add_theme_constant_override("separation", int(gap))
 	var keys: Array = []
 	goods_scroll = null
 	tree_view = null
+	fold_sign = null
+	joel = null
 	# The outfitter: what he says, and his tree (or the sign to it).
 	var oc := VBoxContainer.new()
 	oc.add_theme_constant_override("separation", 4)
@@ -106,7 +172,11 @@ func build(root: Node) -> void:
 	oc.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	row.add_child(oc)
 	var said := _line(prof)
-	oc.add_child(tp.get_script().outfitter_says(said, 0.0 if small else 34.0))
+	var drawn := tree_beside and not upgrades_open  # (he's drawn big under his words: no face beside them)
+	var says: Control = tp.get_script().outfitter_says(said, 0.0 if small or drawn else 34.0)
+	oc.add_child(says)
+	if not small and not drawn:
+		joel = says.get_child(0)
 	var said_h := UI.text_height(UI.font("body"), said, side - (60.0 if not small else 24.0), UI.SIZE_BODY) + 36.0
 	for w in Array(prof.store.get("word", [])):
 		var wl: Label = tp._note(oc, String(w), side)
@@ -115,12 +185,27 @@ func build(root: Node) -> void:
 		wl.set_meta("store_note", "word")
 		said_h += UI.text_height(UI.font("body"), String(w), side, 13) + 4.0
 	if tree_beside:
-		keys.append_array(_tree(oc, side, tall - said_h - 8.0))
-	else:
-		if not small or (tall > 300.0 and Array(prof.store.get("word", [])).is_empty()):  # (a phone: his bust only where his words leave room)
+		var fold_h := _i(FOLD_H) + 4.0
+		if upgrades_open:
+			_fold(oc, true)
+			keys.append_array(_tree(oc, side, tall - said_h - fold_h - 8.0))
+		else:
+			# Folded: Joel, as big as the room his column has, over the sign.
 			var bust := TrainView.Outfitter.new()
-			bust.custom_minimum_size = Vector2(0, 96.0 if small else 140.0)
+			bust.custom_minimum_size = Vector2(side, clampf(tall - said_h - fold_h - 16.0, 120.0, side * 1.35))
 			oc.add_child(bust)
+			joel = bust
+			_fold(oc, false)
+	else:
+		# His bust under his words, as big as the column leaves room for
+		# (a phone: only where his words leave room at all).
+		# (kept a little short of the room: its column stands centred, clear of the crystal band)
+		var room := tall - said_h - 40.0 - (0.0 if small else 26.0) - 56.0
+		if room >= (80.0 if small else 120.0):
+			var bust := TrainView.Outfitter.new()
+			bust.custom_minimum_size = Vector2(0, minf(room, 220.0 if small else 340.0))
+			oc.add_child(bust)
+			joel = bust
 		var to_tree: bool = view != "tree"
 		var sign_text := _t("tree_short" if small else "tree_sign") if to_tree else _t("goods_short" if small else "goods_sign")
 		var sign: Button = m._button(sign_text, tp._set_store.bind("tree" if to_tree else "shop"), oc)
@@ -508,3 +593,17 @@ func buy_node(id: String) -> void:
 		tp._done(Outfitter.TEXT["bought_toast"] % Outfitter.node_name(id), Outfitter.line(id), "buy")
 	else:
 		tp._done(Outfitter.TEXT["cant"] % why, Train.line("poor") if why.begins_with("needs") else "", "ui_back")
+
+
+## The flat arrow on the Upgrades sign: pointing down while the tree is
+## open, right while it's folded (drawn, so every font shows it).
+class Chevron extends Control:
+	var open := false
+	var col := Color(1.0, 0.93, 0.76)
+
+	func _draw() -> void:
+		var c := size / 2.0
+		var s := minf(minf(size.x, size.y) * 0.3, 7.0)
+		var pts := PackedVector2Array([c + Vector2(-s, -s * 0.5), c + Vector2(s, -s * 0.5), c + Vector2(0, s * 0.65)]) if open \
+			else PackedVector2Array([c + Vector2(-s * 0.5, -s), c + Vector2(s * 0.65, 0), c + Vector2(-s * 0.5, s)])
+		draw_colored_polygon(pts, col)

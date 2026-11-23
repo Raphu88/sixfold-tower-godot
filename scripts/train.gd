@@ -37,6 +37,7 @@ const Towers := preload("res://scripts/towers.gd")
 const Charms := preload("res://scripts/charms.gd")
 const Shop := preload("res://scripts/shop.gd")
 const Outfitter := preload("res://scripts/outfitter.gd")
+const OutfitterName := preload("res://scripts/outfitter_name.gd")
 const VESSEL := "res://scripts/vessel.gd"  # (loaded when needed: vessel.gd preloads the bench, which preloads this)
 
 ## The cars, front to back: [id, name]. The train opens on HOME. (Their short
@@ -135,13 +136,13 @@ const SLOT_KIND := {
 }
 
 ## The words of the train's pages.
-static var TEXT := {
+static var TEXT: Dictionary = OutfitterName.named({
 	"title": "THE TRAIN",
 	"sub": "Brass, steam and the smell of oil. The towers wait past the windows.",
 	"purse": "Your crystals",
 	"home": "Your pack comes down with you: %d %s",
 	"home_worn": "You come down wearing what you found: %d %s",
-	"money": "The outfitter prices everything in one kind of essence, and takes it from your crystal of that kind.",
+	"money": "{outfitter} prices everything in one kind of essence, and takes it from your crystal of that kind.",
 	"needs": "needs %d more %s",
 	"price": "%d %s",
 	"price_any": "%d of any kind",
@@ -164,10 +165,10 @@ static var TEXT := {
 	"pack_shrinks": "your pack would hold too little: move a piece out of it first",
 	"no_room": "your pack and stash are both full",
 	"sell_for": "Sell for %d %s",
-	"sell_ask": "Sell it to the outfitter for %d %s? It's his once sold.",
+	"sell_ask": "Sell it to {outfitter} for %d %s? It's his once sold.",
 	"sold": "Sold: %s for %s",
 	# Store car
-	"store_sub": "Kept by the outfitter. He buys what climbers bring down, and sells it to the next ones up.",
+	"store_sub": "Kept by {outfitter}. He buys what climbers bring down, and sells it to the next ones up.",
 	"supplies_note": "Supplies are packed onto your belt for your next climb, beside the Healing and Stamina Vials every climb starts with.",
 	"packed": "Packed for your next climb: %d  ·  your belt holds %d",
 	"belt_full": "your belt can't hold more",
@@ -205,6 +206,9 @@ static var TEXT := {
 	"sell_how": "Choose a piece, then Sell on its card: he pays %d%% of its price, as a crystal of its kind.",
 	"tree_sign": "Upgrade tree",
 	"tree_short": "Upgrades",
+	# The upgrade tree's sign beside the goods on a wide screen: it opens and folds the tree (store_page.gd).
+	"upgrades_fold": "Upgrades",
+	"upgrades_count": "%d of %d",
 	"goods_sign": "Back to the goods",
 	"goods_short": "Goods",
 	"order": "Special order",
@@ -232,7 +236,7 @@ static var TEXT := {
 	"condensed": "%d condensed into crystals",
 	"condense_setting": "To crystals",
 	"condense_note": "At each stair the essence you bank splits three ways: this share condenses into crystals (the train's money), and your body and your marks share the rest.",
-	"pay": "The outfitter pays for your climb: +%s",
+	"pay": "{outfitter} pays for your climb: +%s",
 	# The Library: the Entity's Archive on its shelves, read at the lectern
 	"bookcase": "The Entity's Archive  ·  %s",
 	"bookcase_short": "Archive  ·  %s",
@@ -247,14 +251,14 @@ static var TEXT := {
 	"over": "Start over this climber",
 	"over_short": "Start over",
 	"over_note": "Wipes this climber's slot and begins a new one (the other climbers are kept). It asks first.",
-}
+})
 
 ## The outfitter who keeps the store car: a retired climber who buys what
 ## climbers bring down and sells it to the next ones up. No name yet: change
 ## "name" and "tag" to give him one. One line is picked for each moment.
-static var OUTFITTER := {
-	"name": "the outfitter",
-	"tag": "THE OUTFITTER",
+static var OUTFITTER: Dictionary = OutfitterName.named({
+	"name": "{outfitter}",
+	"tag": "{outfitter}, the Outfitter",
 	"greet": [
 		"Back down in one piece. Mostly.",
 		"Everything on this rack came down a tower on someone's back.",
@@ -282,7 +286,7 @@ static var OUTFITTER := {
 		"Your pay for the climb: %s. A floor's a floor, even on the way down.",
 		"%s for your climb. I pay by the floor, not by how it ended.",
 	],
-}
+})
 
 
 static func line(key: String, seed := -1) -> String:

@@ -34,6 +34,7 @@ const Towers := preload("res://scripts/towers.gd")
 const Stations := preload("res://scripts/stations.gd")
 const Titles := preload("res://scripts/titles.gd")
 const Unbound := preload("res://scripts/unbound.gd")
+const OutfitterName := preload("res://scripts/outfitter_name.gd")
 
 ## Crystals of any kind for each stop of a ride.
 static var FARE := 12
@@ -85,7 +86,7 @@ static var TEXT := {
 }
 
 ## The tours, in order (see the top).
-static var TOURS := {
+static var TOURS: Dictionary = OutfitterName.named({
 	"station": [
 		{"stop": "gym", "point": ["rail", "gym"], "point_say": "The gym: Training.",
 			"say": "This is a station. Start at the gym: short lessons with me, then medal drills. Nothing here can fell you."},
@@ -94,7 +95,7 @@ static var TOURS := {
 		{"stop": "noble", "point": ["rail", "noble"], "point_say": "The Noble's estate.",
 			"say": "The Noble's estate. Every station has its own Noble: titles for your renown, and contracts for the towers. Titles are shared by every Noble."},
 		{"stop": "noble", "point": ["rail", "leave_station"], "point_say": "The train.",
-			"say": "And the train: your car, the outfitter, the workshop, and the engine that takes you to a tower. Board it when you're ready; I'll show you round."},
+			"say": "And the train: your car, {outfitter}, the workshop, and the engine that takes you to a tower. Board it when you're ready; I'll show you round."},
 	],
 	"train": [
 		{"car": "personal", "point": ["furnish", "rack"], "point_say": "What you'll wear on your next climb.",
@@ -106,7 +107,7 @@ static var TOURS := {
 		{"car": "personal", "point": ["rail", "climber"], "point_say": "Your climber's book.",
 			"say": "Your name and marks, at the top of the rail: your climber's book. Abilities, marks, essence and your record."},
 		{"car": "store", "point": ["rail", "store"], "point_say": "The Outfitter's Car.",
-			"say": "The outfitter buys what climbers bring down and sells to the next ones up. Supplies, gear and charms, for crystals."},
+			"say": "{outfitter}, the outfitter, buys what climbers bring down and sells to the next ones up. Supplies, gear and charms, for crystals."},
 		{"car": "workshop", "point": ["furnish", "drawers"], "point_say": "The bench's drawers.",
 			"say": "The workshop: brew supplies, break pieces down into crystals, craft tinctures. Each drawer opens one kind of work."},
 		{"car": "dining", "point": ["furnish", "tables"], "point_say": "Climbers at their tables.",
@@ -116,7 +117,7 @@ static var TOURS := {
 		{"car": "engine", "point": ["travel_map", "map"], "point_say": "The tower map.",
 			"say": "And the engine. Its map shows the six towers on a loop, a station near each. You climb the tower by the station you're at: choose it and pull the lever. To climb another, ride there first."},
 	],
-}
+})
 
 
 # --- the loop ------------------------------------------------------------------------------

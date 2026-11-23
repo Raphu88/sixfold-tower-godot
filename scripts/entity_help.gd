@@ -50,8 +50,9 @@ const Contracts := preload("res://scripts/contracts.gd")
 const Entity := preload("res://scripts/entity.gd")
 const Guide := preload("res://scripts/guide.gd")
 const StorageView := preload("res://scripts/storage_view.gd")
+const OutfitterName := preload("res://scripts/outfitter_name.gd")
 
-static var HELP := {
+static var HELP: Dictionary = OutfitterName.named({
 	# --- the rail -----------------------------------------------------------------------
 	"rail:climber": "Your climber's book: abilities, the tree, marks, essence and your record.",
 	"rail:engine": "Opens the Engine: its map of the six towers. Climb the one by your station, or ride to another.",
@@ -64,7 +65,7 @@ static var HELP := {
 	"rail:dev": "Dev Tools: switches for testing. Not part of the game.",
 	"rail:exit": "Back to the title screen. Your climber is saved as {they} {are}.",
 	"rail:quit": "Closes the game. Your climber is saved as they are.",
-	"rail:leave_station": "Back to the train, waiting at this station: your car, the outfitter, the workshop and the engine.",
+	"rail:leave_station": "Back to the train, waiting at this station: your car, {outfitter}, the workshop and the engine.",
 	"rail:gym": "Training: short lessons on the basics, with me talking you through, and medal drills.",
 	"rail:arena": "The Tournament: brackets of three rounds against other climbers. Nobody dies; a loss costs only the fee.",
 	"rail:noble": "The Noble: titles granted by renown (each helps with someone), and contracts for the towers.",
@@ -84,8 +85,10 @@ static var HELP := {
 	"tour:back": "Back to the last part of my tour.",
 	"tour:skip": "Ends my tour here. Ask me to show you around again any time.",
 	# --- the outfitter's car ------------------------------------------------------------------
-	"store_tab:tree": "Shows the outfitter's upgrade tree: your rank is its trunk, and you buy its nodes with crystals.",
+	"store_tab:tree": "Shows {outfitter}'s upgrade tree: your rank is its trunk, and you buy its nodes with crystals.",
 	"store_tab:shop": "Back to the goods: consumables, weapons and armour, charms, and selling.",
+	"store_upgrades:open": "Opens {outfitter}'s upgrade tree under him: your rank is its trunk, and you buy its nodes with crystals. Press it again to fold the tree away.",
+	"store_upgrades:close": "Folds the upgrade tree away to this sign, so there's more room to see {outfitter}. Press it again to open the tree. The car remembers.",
 	"slot:tree": "{piece}: {desc} {state}",
 	"tree_buy": "Buys {piece} for {price}, for good: {desc}",
 	"slot:unique": "{piece}, {price}: a relic he brought out for you, once. {versus}",
@@ -95,12 +98,12 @@ static var HELP := {
 	"slot:outfit:empty": "Sold. The rail fills again after your next climb.",
 	"slot:today": "Today's piece: {piece}, {price}. A new one after every climb. {versus}",
 	"slot:today:empty": "Today's piece is sold. A new one after your next climb.",
-	"slot:order": "{piece}: the outfitter is holding it for you.",
+	"slot:order": "{piece}: {outfitter} is holding it for you.",
 	"buy:supply": "Buys {piece} for {price}. It goes on your belt for your next climb.",
 	"buy": "Buys {piece} for {price}, into your pack. It goes up the tower with you.",
 	"buy:chest": "Buys {piece} for {price}, into your stash. It stays on the train.",
 	"buy:wear": "Buys {piece} for {price} and puts it on at once.",
-	"buy:hold": "Asks the outfitter to keep {piece} for you until you come back.",
+	"buy:hold": "Asks {outfitter} to keep {piece} for you until you come back.",
 	"put_back": "Puts one {piece} back on the shelf. What you paid comes back.",
 	"sell": "Sells {piece} for {price}. It asks first.",
 	# --- your car, the Loadout and the stash ------------------------------------------------------
@@ -128,7 +131,7 @@ static var HELP := {
 	"cycler:slot": "Shows only the pieces for one slot.",
 	"cycler:kind": "Shows only the pieces of one essence.",
 	# --- the workshop ---------------------------------------------------------------------------
-	"bench_tab:brew": "Brew: supplies for your belt, a little cheaper than the outfitter's.",
+	"bench_tab:brew": "Brew: supplies for your belt, a little cheaper than {outfitter}'s.",
 	"bench_tab:temper": "Temper: raise a piece's rank, +1 to +3.{crafter}",
 	"bench_tab:retrait": "Retrait: swap one of a piece's traits.{crafter}",
 	"bench_tab:join": "Join: two Fine pieces for one slot become one Rare.{crafter}",
@@ -153,7 +156,7 @@ static var HELP := {
 	"pour:mark": "Pours {piece} into {part}: it grows. Its own kind counts fully, any other a little.",
 	"pour:part": "Pours {piece} into your {part}: it soaks toward a new mark there, and leans that mark toward its kind.",
 	"slot:crystal": "{piece}: {count} essence. Choose it to eat some.",
-	"slot:crystal:empty": "{piece}: none yet. Stairs condense crystals, and the outfitter pays for every climb.",
+	"slot:crystal:empty": "{piece}: none yet. Stairs condense crystals, and {outfitter} pays for every climb.",
 	"slot:tincture": "{piece}: choose it, then choose where it goes.",
 	"slot:bench:craft": "{piece}, a charm the bench crafts for {price}: {desc}.",
 	"slot:bench:charm": "{piece}: an essence item you own. Choose it to see its own pool, and refill it with crystals of its kind. {pool}",
@@ -321,8 +324,8 @@ static var HELP := {
 	"furnish:rack": "What you'll wear on your next climb, piece by piece. Choose a slot to change it.",
 	"furnish:pack": "Your pack: what's in it goes up the tower with you, and can be lost there.",
 	"furnish:chest": "Your stash: what's in it stays safe on the train.",
-	"furnish:shelf": "The outfitter's shelf: supplies for your belt.",
-	"furnish:rail": "The outfitter's rack: pieces to wear. It fills again after every climb.",
+	"furnish:shelf": "{outfitter}'s shelf: supplies for your belt.",
+	"furnish:rail": "{outfitter}'s rack: pieces to wear. It fills again after every climb.",
 	"furnish:case": "The glass case: today's piece, a new one after every climb.",
 	"furnish:drawers": "The bench's drawers: each opens one kind of work.",
 	"furnish:bookcase": "The Library's shelves: everything I've told you, by subject, and the Bestiary.",
@@ -334,15 +337,15 @@ static var HELP := {
 	# --- anywhere ----------------------------------------------------------------------------------------
 	"back": "Back where you came from.",
 	"close": "Closes this page.",
-}
+})
 
 ## The Entity's comment under an explanation, by the kind of thing (the
 ## part of its key before ":" or "_"; "any" for everything else). Short,
 ## dry, in its own voice; never the story.
-static var COMMENTS := {
+static var COMMENTS: Dictionary = OutfitterName.named({
 	"rail": ["Every door on this train leads somewhere. Most of them lead back here.", "I've walked this rail more often than you have.", "Choose a car. The train won't mind."],
 	"slot": ["A small thing. Small things matter up there.", "I'd keep an eye on that one.", "Everything you carry tells me something about you.", "Weigh it well. The tower will."],
-	"buy": ["The outfitter remembers who pays.", "Crystals spent are crystals that can't be lost. Some comfort.", "A fair price, by his reckoning."],
+	"buy": ["{outfitter} remembers who pays.", "Crystals spent are crystals that can't be lost. Some comfort.", "A fair price, by his reckoning."],
 	"sell": ["What came down the tower can go to someone else.", "He'll find a use for it. He always does.", "Lighter pockets, heavier purse."],
 	"put": ["Second thoughts are allowed. Here, at least."],
 	"tower": ["Each of them is waiting. Patiently.", "I know every stair in there. You'll learn them.", "Its beast is listening. It usually is."],
@@ -392,7 +395,7 @@ static var COMMENTS := {
 	"back": ["Back, then. Nothing's lost.", "Retreat is a kind of plan."],
 	"close": ["Done here? I'll keep it as it is."],
 	"any": ["I'd press it. Eventually.", "Simple enough. Mostly.", "You'll see. I already have.", "Go on. I'm watching."],
-}
+})
 
 ## Small words the explanations are made with (and the Settings switch).
 static var TEXT := {

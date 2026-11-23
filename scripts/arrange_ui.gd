@@ -45,6 +45,7 @@ const TrainView := preload("res://scripts/train_view.gd")
 const Book := preload("res://scripts/book.gd")
 const Train := preload("res://scripts/train.gd")
 const DrawnParts := preload("res://scripts/drawn_parts.gd")
+const OutfitterName := preload("res://scripts/outfitter_name.gd")
 
 ## Off: nothing is tagged (tests build a page without it to compare).
 static var enabled := true
@@ -74,7 +75,7 @@ const FURNISH_NAMES := {
 	"placard": "Placard", "plain": "Panel", "bookcase": "Bookcase", "lectern": "Lectern",
 	"signal": "Signal panel", "brake": "Emergency brake", "book": "Book on its cushion", "tables": "Tables",
 	"ledger": "Upgrade tree", "tray": "Charm tray",
-	"bench": "The bench", "outfitter": "The outfitter", "speech": "Speech", "sign": "Sign", "piece": "Piece",
+	"bench": "The bench", "outfitter": OutfitterName.NAME, "speech": "Speech", "sign": "Sign", "piece": "Piece",
 }
 const RAIL_NAMES := {
 	"rail.box": "Left rail", "rail.ident": "Who you are", "rail.list": "List of pages or cars", "rail.foot": "Bottom buttons",

@@ -2340,8 +2340,9 @@ class Volume extends Button:
 		return false
 
 
-## The outfitter behind his counter, drawn in code: an old climber in the
-## lamplight, his goggles pushed up, bushy brows and a curled grey moustache,
+## The outfitter (Joel: outfitter_name.gd) behind his counter, drawn in
+## code to the size he's given (the Outfitter's Car draws him big where the
+## room allows: store_page.gd): an old climber in the lamplight, his goggles pushed up, bushy brows and a curled grey moustache,
 ## a tape measure round his neck over a waistcoat and brass-buttoned coat,
 ## a watch chain, and his hands on the counter by a little brass bell. He
 ## blinks now and then.
@@ -2363,6 +2364,10 @@ class Outfitter extends Control:
 		if o != open:
 			open = o
 			queue_redraw()
+
+	## How big his head is drawn (its radius), at his size now.
+	func head_radius() -> float:
+		return minf(size.x * 0.3, size.y * 0.26) * 0.62
 
 	func _draw() -> void:
 		var w := size.x
@@ -2534,7 +2539,7 @@ class RuneArtist extends Button:
 		return false
 
 
-## The outfitter's face, small, beside what he says: drawn in code.
+## The outfitter's (Joel's) face, small, beside what he says: drawn in code.
 class OutfitterFace extends Control:
 	const BRASS := Color(0.86, 0.64, 0.3)
 	const SKIN := Color(0.86, 0.68, 0.54)
@@ -2585,6 +2590,10 @@ class OutfitterFace extends Control:
 			c + Vector2(-r * 0.2, r * 0.32)]), HAIR)
 		for side in [-1.0, 1.0]:
 			b.arc(c + Vector2(side * r * 0.44, r * 0.2), r * 0.08, (PI * 0.5 if side > 0.0 else PI * 0.5), (PI * 0.5 - PI * 1.3 if side > 0.0 else PI * 0.5 + PI * 1.3), 6, HAIR, maxf(1.0, r * 0.06))
+
+	## How big his head is drawn (its radius), at his size now.
+	func head_radius() -> float:
+		return minf(size.x - 12.0, size.y) * 0.42 * 0.62
 
 	func _draw() -> void:
 		var r := minf(size.x - 12.0, size.y) * 0.42

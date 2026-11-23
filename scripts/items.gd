@@ -401,15 +401,15 @@ static var RECALL := {
 ## Essence crystals (kept in the profile between climbs; crystals of a kind
 ## combine into one). Eating one pours up to "step" essence into you at a
 ## time, the natural way (essence_flow.gd: body and marks share it).
-static var CRYSTAL := {
+static var CRYSTAL: Dictionary = OutfitterName.named({
 	"name": "%s Crystal",
 	"desc": "holds %d %s essence outside you; eat it and that essence flows into you the natural way",
 	"step": 10,
 	"consume": "Eat %d",
 	"consumed": "Ate %d %s essence",
 	"held": "%d essence  ·  the train's money  ·  kept between climbs",
-	"none": "No crystals of this kind yet. Each stair condenses a share of what you bank into crystals, the outfitter pays for every climb, and vaults and secret rooms may hold them.",
-}
+	"none": "No crystals of this kind yet. Each stair condenses a share of what you bank into crystals, {outfitter} pays for every climb, and vaults and secret rooms may hold them.",
+})
 
 
 ## The belt's words (the swap card, the break at the end of a climb).
@@ -820,6 +820,7 @@ static func burst(main, f: Dictionary) -> void:
 
 const Draw := preload("res://scripts/draw_util.gd")
 const Art := preload("res://scripts/icon_art.gd")
+const OutfitterName := preload("res://scripts/outfitter_name.gd")
 
 
 ## An item's icon, drawn in code, centred on `c` (about 2*s across).

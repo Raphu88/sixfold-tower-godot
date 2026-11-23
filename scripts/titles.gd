@@ -35,9 +35,10 @@ extends RefCounted
 ## the Data editor: "Titles' benefits").
 
 const Renown := preload("res://scripts/renown.gd")
+const OutfitterName := preload("res://scripts/outfitter_name.gd")
 
 ## The groups, in the order a card lists them: [id, name].
-static var GROUPS := [["rivals", "Rival climbers"], ["gym", "Training"], ["tourney", "Tournament masters"], ["outfitter", "The outfitter"], ["travel", "Train fares"]]
+static var GROUPS: Array = OutfitterName.named([["rivals", "Rival climbers"], ["gym", "Training"], ["tourney", "Tournament masters"], ["outfitter", "{outfitter}"], ["travel", "Train fares"]])
 
 static var SOCIAL := {
 	# The titles from a new climber's start (new_start.gd): small helps.
@@ -119,13 +120,13 @@ static var SOCIAL := {
 	},
 }
 
-static var TEXT := {
+static var TEXT: Dictionary = OutfitterName.named({
 	"benefits": "What it gives",
 	"none": "No benefits: a name and nothing more.",
 	"line": "%s: %s",
 	"worn_only": "Only the title you wear gives its benefits.",
-	"tree": "The outfitter's upgrade tree: once granted (worn or not), it opens %s.",
-}
+	"tree": "{outfitter}'s upgrade tree: once granted (worn or not), it opens %s.",
+})
 
 
 ## A title's benefits for one group ({} for none).
