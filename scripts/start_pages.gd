@@ -339,7 +339,7 @@ static func begin(m) -> void:
 	prof.save()
 	NewStart.note_made()
 	if main.player != null:
-		main.player.use_heirlooms(prof.heirlooms)
+		load("res://scripts/train.gd").dress(prof, main.player)  # (the start's heirlooms, and the basic sword or bow where they leave a slot empty: basic_gift.gd)
 		NewStart.dress(prof, main.player)
 	main.apply_appearance()
 	main.sfx("ui_confirm")

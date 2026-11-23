@@ -16,10 +16,12 @@ const Gear := preload("res://scripts/gear.gd")
 const Palette := preload("res://scripts/palette.gd")
 const Rooms := preload("res://scripts/rooms.gd")
 const Themes := preload("res://scripts/themes.gd")
+const BasicGift := preload("res://scripts/basic_gift.gd")
 
 ## The chance a fall also takes the weapon in your hand (the melee weapon
-## if you held only your fists). The starting sword and bow are never
-## counted: every climb starts with them.
+## if you held only your fists). The basic sword and bow are never counted,
+## nor remembered for a cache: a fall that leaves you without one brings
+## one as a gift instead (basic_gift.gd).
 static var WEAPON_CHANCE := 0.35
 ## Heirlooms are kept safe: an heirloom in your hand is never lost. Set this
 ## true to let a fall take an heirloom weapon too (it leaves your heirlooms,
@@ -71,11 +73,16 @@ static func fall(profile, p, tower: String, floor_num: int, weapon_roll := WEAPO
 	if p == null:
 		return out
 	var pieces: Array = []
+	var basics := 0  # (the basic sword or bow in the pack: lost, never remembered: a fall gives one back)
 	for g in p.pack:
 		var r := Gear.rec(g)
-		if not r.is_empty():
+		if r.is_empty():
+			continue
+		if BasicGift.is_basic(r):
+			basics += 1
+		else:
 			pieces.append(r)
-	out["pack"] = pieces.size()
+	out["pack"] = pieces.size() + basics
 	out["belt"] = not p.carried().is_empty()
 	var w := hand_weapon(p)
 	if not w.is_empty() and randf() < weapon_roll:
@@ -102,7 +109,7 @@ static func fall(profile, p, tower: String, floor_num: int, weapon_roll := WEAPO
 
 
 ## The weapon a fall may take: the one in hand, or the melee weapon if your
-## fists are out. {} for none, or for the starting sword or bow.
+## fists are out. {} for none, or for the basic sword or bow.
 static func hand_weapon(p) -> Dictionary:
 	var slot := ""
 	for s in ["melee", "ranged"]:
@@ -115,9 +122,8 @@ static func hand_weapon(p) -> Dictionary:
 	var r := Gear.rec(p.gear.get(slot, {}))
 	if r.is_empty():
 		return {}
-	for start in [Gear.Weapons.START_MELEE, Gear.Weapons.START_RANGED]:
-		if Gear.same(r, Gear.make(start)):
-			return {}
+	if BasicGift.is_basic(r):
+		return {}
 	return r
 
 

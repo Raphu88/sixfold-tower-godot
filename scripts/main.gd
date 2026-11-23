@@ -46,6 +46,7 @@ const Train := preload("res://scripts/train.gd")
 const Shop := preload("res://scripts/shop.gd")
 const GearLook := preload("res://scripts/gear_look.gd")
 const Lost := preload("res://scripts/lost.gd")
+const BasicGift := preload("res://scripts/basic_gift.gd")  # (the basic sword and bow: given after a fall, never restored by themselves)
 const Charms := preload("res://scripts/charms.gd")
 const Vessel := preload("res://scripts/vessel.gd")
 const ProvingScript := preload("res://scripts/proving.gd")
@@ -275,6 +276,7 @@ var weapon_loss_chance := Lost.WEAPON_CHANCE  # a fall also takes the weapon in 
 var lost_cache_chance := 0.0 if Engine.has_meta("sixfold_test") else Lost.CACHE_CHANCE  # (tests set it when they want one)
 var lost_cache := {}  # this floor's lost cache: {pos, entries (profile.lost entries), taken}
 var fall_note: Array = []  # what the fall took, for the fall screen
+var gift_line := ""  # the outfitter's words about the basic sword or bow he gave after a fall (basic_gift.gd), at the top of your car this visit
 var fall_mark_roll := -1.0  # tests: stands in for the chance a fall leaves a faint mark (main.fall_mark)
 var sworn_rescued := false  # one of the Sworn has saved this Unbound from a fall this climb (sworn.gd: at most once a climb)
 var sworn_roll := -1.0  # tests: stands in for the chance one of the Sworn steps in (sworn.gd RESCUE "chance")
@@ -481,10 +483,9 @@ func _ready() -> void:
 	arena.main = self
 	add_child(arena)
 	_give_bonds()
-	player.use_heirlooms(profile.heirlooms)
+	BasicGift.on_arrival(profile)  # (a climb that ended without a fall or getting out, a restart or the game closed: as a fall, the sword and bow are given)
+	Train.dress(profile, player)  # (on the train: your heirlooms and the Loadout you chose to wear)
 	NewStart.dress(profile, player)  # (the self made's worn starting gear, until the Regard)
-	if not profile.wear.is_empty():
-		Train.dress(profile, player)  # (on the train: the Loadout you chose to wear)
 	apply_appearance()
 	tower = profile.last_tower if Towers.TOWERS.has(profile.last_tower) else "kraken"
 	_note_climb_start()
@@ -2444,20 +2445,19 @@ func bring_pack_home() -> String:
 
 
 ## What you wear comes home on you: every worn piece that isn't already your
-## heirloom for its slot, nor the sword or bow every climb starts with,
-## becomes what you'll wear on the train (profile.wear, the Loadout's "Set":
-## take it off there into your pack or stash, or set off in it again).
+## heirloom for its slot (the basic sword and bow too: they're yours, and
+## nothing puts them back by itself, basic_gift.gd) becomes what you'll
+## wear on the train (profile.wear, the Loadout's "Set": take it off there
+## into your pack or stash, or set off in it again).
 func bring_worn_home() -> String:
 	if player == null:
 		return ""
-	var starts := {"melee": Gear.make(Gear.Weapons.START_MELEE), "ranged": Gear.make(Gear.Weapons.START_RANGED)}
+	BasicGift.home(profile)  # (out alive: what you wore came home)
 	var heir_left := {}  # heirloom slot -> its pieces not yet matched (two rings, one heirloom ring: only one is the heirloom)
 	var wear := {}
 	for slot in Train.WEAR_SLOTS:
 		var r: Dictionary = Gear.rec(player.gear.get(slot, {}))
 		if r.is_empty():
-			continue
-		if starts.has(slot) and Gear.same(r, starts[slot]):
 			continue
 		var hs: String = Gear.heirloom_slot_for_carry(slot)
 		if not heir_left.has(hs):
@@ -2837,6 +2837,9 @@ func open_train() -> void:
 		e.set_physics_process(false)
 	Train.stock(profile)
 	profile.save()
+	var gift := BasicGift.take_line(profile)  # (the basic sword or bow given after a fall: his words in your car, once)
+	if gift != "":
+		gift_line = gift
 	menu.train_car = Train.HOME  # (it opens on your own car)
 	_rank_on_train()
 	menu.open("train")
@@ -2873,7 +2876,9 @@ func choose_tower(id: String) -> void:
 	if on_train:
 		# Leaving the train (Depart, or the dev tools): your pack and supplies come too.
 		Train.pack_up(profile, player)
+		NewStart.dress(profile, player)  # (the self made's worn starting gear, until the Regard, after the Loadout went on)
 		on_train = false
+		gift_line = ""
 	choosing_tower = false
 	tower = id
 	profile.last_tower = id
@@ -3235,6 +3240,11 @@ func on_player_died() -> void:
 				if UnboundRun.Unbound.drained_count(profile) >= int(UnboundRun.Unbound.DRAIN.get("husk_talk", 3)):
 					tip("unbound_husks")  # (drained again and again: the Entity speaks of the Husks)
 		pay_climb()  # (the outfitter pays for the floors all the same: shown on the fall screen)
+	# Back on the train with no melee or no ranged weapon, the outfitter gives
+	# the basic sword or bow (a copy in your stash is put on instead): basic_gift.gd.
+	var gift := BasicGift.on_fall(profile)
+	if gift != "":
+		fall_note.append(gift)
 	profile.save()
 	GuideScript.moment("death", "death", {"floor": floor_num, "beast": beast_name()})
 	if first_climb and regard.is_empty() and not regard_pending:
@@ -3481,10 +3491,9 @@ func _load_climber() -> void:
 	best_floor = profile.best_floor
 	first_climb = not profile.regarded
 	_give_bonds()
-	player.use_heirlooms(profile.heirlooms)
+	BasicGift.on_arrival(profile)
+	Train.dress(profile, player)
 	NewStart.dress(profile, player)
-	if not profile.wear.is_empty():
-		Train.dress(profile, player)
 	apply_appearance()
 
 

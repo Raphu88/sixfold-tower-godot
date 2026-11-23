@@ -15,9 +15,11 @@ extends RefCounted
 ## moves it across in one press.
 ##
 ## The rules (train.gd): what you choose to wear goes on as you set off, over
-## your heirloom or the starting piece in that slot (the heirloom waits on
-## the train this climb, still yours); a piece left in your pack goes on in a
-## slot nothing else is worn in. The stash never leaves the train.
+## your heirloom in that slot (the heirloom waits on the train this climb,
+## still yours); a piece left in your pack goes on in a slot nothing else is
+## worn in, or that holds only the basic sword or bow (which then waits in
+## your stash). The basic sword and bow are pieces like any other, but they
+## can't be sold (basic_gift.gd). The stash never leaves the train.
 ##
 ## The stash screen (stash_page.gd) is this page's second tab, and builds on
 ## it: Q / E (LB / RB) or the tabs switch between them. The words live in
@@ -33,6 +35,7 @@ const Appearance := preload("res://scripts/appearance.gd")
 const GearLook := preload("res://scripts/gear_look.gd")
 const VesselPage := preload("res://scripts/vessel_page.gd")
 const StorageView := preload("res://scripts/storage_view.gd")
+const BasicGift := preload("res://scripts/basic_gift.gd")
 
 static var TEXT := {
 	"title": "Loadout",
@@ -50,9 +53,9 @@ static var TEXT := {
 	"goes_up": "Going up the tower: what you wear, your pack and your belt. Fall, and what you found, your pack and your belt are lost (heirlooms are always safe). Get out alive, by the stair at the top or a recall scroll, and what you wear and your pack come home with you.",
 	"goes_up_short": "Up the tower: what you wear, your pack, your belt. Get out alive and what you wear and your pack come home.",
 	"from_heir": "Your heirloom: every climb begins with it.",
-	"from_start": "What every climb starts with.",
+	"from_basic": "Chosen to wear: it goes on as you set off (a piece in your pack for this slot goes on instead, and this waits in your stash).",
 	"from_wear": "Chosen to wear: it goes on as you set off.",
-	"from_pack": "From your pack: it goes on as you set off, because nothing else is worn here.",
+	"from_pack": "From your pack: it goes on as you set off, because nothing else (or only the basic piece) is worn here.",
 	"heir_waits": "Wear something else here and your heirloom waits on the train this climb (it stays yours).",
 	"heir_away": "Your heirloom, %s, waits on the train this climb (it stays yours).",
 	"empty_slot": "Nothing worn here. Choose a piece from your pack or stash to wear, or buy one in the Outfitter's Car.",
@@ -228,7 +231,7 @@ func _worn_cell(parent: Node, slot: String, so: Dictionary):
 			s.kept = true
 		"pack":
 			s.tag = TEXT["tag_pack"]
-		"wear":
+		"wear", "basic":
 			s.tag = TEXT["tag_wear"]
 	return s
 
@@ -357,8 +360,10 @@ func _worn_card(slot: String) -> void:
 		_head("gear", g, Gear.display(g), Gear.color(g))
 		var from := String(e.get("from", ""))
 		m._detail_text(TEXT["from_" + from] if TEXT.has("from_" + from) else "", Color(UI.GOLD, 0.9) if from == "heir" else UI.DIM)
+		if BasicGift.is_basic(g):
+			m._detail_text(BasicGift.TEXT["note"], UI.DIM)  # (never for sale: a fall gives one back)
 		match from:
-			"wear":
+			"wear", "basic":
 				var full: bool = Train.pack_room(prof, p) <= 0
 				var a := _btn(TEXT["take_off_pack"], _unequip.bind(slot, "pack"), "unequip", slot + ":pack")
 				a.disabled = full
@@ -444,8 +449,11 @@ func piece_card(where: String, i: int) -> void:
 	var kind := Train.gear_kind(g)
 	var got := Train.gear_sell(g, prof)
 	var key := "%s:%d" % [where, i]
-	var sell := _btn(Train.TEXT["sell_for"] % [got, Essence.display(kind)], _sell.bind(where, i), "sell", key)
-	sell.set_meta("asks", true)  # (it opens the pop-up)
+	if Train.can_sell(g):
+		var sell := _btn(Train.TEXT["sell_for"] % [got, Essence.display(kind)], _sell.bind(where, i), "sell", key)
+		sell.set_meta("asks", true)  # (it opens the pop-up)
+	else:
+		m._detail_text(BasicGift.TEXT["note"], UI.DIM)  # (the basic sword or bow: given away, so never sold)
 	if not full and not _small():
 		m._detail_text(TEXT["press_again_pack"] if where == "chest" else TEXT["press_again_chest"], UI.FAINT)
 	m._detail_lines(g, Gear.SLOT_NAMES.get(Gear.slot_of(g), ""))
@@ -538,6 +546,8 @@ func _sell(where: String, i: int) -> void:
 	if i >= list.size():
 		return
 	var g: Dictionary = list[i]
+	if not Train.can_sell(g):
+		return
 	var kind := Train.gear_kind(g)
 	var got := Train.gear_sell(g, prof)
 	m.ask(Train.TEXT["sell_ask"] % [got, Essence.display(kind)], Train.TEXT["sell_for"] % [got, Essence.display(kind)], _sell_now.bind(where, i), Gear.rarity(g) != "common", Gear.display(g))

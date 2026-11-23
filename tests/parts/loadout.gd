@@ -97,7 +97,8 @@ func _saves() -> void:
 	var again = load("res://scripts/profile.gd").new()
 	again.save_path = path
 	again.load_save()
-	_check(again.chest.size() == 8 and again.pack.size() == 1 and again.wear.is_empty(), "an old save loads unchanged: its 8 stash pieces, its pack, nothing chosen to wear")
+	_check(again.chest.size() == 8 and again.pack.size() == 1 and again.wear.size() == 2 and again.wear.values().all(func(g): return Train.BasicGift.is_basic(g)),
+		"an old save loads unchanged: its 8 stash pieces, its pack, and the basic sword and bow it always had, now chosen to wear (basic_gift.gd)")
 	# A Loadout saves and loads; a ring in a slot it can't go in is dropped.
 	again.wear = {"armor": G.make("plate"), "ring2": G.make("garnet_ring", "fine")}
 	again.saving = true
@@ -182,15 +183,17 @@ func _departing() -> void:
 	var p = m.player
 	_reset()
 	prof.heirlooms["chest"] = G.make("padded")
-	prof.wear = {"armor": G.make("chain", "fine", ["breath"]), "melee": G.make("sword")}
-	prof.pack = [G.make("leather_cap"), G.make("sword", "fine", ["edges"]), G.make("axe")]
+	var chosen := G.make("sword", "fine", ["venom"])
+	prof.wear = {"armor": G.make("chain", "fine", ["breath"]), "melee": chosen, "ranged": Train.BasicGift.piece("ranged")}
+	prof.pack = [G.make("leather_cap"), G.make("sword", "fine", ["edges"]), G.make("axe"), G.make("crossbow")]
 	var so := Train.setoff(prof)
-	_check(so["armor"]["from"] == "wear" and so["helm"]["from"] == "pack" and so["melee"]["from"] == "wear" and so["ranged"]["from"] == "start",
-		"the Loadout says what you'll set off in: what you chose, a pack piece for an empty slot, the starting bow")
+	_check(so["armor"]["from"] == "wear" and so["helm"]["from"] == "pack" and so["melee"]["from"] == "wear" and so["ranged"]["from"] == "pack" and G.base_id(so["ranged"]["rec"]) == "crossbow",
+		"the Loadout says what you'll set off in: what you chose, a pack piece for an empty slot, a pack crossbow over the basic bow")
 	m.player.items = m.Items.START.duplicate()
 	Train.pack_up(prof, p)
 	_check(p.gear_id("armor") == "chain" and G.rarity(p.gear["armor"]) == "fine", "departing: the chosen chain mail goes on over the heirloom padding")
-	_check(p.gear_id("melee") == "sword" and G.rarity(p.gear["melee"]) == "common" and p.gear_id("helm") == "leather_cap", "...the chosen sword stays in hand (a pack sword doesn't take its place); the cap fills the empty helm")
+	_check(G.same(p.gear["melee"], chosen) and p.gear_id("helm") == "leather_cap", "...the chosen sword stays in hand (a pack sword doesn't take its place); the cap fills the empty helm")
+	_check(p.gear_id("ranged") == "crossbow" and prof.chest.size() == 1 and Train.BasicGift.is_basic(prof.chest[0]), "...the pack crossbow goes on over the basic bow, which waits in your stash")
 	_check(p.pack.size() == 2 and prof.wear.is_empty() and prof.pack.is_empty(), "...the rest go up in the pack, and the Loadout is cleared")
 	_check(G.base_id(prof.heirlooms["chest"]) == "padded", "...and the heirloom is still yours")
 	p.pack = []
@@ -256,7 +259,8 @@ func _compare() -> void:
 	var prof = m.profile
 	var p = m.player
 	_reset()
-	_check(Train.versus(prof, p, G.make("sword", "rare", ["edges", "venom"])) > 0, "a Rare sword beats the starting sword")
+	prof.wear = Train.BasicGift.kit()  # (wearing the basic sword and bow)
+	_check(Train.versus(prof, p, G.make("sword", "rare", ["edges", "venom"])) > 0, "a Rare sword beats the basic sword")
 	_check(Train.versus(prof, p, G.make("sword")) == 0, "the very same piece is neither better nor worse")
 	_check(Train.versus(prof, p, G.make("leather_cap")) > 0 and Train.worn_against(prof, p, G.make("leather_cap")) == null, "anything beats an empty helm (it's set against nothing)")
 	prof.wear = {"helm": G.make("iron_helm", "rare", ["vigor", "calm"])}
