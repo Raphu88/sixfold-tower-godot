@@ -47,13 +47,14 @@ const MarkUse := preload("res://scripts/mark_use.gd")  # (marks grow by use, and
 const Notices := preload("res://scripts/notices.gd")
 const Flow := preload("res://scripts/essence_flow.gd")
 const Combat := preload("res://scripts/combat.gd")
+const OutfitterName := preload("res://scripts/outfitter_name.gd")
 
 ## A line that starts with this is a story slot not written yet (hidden).
 const STORY_TAG := "[Yours to write]"
 ## At most this many choices show at once (Goodbye among them).
 const MAX_CHOICES := 5
 
-static var DIALOGUE := {
+static var DIALOGUE: Dictionary = OutfitterName.named({
 	"start": {"ask": "Something else.",
 		"lines": [
 			"Yes? I was counting.",
@@ -91,7 +92,7 @@ static var DIALOGUE := {
 		"lines": ["Divided, never copied. Of what you bank at a stair, {body} soaks into your body, spread by what each part did: unmarked parts fill toward a new mark. {marks} goes to your marks: it refills what each one's spells used and deepens it, and what they can't take condenses into crystals. {condense} becomes crystals; To crystals, in Settings, sets that share, and body and marks share the rest. Eat a crystal and it flows the same way, without the crystals' share. Only a tincture lets you steer."],
 		"choices": ["how_tinctures", "how_marks", "how", "bye"]},
 	"how_tinctures": {"ask": "What are tinctures?", "fact": "rules",
-		"lines": ["A vial of {tincture} essence of one kind. Drink it and you choose where it goes: one mark, where its own kind counts {own}x and any other {other}x, and it's concentrated, {boost}x what banked essence gives, or one unmarked part, toward a new mark there. Vaults and secret rooms hold them, now and then a monster drops one, the outfitter stocks {store_kinds} each visit, and the Workshop crafts one from {craft} crystals of its kind."],
+		"lines": ["A vial of {tincture} essence of one kind. Drink it and you choose where it goes: one mark, where its own kind counts {own}x and any other {other}x, and it's concentrated, {boost}x what banked essence gives, or one unmarked part, toward a new mark there. Vaults and secret rooms hold them, now and then a monster drops one, {outfitter} stocks {store_kinds} each visit, and the Workshop crafts one from {craft} crystals of its kind."],
 		"choices": ["how_flow", "how_new_mark", "how", "bye"]},
 	"how_marks": {"ask": "How do marks grow?", "fact": "rules",
 		"lines": ["By use. Each mark holds a pool of essence, and its depth carries it up its steps. Cast its spells in a climb, and at each stair your marks' share of what you bank, {marks} of it, refills what each one used, then deepens its pool by {deepen} of that use, using up banked essence too. Its own kind pays fully; another kind pays {use_other}. A mark you never cast takes in only a trickle, and what your marks can't take condenses into crystals. Cast more than you bank and the extra adds nothing. The more marks you carry, the slower each grows. Each has {steps} steps. Steps 1 to 5 bring its spells and their first changes. Step 6 raises its passive to rank IV; steps 7, 9 and 11 each let you choose one of two upgrades to its spells; step 8 strengthens its great spell; step 10 is a second Transformation of your first spell, one of two; and step 12 is its Zenith, its greatest power, when every one of its spells does something more. Your tree shows every step. It's slow on purpose: a mark keeps you company for many climbs, about as long as the towers do. A tincture steers essence into one mark, {boost}x as strong as banked essence, and winning the Proving, on floor six, grows the mark you used most by {proving}."],
@@ -118,7 +119,7 @@ static var DIALOGUE := {
 		"lines": ["There are {stations} stations on a loop, each in a city near its tower, each with Training, a tournament and its own Noble. Titles are shared by every Noble. You're at {station}; your home is {home}. You climb the tower by the station you're at, so to climb another, ride there first: the Engine's map. A stop costs {fare} crystals of any kind, the shorter way round, so {max_fare} at most. {title_cut} {lock}"],
 		"choices": ["tour", "how_titles", "how", "bye"]},
 	"how_titles": {"ask": "How do titles work?", "fact": "titles",
-		"lines": ["The Noble at a station grants them. Each needs a rank and a deed; when both are done, ask to be named. Wear one at a time: only the worn one counts. Each helps with someone: other climbers trade kinder or team up more, Training costs less, tournament masters open brackets sooner, the outfitter takes some off. {title_line}"],
+		"lines": ["The Noble at a station grants them. Each needs a rank and a deed; when both are done, ask to be named. Wear one at a time: only the worn one counts. Each helps with someone: other climbers trade kinder or team up more, Training costs less, tournament masters open brackets sooner, {outfitter} takes some off. {title_line}"],
 		"choices": ["how_contracts", "how_renown", "how", "bye"]},
 	"how_contracts": {"ask": "What are contracts?", "fact": "titles",
 		"lines": ["Tasks the Noble gives: reach a floor of a named tower, slay so many of one monster, or retrieve a thing from a floor and take the stair with it. Hold {contracts_most} at once. The line at the top of the screen tracks each while you climb; I note them too. Done, they pay renown, crystals, and sometimes a charm recipe. They never hold up a floor. {contract_line}"],
@@ -152,7 +153,7 @@ static var DIALOGUE := {
 		"lines": ["A fall: your pack, what you wear and your belt are lost, unbanked essence too (a Keeper's Purse keeps itself and one piece), and {weapon} of the time the weapon in your hand. Never an heirloom, never the starting sword or bow. A recall scroll: you leave safe with what you wear and your pack, and unbanked essence becomes crystals. A summit: you may keep one piece as an heirloom, and what's left on your belt becomes crystals."],
 		"choices": ["how_belt", "how", "bye"]},
 	"how_belt": {"ask": "The belt?", "fact": "rules",
-		"lines": ["Your belt holds {kinds} kinds of item, {stack} of each (a few stack otherwise; a Belt Pouch, a Climber's Pack or a Belt Hook charm adds a kind). Pick up a new kind with a full belt and you choose a stack to swap out. The staples are the Healing Vial, the Stamina Vial and the Essence Vial: cheap, and common from monsters. Everything else is rare in the tower, a few in a whole climb, so keep it for when it counts; the outfitter sells them if you want one on purpose. What you buy or brew on the train goes on it."],
+		"lines": ["Your belt holds {kinds} kinds of item, {stack} of each (a few stack otherwise; a Belt Pouch, a Climber's Pack or a Belt Hook charm adds a kind). Pick up a new kind with a full belt and you choose a stack to swap out. The staples are the Healing Vial, the Stamina Vial and the Essence Vial: cheap, and common from monsters. Everything else is rare in the tower, a few in a whole climb, so keep it for when it counts; {outfitter} sells them if you want one on purpose. What you buy or brew on the train goes on it."],
 		"choices": ["how_wheel", "how_states", "how_fall", "how", "bye"]},
 	"how_wheel": {"ask": "How does the belt wheel work?", "fact": "wheel",
 		"lines": ["Tap {item} and you use your current item, the one beside your weapon. Hold {item} and the wheel opens, and the world slows to {slow} of its speed. Point at an item with {point} and let go: it becomes your current item. Nothing is used until you tap {item} again. A mark's button works the same way: hold it to choose a spell, tap it to cast. Choosing never uses anything. I find that restful."],
@@ -161,10 +162,10 @@ static var DIALOGUE := {
 		"lines": ["Some monsters' blows leave a state on you when they land: {states}. Each lasts a few seconds, and none of them stuns. The line at the top counts it down and names its cure. A Cleansing Tonic takes off any of them; {wards} keep one off for a while. The stair's rest clears them all."],
 		"choices": ["how_handy", "how_belt", "how", "bye"]},
 	"how_handy": {"ask": "What's handy in this tower?", "fact": "handy",
-		"lines": ["{handy} They turn up more often there, though like every item but the staples they're still a rare find; the outfitter's shelf says where each is handy, if you'd rather bring one."],
+		"lines": ["{handy} They turn up more often there, though like every item but the staples they're still a rare find; {outfitter}'s shelf says where each is handy, if you'd rather bring one."],
 		"choices": ["how_states", "tower", "how", "bye"]},
 	"how_charms": {"ask": "How do charms work?", "fact": "rules",
-		"lines": ["You wear one charm, in its slot under the others. It's never used up: its gift is on while you wear it. Some hold a charge that fires by itself when its moment comes. Spent, it stays spent until you feed it essence: at the workshop bench with crystals of its kind, or in the tower from the inventory with essence you haven't banked. The Workshop crafts them (with the Rune Artist's mark you craft them yourself; without it, {artist} does it for you); the outfitter sells {charm_shop}; vaults and secret rooms sometimes hold one."],
+		"lines": ["You wear one charm, in its slot under the others. It's never used up: its gift is on while you wear it. Some hold a charge that fires by itself when its moment comes. Spent, it stays spent until you feed it essence: at the workshop bench with crystals of its kind, or in the tower from the inventory with essence you haven't banked. The Workshop crafts them (with the Rune Artist's mark you craft them yourself; without it, {artist} does it for you); {outfitter} sells {charm_shop}; vaults and secret rooms sometimes hold one."],
 		"choices": ["how_workshop", "how_bags", "how", "bye"]},
 	"how_workshop": {"ask": "The Workshop and its Rune Artist?", "fact": "rules",
 		"lines": ["The Workshop's bench has a counter for each kind of work. Brewing, breaking down, tinctures and refilling charms are anyone's. The rest is crafting: tempering, swapping a trait, joining two pieces, a lasting rune, a recall scroll, a vessel, a new charm. With the Rune Artist's mark you craft it yourself with your own essence, and brew for less. Without the mark, {artist} at the bench crafts it for you. You bring the same crystals a Rune Artist would use, plus {artist_premium} on top for the craft, and {artist_work} when a full vessel does the work. Every card says who crafts and what the price is made of."],
@@ -191,7 +192,7 @@ static var DIALOGUE := {
 		"lines": ["His stock follows your rank: that's the trunk of his upgrade tree. Higher up: more on his rail (up to {rail_most}, all shown at once), more kinds on the shelf (up to {kinds_most}), more Fine and Rare pieces, pistols and crossbows from {gun_rank}, now and then a named piece or a relic. It's new every visit. The title you wear tilts his rail, and some titles take a little off. The rest you buy on his tree."],
 		"choices": ["how_shop_tree", "how_renown", "how", "bye"]},
 	"how_shop_tree": {"ask": "How does his upgrade tree work?", "fact": "rules",
-		"lines": ["Your rank is the trunk; four branches grow from it: Prices, Stock, Gifts, Info. A node opens at its rank once the one below it is yours; {tree_titled} also need a title from the Noble. Buy it with crystals of any kind and it's yours for good; there are {tree_total} in all. Discounts from the tree and your worn title stop at {tree_cap} off. Choose a node and its card says what it does."],
+		"lines": ["Your rank is the trunk; four branches grow from it: Prices, Stock, Gifts, Info. A node opens at its rank once the one below it is yours; {tree_titled} also need a title from the Noble. Buy it with crystals of any kind and it's yours for good; there are {tree_total} in all. Discounts from the tree and your worn title stop at {tree_cap} off. Choose a node and its card says what it does. On a wide screen the Upgrades sign under {outfitter} folds the tree away, to give him room, or opens it again; the car remembers which."],
 		"choices": ["how_shop", "how_renown", "how", "bye"]},
 	"how_ward": {"ask": "Why won't the stair open?",
 		"lines": ["Most floors have one task, and the stair is warded until it's done: braziers, levers, runes, an orb, marked creatures, rifts, urns, a lost wisp, a puzzle. The banner names it, a line under it counts it, and an arrow points at what's left. Done, the stair opens, and a reliquary beside it offers one of three."],
@@ -297,10 +298,10 @@ static var DIALOGUE := {
 		"choices": ["start", "bye"]},
 	# --- the train ------------------------------------------------------------------------
 	"train": {"ask": "Tell me about the train.", "if": "on_train",
-		"lines": ["Six cars. The Engine takes you to a tower. The outfitter buys and sells. Your car holds what you'll wear, your pack and your stash. The Workshop works on gear, the Library keeps my words, and the last car holds the settings."],
+		"lines": ["Six cars. The Engine takes you to a tower. {outfitter} buys and sells. Your car holds what you'll wear, your pack and your stash. The Workshop works on gear, the Library keeps my words, and the last car holds the settings."],
 		"choices": ["train_money", "train_carry", "start", "bye"]},
 	"train_money": {"ask": "How do I pay for things?", "fact": "money",
-		"lines": ["Crystals. You hold {crystals} essence in them. {condense} of what you bank at a stair condenses into them, and the outfitter pays for every climb, fall or not. Spend them, craft tinctures from them, or eat them: your book's Crystals and tinctures."],
+		"lines": ["Crystals. You hold {crystals} essence in them. {condense} of what you bank at a stair condenses into them, and {outfitter} pays for every climb, fall or not. Spend them, craft tinctures from them, or eat them: your book's Crystals and tinctures."],
 		"choices": ["train_carry", "start", "bye"]},
 	"tour": {"ask": "Show me around again.", "if": "on_train",
 		"lines": ["Which part? Skip the tour whenever you like.", "The station, or the train? I don't mind repeating myself."],
@@ -319,30 +320,30 @@ static var DIALOGUE := {
 		"choices": ["start", "bye"]},
 	# --- leaving --------------------------------------------------------------------------
 	"bye": {"ask": "Goodbye.", "leave": true},
-}
+})
 
 ## Hints for "What should I do next?", in the order they're thought of: the
 ## first that applies is said, the next one if you ask again. {blanks} as
 ## the hint needs.
-static var HINTS := {
+static var HINTS: Dictionary = OutfitterName.named({
 	"unbanked": "You carry {amount} unbanked essence. Find the stair before something finds you.",
 	"low_health": "You're low. A Healing Vial, a spring, or the stair.",
 	"faint": "Your mark is faint. It needs {amount} more banked essence before it grows.",
 	"mark_ready": "Your {part} is full of essence. Reach a summit and it takes a mark, or win a sealed wing early keeping its rule.",
 	"better_stash": "Something you keep beats what you'd wear: {piece}. The Loadout puts it on.",
-	"belt_empty": "Your belt is empty. The outfitter sells vials. The Workshop brews them cheaper.",
-	"afford_rack": "You can afford {piece} on the outfitter's rack, and it beats yours.",
-	"stash_full": "Your stash is full. Sell to the outfitter, or break pieces down at the Workshop.",
+	"belt_empty": "Your belt is empty. {outfitter} sells vials. The Workshop brews them cheaper.",
+	"afford_rack": "You can afford {piece} on {outfitter}'s rack, and it beats yours.",
+	"stash_full": "Your stash is full. Sell to {outfitter}, or break pieces down at the Workshop.",
 	"title_ready": "The Noble at a station would grant you a title: {title}. Read what it gives.",
 	"lessons": "A station's Training has {n} short lessons you haven't done. Each is a minute, and I talk you through it.",
 	"mark_close": "{mark} feels nearly deep enough for step {step}. Cast it, and bank at a stair.",
 	"climb": "Choose a tower at the Engine and pull the lever. Your best: floor {best}, in {tower}.",
 	"climb_play": "Up. The stair is somewhere on this floor.",
 	"none": "Nothing else. Climb.",
-}
+})
 
 ## The rest of its words in a talk.
-static var TEXT := {
+static var TEXT: Dictionary = OutfitterName.named({
 	"more": "Something else...",
 	"rivals_none": "You haven't met one yet.",
 	"dining_met": "You've met {n} so far.",
@@ -372,12 +373,12 @@ static var TEXT := {
 	"gathered": "{n} essence gathered. ",
 	"finds": "{n} finds. ",
 	"banked": "Banked at {n} stairs. ",
-	"pay": "The outfitter paid {pay}.",
+	"pay": "{outfitter} paid {pay}.",
 	"summary_none": "Your last climb was in {tower}. I kept the count, not the details. {best_line}",
 	"summary_empty": "Nothing yet. Do something.",
 	"events_none": "Nothing worth writing down.",
 	"hazards_none": "Nothing I'd warn you about.",
-}
+})
 
 
 # --- a conversation ---------------------------------------------------------------------

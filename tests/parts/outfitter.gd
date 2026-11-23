@@ -338,6 +338,8 @@ func _furniture(menu) -> Array:
 func _one_page(main) -> void:
 	var menu = main.menu
 	var prof = main.profile
+	var folded: bool = not bool(menu.settings["store_upgrades"])
+	menu.settings["store_upgrades"] = true  # (the tree open under Joel: outfitter_joel.gd tests it folded)
 	main.open_train()
 	await t._frames(2)
 	for rank in [0, Renown.RANKS.size() - 1]:
@@ -373,6 +375,8 @@ func _one_page(main) -> void:
 	await _open_store(main)
 	var lean_listed: bool = menu.train_page.store.listed
 	t._check(not lean_listed or menu.train_page.store._grid_height(prof, Train.shelf(prof).size(), 8, 1, 5, 330.0) > 0.0, "a lean stock on a computer: grids where they fit (listed: %s)" % lean_listed)
+	if folded:
+		menu.settings["store_upgrades"] = false
 
 
 ## The tree on screen: each node marked bought, open or locked; its card

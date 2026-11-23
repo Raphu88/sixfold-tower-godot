@@ -127,8 +127,11 @@ const COMPACT_H := 600.0
 ## "world_zoom": the camera (ui.gd WORLD_ZOOMS); "hud_scale": the HUD size,
 ## on top of the interface's. "entity_help": the Entity explains the train's
 ## buttons as you point at them, or hold them on a phone (entity_helper.gd).
+## "store_upgrades": the Outfitter's Car shows his upgrade tree open beside
+## the goods (on a wide screen; folded to its sign by default, so there's
+## room for the outfitter himself: store_page.gd).
 static var settings := {"music": 0.8, "sounds": 1.0, "shake": true, "help": false, "ui_size": "normal", "world_zoom": "normal", "hud_scale": "normal", "climber_tab": "abilities", "lighting": "", "effects": "medium",
-	"condense": Train.CONDENSE_DEFAULT, "train_rail": "menu", "abilities_tab": false, "entity_help": true, "split": true}
+	"condense": Train.CONDENSE_DEFAULT, "train_rail": "menu", "abilities_tab": false, "entity_help": true, "split": true, "store_upgrades": false}
 static var settings_loaded := false
 
 var main
@@ -4482,6 +4485,7 @@ static func load_settings_from(path: String) -> void:
 		settings[k] = cfg.get_value("settings", k, settings[k])
 	if not UI.UI_SIZES.has(str(settings["ui_size"])):
 		settings["ui_size"] = "normal"
+	settings["store_upgrades"] = settings["store_upgrades"] is bool and bool(settings["store_upgrades"])  # (anything odd in the file: folded)
 	if not UI.WORLD_ZOOMS.has(str(settings["world_zoom"])):
 		settings["world_zoom"] = "normal"
 	settings["condense"] = str(settings["condense"])

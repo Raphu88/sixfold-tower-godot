@@ -43,6 +43,7 @@ const Essence := preload("res://scripts/essence.gd")
 const Art := preload("res://scripts/icon_art.gd")
 const Palette := preload("res://scripts/palette.gd")
 const ItemPool := preload("res://scripts/item_pool.gd")
+const OutfitterName := preload("res://scripts/outfitter_name.gd")
 
 ## Weapons that need both hands (and every bow and crossbow, by kind).
 static var TWO_HANDS := ["greatsword", "war_hammer", "spear"]
@@ -76,7 +77,7 @@ static var USES := {
 static var RULES := {"front": 0.0, "break_stagger": 0.5, "sta_wait": 0.6, "wear_strike": 0.0008, "wear_block": 0.008}
 
 ## The words: the cards, the floating lines, the inventory.
-static var TEXT := {
+static var TEXT: Dictionary = OutfitterName.named({
 	"uses": {"weapon": "Off-hand weapon", "shield": "Shield", "wand": "Wand"},
 	"use_weapon": "Off-hand strike: adds a %s to your strike chains, just before the finisher (one-handed weapons and fists)",
 	"use_shield": "Hold parry to block: blows from in front hurt %s less, %d stamina each; you walk slower while guarding",
@@ -94,10 +95,10 @@ static var TEXT := {
 	"put_away": "Off-hand put away",
 	"no_wand": "No wand in your off-hand",
 	"stat_strike": "Off-hand strike", "stat_guard": "Block", "stat_guard_sta": "Block stamina", "stat_uses": "Pool uses",
-	"empty": "Your off-hand: a second one-handed weapon (an extra strike in your chains), a shield (hold parry to block) or a wand (a small power from its own pool). Slain monsters, vaults and the outfitter have them.",
+	"empty": "Your off-hand: a second one-handed weapon (an extra strike in your chains), a shield (hold parry to block) or a wand (a small power from its own pool). Slain monsters, vaults and {outfitter} have them.",
 	"where": "Off-hand",
 	"button": "Off-hand",
-}
+})
 
 
 # --- what's in the off-hand -------------------------------------------------------------

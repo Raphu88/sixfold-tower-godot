@@ -41,6 +41,7 @@ const Bench := preload("res://scripts/bench.gd")
 const Draw := preload("res://scripts/draw_util.gd")
 const UI := preload("res://scripts/ui.gd")
 const Art := preload("res://scripts/icon_art.gd")
+const OutfitterName := preload("res://scripts/outfitter_name.gd")
 
 ## Its item id on the belt (items.gd ITEMS).
 const ID := "vessel"
@@ -60,7 +61,7 @@ static var vault_force := -1.0
 const BRASS := Color(0.86, 0.64, 0.3)
 const GLASS := Color(0.62, 0.66, 0.74)
 
-static var TEXT := {
+static var TEXT: Dictionary = OutfitterName.named({
 	"captured": "+%d %s into the vessel  (%d / %d)",
 	"full": "The vessel is full",
 	"use_empty": "The vessel waits, empty",
@@ -84,12 +85,12 @@ static var TEXT := {
 	"took": "Packed for your next climb: the vessel",
 	"left": "Back in the stash: the vessel",
 	"belt_full": "your belt can't hold another kind",
-	"uses": "A full vessel can be traded to the outfitter (the store's Sell), worked into a piece at the workshop's bench (the Vessel counter), offered to the Maker of Marks as the Developer's bribe, or carried up and offered to a Maker when you plead for a change of path.",
-	"trade_title": "The outfitter will trade for it",
+	"uses": "A full vessel can be traded to {outfitter} (the store's Sell), worked into a piece at the workshop's bench (the Vessel counter), offered to the Maker of Marks as the Developer's bribe, or carried up and offered to a Maker when you plead for a change of path.",
+	"trade_title": "{outfitter} will trade for it",
 	"trade_one": "%d %s",
 	"trade_mixed": "%d of every kind (%d in all)",
-	"trade_ask": "Trade your full vessel to the outfitter for %s? The vessel is gone.",
-	"trade_full_only": "The outfitter only trades for a full vessel.",
+	"trade_ask": "Trade your full vessel to {outfitter} for %s? The vessel is gone.",
+	"trade_full_only": "{outfitter} only trades for a full vessel.",
 	"traded": "Traded: your vessel for %s",
 	# The bench
 	"brew_title": "Brew a vessel",
@@ -115,7 +116,7 @@ static var TEXT := {
 	"dev_empty": "Give an empty vessel",
 	"dev_full": "Give a full vessel",
 	"dev_given": "A vessel: %s",
-}
+})
 
 
 # --- records -------------------------------------------------------------------------

@@ -423,12 +423,12 @@ func _main_row(root: Node) -> HBoxContainer:
 
 
 ## The Entity's extra tips in the store: the shelf has grown with a rank,
-## a worn title tilts the rail, and the upgrade tree (once it shows: beside
-## the goods, or its own view behind the sign) (the first time each).
+## a worn title tilts the rail, and the upgrade tree (once it shows: open
+## beside the goods, or its own view behind the sign) (the first time each).
 func _shop_tips() -> Array:
 	var out: Array = []
 	var prof = _prof()
-	if store.tree_fits() or m.train_store == "tree":
+	if (store.tree_fits() and store.upgrades_wanted()) or m.train_store == "tree":
 		out.append("shop_tree")
 	if Renown.rank(prof) >= 1:
 		out.append("shop_grows")
