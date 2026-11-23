@@ -437,6 +437,15 @@ func add(pos: Vector2, room := -1, kind := "") -> Dictionary:
 func _line(k: String, rec: Dictionary) -> String:
 	var pool: Array = LINES.get(k, [])
 	var said: String = String(pool[randi() % pool.size()]) if not pool.is_empty() else ""
+	var prof = main.profile if main != null else null
+	if k in ["trade", "team", "duel"] and prof != null:
+		var Lore = load("res://scripts/city_lore.gd")
+		var aura: String = Lore.aura_line(prof, "rival")  # (the aura changes how people speak: city_lore.gd AURA)
+		if aura != "":
+			said = aura + " " + said
+		var w: String = Lore.passing_word(prof)  # (an Unbound is taken for marked; a rumour of one found out)
+		if w != "":
+			said += " " + w
 	if rec.get("returning", false) and int(rec.get("robbed", 0)) > 0:
 		said = String(LINES["robbed"][0])
 	elif rec.get("returning", false) and k != "rescue" and k != "gift":

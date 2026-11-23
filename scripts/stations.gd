@@ -538,7 +538,8 @@ static func fee(profile, type: String, id: String) -> int:
 			return Training.fee(profile, id)  # (paid in its own kind: fee_kind)
 	if base <= 0:
 		return 0
-	return maxi(0, int(round(float(base) * (1.0 - clampf(cut, 0.0, 1.0)))))
+	var dear: float = load("res://scripts/city_lore.gd").price_mult(profile)  # (an Unbound found out this visit pays more: city_lore.gd PASSING)
+	return maxi(0, int(round(float(base) * (1.0 - clampf(cut, 0.0, 1.0)) * dear)))
 
 
 ## The kind an event's fee is paid in: "any" (crystals of any kind, the

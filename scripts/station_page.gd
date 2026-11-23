@@ -35,6 +35,7 @@ const Rivals := preload("res://scripts/rivals.gd")
 const Travel := preload("res://scripts/travel.gd")
 const Training := preload("res://scripts/training.gd")
 const Tournaments := preload("res://scripts/tournaments.gd")
+const Lore := preload("res://scripts/city_lore.gd")  # (an Unbound passing as marked; the Noble's persuasion)
 
 static var T := Stations.TEXT
 static var TT := Training.TEXT
@@ -87,6 +88,8 @@ func arrive(id: String, at := "", pick := "", words: Array = []) -> void:
 		said = {}
 		rank_said = ""
 	station = id if Stations.station_ids().has(id) else String(Stations.STATIONS[0]["id"])
+	if arriving and m.main != null and m.main.profile != null and Lore.on_visit(m.main.profile, station):
+		m.main.profile.save()  # (an Unbound found out this visit: city_lore.gd PASSING)
 	var ids := stop_ids()
 	stop = at if ids.has(at) else (ids[0] if not ids.is_empty() else "gym")
 	if arriving and words.is_empty() and m.get("tour") != null:
@@ -223,6 +226,15 @@ func _top_words(prof) -> void:
 		r1.set_meta("entity", "rank")
 		r1.set_meta("arrange", "note")  # (Arrange mode: a note, so the list's row keeps its name)
 		m.box.add_child(r1)
+	if Lore.found_out(prof, station):
+		var fb := Label.new()
+		fb.text = Lore.banner()  # (found out: flat, in the warning colour, on every stop)
+		fb.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		fb.custom_minimum_size.x = minf(420.0, _avail())
+		fb.add_theme_font_size_override("font_size", 14 if _small() else 15)
+		fb.add_theme_color_override("font_color", UI.BAD)
+		fb.set_meta("found_out", true)
+		m.box.add_child(fb)
 	if m.get("tour") != null and m.tour.active() and m.tour.which == "station":
 		m.tour.bar(m.box, _small())  # (the Entity's tour: its words, Next and Skip; the stop's own tips wait)
 		return
@@ -275,6 +287,11 @@ func stop_tips(prof) -> Array:
 		"noble":
 			if closed:
 				ids.push_front("grace")
+	# An Unbound in the cities: passing as marked, and being found out (city_lore.gd).
+	if Lore.found_out(prof, station):
+		ids.push_front("found_out")
+	elif load("res://scripts/unbound.gd").is_on(prof):
+		ids.append("unbound_passing")
 	return ids
 
 
@@ -492,8 +509,17 @@ func _noble(left: Node) -> void:
 	var prof = _prof()
 	_section(left, Noble.name_of(station))
 	if not said.has("noble_line"):
-		said["noble_line"] = Noble.greet(prof, -1.0, station)  # (now and then a rumour of the guardians: guardian_lessons.gd; word of wild towers: wild_towers.gd)
-	_line(left, String(said["noble_line"]), UI.GOLD)
+		var told_before := int(Lore.state(prof)["persuaded"])
+		said["noble_line"] = Noble.greet(prof, -1.0, station)  # (now and then a rumour of the guardians: guardian_lessons.gd; word of wild towers: wild_towers.gd; the aura, the persuasion, found out: city_lore.gd)
+		if int(Lore.state(prof)["persuaded"]) > told_before:
+			prof.save()
+			if m.main != null:
+				said["noble_persuades"] = m.main.tip_now("noble_persuades")  # (the first time the Noble tries to talk you into stopping)
+	_line(left, String(said["noble_line"]), UI.BAD if Lore.found_out(prof, station) else UI.GOLD).set_meta("noble_line", true)
+	if String(said.get("noble_persuades", "")) != "":
+		var pb := Entity.says(String(said["noble_persuades"]), 28.0 if _small() else 34.0)
+		pb.set_meta("entity", "noble_persuades")
+		left.add_child(pb)
 	if Training.required(prof):
 		# The Noble's Grace (training.gd): what lets a climber into the towers.
 		var gt = _tile(left, "grace:grace", String(TT["grace"]), TT["grace_have"] if Training.has_grace(prof) else TT["grace_not"], "title", UI.GILT if Training.has_grace(prof) else UI.GILT_HI)
@@ -1040,6 +1066,9 @@ func _redraw_rail() -> void:
 
 
 func _grant(id: String) -> void:
+	if Lore.found_out(_prof(), station):
+		_again("title:" + id, [Lore.TEXT["refused"]], "ui_back", "grant")  # (found out: no titles this visit)
+		return
 	if not Renown.grant(_prof(), id):
 		return
 	_redraw_rail()
@@ -1055,6 +1084,9 @@ func _wear(id: String) -> void:
 
 
 func _take(id: String) -> void:
+	if Lore.found_out(_prof(), station):
+		_again("contract:" + id, [Lore.TEXT["refused"]], "ui_back", "take")  # (found out: no contracts this visit)
+		return
 	var o := Contracts.find(_prof(), id)
 	var why := Contracts.take(_prof(), id)
 	if why == "":

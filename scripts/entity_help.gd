@@ -189,6 +189,7 @@ static var HELP := {
 	"ub_part_sealed": "A sealed Node: it takes no essence and gives nothing. Press it to choose it: on the train, Unseal it below (it starts again asleep, at size 0).",
 	"sworn": "You carry a Maker's secret bond, so you are one of its Sworn. Now and then, after a climb, it sends you to a floor of another tower for a few crystals of that tower's essence; the errand shows under this. Press it to ask me how the Sworn work.",
 	"ub_seal":"Seals this Node: it takes no essence, and what it holds condenses into crystals; its size, technique, gift, minor ability and attributes are gone. Each sealed Node makes your open Nodes grow faster from use and hit harder. Press twice: the first press only asks. On the train only; one Node always stays open.",
+	"mark_seal_break": "Breaks the seal on your faint mark: the mark comes away, every mark with it, and you are Unbound, for good. Press twice: the first press only asks. On the train only, and only while the mark is still faint; once it has grown to full strength the seal is gone.",
 	"ub_unseal": "Opens this sealed Node again. It starts asleep, at size 0, and soaks up the essence routed to it until it wakes. Your open Nodes lose its share of the sealing bonus. On the train only.",
 	"ub_part_asleep":"A sleeping Node: it holds nothing and shows no numbers until it wakes. Press it to feed it essence from an awake Node (Move essence, below).",
 	"ub_move_from": "The awake Node to move essence out of. Press for the next one, or press a Node's card above.",

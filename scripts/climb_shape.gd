@@ -199,7 +199,10 @@ func regard_lines(rg: Dictionary, info: Dictionary, part_name: String) -> Array:
 		var fell: Array = TEXT["regard_lines_fell"]
 		return [fell[0] % [on_floor, beast], fell[1] % [part_name, int(round(s * 100.0))], fell[2] % info["name"], fell[3]]
 	var top: Array = TEXT["regard_lines_top"]
-	return [top[0] % [on_floor, beast.capitalize()], top[1] % part_name, top[2] % info["name"], top[3] % [info["spells"][0]["name"], main.BondScript.PART_FILLS[rg["part"]]]]
+	var said: Array = [top[0] % [on_floor, beast.capitalize()], top[1] % part_name, top[2] % info["name"], top[3] % [info["spells"][0]["name"], main.BondScript.PART_FILLS[rg["part"]]]]
+	if rg.has("glimpse"):
+		said.append_array(load("res://scripts/fracture.gd").charge(beast.capitalize()))  # (after the glimpse: the guardian's charge)
+	return said
 
 
 ## Under the Regard: what dismissing it leads to.

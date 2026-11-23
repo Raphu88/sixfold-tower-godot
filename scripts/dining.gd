@@ -435,11 +435,23 @@ static func attitude(prof, rec: Dictionary) -> String:
 	return "plain"
 
 
-## What they say first: your history with them, else their marks.
-static func greeting(prof, rec: Dictionary) -> String:
+## What they say first: your history with them, else their marks (on the
+## path of Making or Unmaking, often a line for the aura's step in place of
+## the plain words; for an Unbound, now and then a word about passing as
+## marked: city_lore.gd). `chance` for tests.
+static func greeting(prof, rec: Dictionary, chance := -1.0) -> String:
+	var Lore = load("res://scripts/city_lore.gd")
+	var said := _greeting(prof, rec, Lore.aura_line(prof, "dining", chance))  # (the aura changes how people speak: city_lore.gd AURA)
+	var w: String = Lore.passing_word(prof, chance)  # (an Unbound passes as marked; a rumour of one found out: city_lore.gd PASSING)
+	return said + " " + w if w != "" else said
+
+
+## The greeting itself: `aura` (the aura's line, or "") in place of the
+## plain words for a new face or an old acquaintance.
+static func _greeting(prof, rec: Dictionary, aura: String) -> String:
 	var fill := mark_fill(rec)
 	if int(rec.get("met", 0)) <= 0:
-		return say("first", fill)
+		return aura if aura != "" else say("first", fill)
 	if int(rec.get("robbed", 0)) > int(rec.get("rescued", 0)):
 		return say("robbed", fill)
 	if int(rec.get("rescued", 0)) > 0:
@@ -450,7 +462,7 @@ static func greeting(prof, rec: Dictionary) -> String:
 		return say("won", fill)
 	if int(rec.get("duels_lost", 0)) > 0:
 		return say("lost", fill)
-	var said := say("again", fill) + " " + say("mark", fill)
+	var said := (aura if aura != "" else say("again", fill)) + " " + say("mark", fill)
 	if randf() < float(RULES.get("entity_chance", 0.0)):
 		said += " " + say("entity", fill)  # (rarely, in passing: their own Entity)
 	return said
