@@ -36,7 +36,7 @@ static var TEXT := {
 ## chest: essence (base, per floor, a dead end's times); item chance (seldom:
 ## one with no item holds "no_item" times the essence) and gear chance;
 ## rest: health a second; trader: what an item costs (base, per floor).
-static var RULES := {"chest_base": 4.0, "chest_per_floor": 1.5, "chest_rich": 1.6, "item_chance": 0.04, "no_item": 1.25, "gear_chance": 0.12, "gear_rich": 0.25,
+static var RULES := {"chest_base": 3.5, "chest_per_floor": 1.3125, "chest_rich": 1.6, "item_chance": 0.04, "no_item": 1.25, "gear_chance": 0.12, "gear_rich": 0.25,
 	"rest_heal": 3.0, "trade_base": 10.0, "trade_per_floor": 2.0, "reach": 28.0, "check": 0.3}
 
 var main

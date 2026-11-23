@@ -70,7 +70,9 @@ func _refill_and_deepen() -> void:
 	var marks := 200.0 * 4.0 / 7.0
 	_check(is_equal_approx(float(out["refilled"].get("hand", 0.0)), 30.0), "the stair first refills what the mark used (%.1f)" % float(out["refilled"].get("hand", 0.0)))
 	_check(is_equal_approx(float(prof.bonds["hand"]["xp"]), 10.0 + 18.0), "...then deepens it by 0.6 x that use (%.1f deep)" % float(prof.bonds["hand"]["xp"]))
-	_check(prof.crystal_total("air") == floorf(marks - 30.0 - 18.0) and float(out["mark_left"]) == floorf(marks - 30.0 - 18.0), "...and what's left of the marks' share condenses into crystals (%d)" % int(prof.crystal_total("air")))
+	var left := marks - 30.0 - 18.0
+	var cond := floorf(left * float(load("res://scripts/essence_flow.gd").OVERFLOW["crystals"]))
+	_check(prof.crystal_total("air") == cond and float(out["mark_left"]) == cond and is_equal_approx(float(out["over"]), left) and is_equal_approx(float(out["lost"]), left - cond), "...and of what's left of the marks' share, a share condenses into crystals (%d of %d), the rest goes back to the well" % [int(prof.crystal_total("air")), int(left)])
 	_check(MU.used(prof, "hand") == 0.0 and out["deepened"].has("hand") and out["lines"].any(func(l): return String(l) == MU.TEXT["deepened"] % "Hand"), "its use is spent, and the stair says it deepened with use (no numbers)")
 	# No cap a climb: every stair of a long climb deepens it again.
 	prof = _prof(0.0)
@@ -102,7 +104,8 @@ func _trickle_and_kinds() -> void:
 	prof.pour({"air": 200.0}, {}, 0.0)
 	var marks := 200.0 * 4.0 / 7.0
 	var want := marks * float(MU.USE["trickle"])
-	_check(is_equal_approx(float(prof.bonds["hand"]["xp"]), want) and prof.crystal_total("air") == floorf(marks - want), "a mark that wasn't used takes in a trickle (%.1f); the rest condenses (%d)" % [float(prof.bonds["hand"]["xp"]), int(prof.crystal_total("air"))])
+	var of := float(load("res://scripts/essence_flow.gd").OVERFLOW["crystals"])
+	_check(is_equal_approx(float(prof.bonds["hand"]["xp"]), want) and prof.crystal_total("air") == floorf((marks - want) * of), "a mark that wasn't used takes in a trickle (%.1f); a share of the rest condenses (%d), the rest goes back to the well" % [float(prof.bonds["hand"]["xp"]), int(prof.crystal_total("air"))])
 	var used = _prof(0.0)
 	MU.note_use(used, "hand", 30.0)
 	used.pour({"air": 200.0}, {}, 0.0)
@@ -112,7 +115,7 @@ func _trickle_and_kinds() -> void:
 	MU.note_use(f, "hand", 30.0)
 	f.pour({"fire": 300.0}, {}, 0.0)
 	var fire := 300.0 * 4.0 / 7.0
-	_check(is_equal_approx(float(f.bonds["hand"]["xp"]), 18.0) and f.crystal_total("fire") == floorf(fire - 48.0 / float(MU.USE["other"])), "another kind pays a third: Fire into an Air mark (%d Fire left)" % int(f.crystal_total("fire")))
+	_check(is_equal_approx(float(f.bonds["hand"]["xp"]), 18.0) and f.crystal_total("fire") == floorf((fire - 48.0 / float(MU.USE["other"])) * of), "another kind pays a third: Fire into an Air mark (%d Fire left)" % int(f.crystal_total("fire")))
 	# The body's marks slow it.
 	var two = _prof(0.0)
 	two.add_bond("legs", "tidecaller", false)

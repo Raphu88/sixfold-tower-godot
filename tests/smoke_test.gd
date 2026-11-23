@@ -8678,12 +8678,10 @@ func _economy_tests() -> void:
 	var prof = main.profile
 	var p = main.player
 	var menu = main.menu
-	var setting0 = M.settings["condense"]
 	main.grant_test_bonds()
-	# Condensing at a stair: the set share, per kind; only the rest is banked.
-	M.settings["condense"] = T.CONDENSE_DEFAULT
-	var share: float = T.condense_share(M.settings)
-	_check(is_equal_approx(share, 0.3), "condensing starts at 30% (the split's crystals: essence_flow.gd)")
+	# Condensing at a stair: the fixed share, per kind; only the rest is banked.
+	var share: float = T.condense_share()
+	_check(is_equal_approx(share, 0.2), "condensing is a fixed 20% (the split's crystals: essence_flow.gd SPLIT)")
 	prof.crystals = []
 	var twin = PS.new()
 	twin.saving = false
@@ -8714,33 +8712,12 @@ func _economy_tests() -> void:
 	ub.bank(cond["keep"], {})
 	var part: String = U.part_for(ub, "blade")
 	_check(ub.crystal_total("blade") == floorf(40.0 * share) and is_equal_approx(U.size(ub, part), (40.0 - floorf(40.0 * share)) * U.LEVEL_SIZE / float(U.GROW_COST[0])) and U.own(ub, part) == 0.0, "the Unbound condense the same share; only the rest soaks into the sleeping %s Node (slowly)" % part)
-	# The setting: on the Settings page, saved with the settings.
+	# No longer a setting: the Settings page has no row for it.
 	menu.open("settings")
 	await _frames(2)
 	var row: Array = _all_buttons(menu).filter(func(b): return b.get_meta("choice_key", "") == "condense")
-	_check(row.size() == T.CONDENSE_CHOICES.size(), "Settings has a row for the share (%d choices)" % row.size())
-	var b35: Array = row.filter(func(b): return b.get_meta("choice", "") == "50")
-	if b35.size() == 1:
-		b35[0].pressed.emit()
-		await _frames(2)
-	_check(M.settings["condense"] == "50" and is_equal_approx(T.condense_share(M.settings), 0.5), "choosing 50% changes the share")
+	_check(row.is_empty() and not M.settings.has("condense"), "Settings has no \"To crystals\" row any more (the share is fixed)")
 	menu.close()
-	var path := TestRun.path("user://smoke_condense_test.cfg")
-	M.save_settings_to(path)
-	M.settings["condense"] = "20"
-	M.load_settings_from(path)
-	_check(M.settings["condense"] == "50", "...and it's saved with the settings")
-	DirAccess.remove_absolute(ProjectSettings.globalize_path(path))
-	M.settings["condense"] = "0"
-	prof.crystals = []
-	main.player.set_physics_process(true)
-	main.floor_num = 4
-	main.run_essence = {"water": 30.0}
-	main._arrive()
-	var m0 := roundi(30.0 * 4.0 / 7.0)
-	var want0: String = main.Flow.TEXT["split"] % [30, 30 - m0, m0, 0]
-	_check(main.banner.get("lines", []).has(want0), "at 0%% none of the stair's essence goes to crystals (only what the marks can't take condenses): %s" % str(main.banner.get("lines", [])))
-	M.settings["condense"] = T.CONDENSE_DEFAULT
 	# The outfitter pays for a fall: per floor reached, more past your best.
 	await _fresh_main()
 	prof = main.profile
@@ -8863,7 +8840,6 @@ func _economy_tests() -> void:
 	buy = _car_buttons("buy", "scroll")
 	_check(buy.size() == 1 and buy[0].disabled, "...its Buy is off")
 	menu.close()
-	M.settings["condense"] = setting0
 	paused = false  # (the train's menu pauses the tree; the next test needs it running)
 
 
@@ -13160,8 +13136,8 @@ func _climber_slot_tests() -> void:
 	Guide.forget()
 	Guide.loaded_from = ""
 	# Settings live in the shared file, never in a climber's.
-	var keep_condense = M.settings["condense"]
-	M.settings["condense"] = "35"
+	var keep_music = M.settings["music"]
+	M.settings["music"] = 0.35
 	M.save_settings_to(S.settings_path())
 	var c1 := ConfigFile.new()
 	c1.load(S.path(1))
@@ -13171,7 +13147,7 @@ func _climber_slot_tests() -> void:
 	await _frames(2)
 	var prof = main.profile
 	_check(S.current() == 2 and prof.save_path == S.path(2) and prof.appearance["name"] == "Bryn" and prof.bonds.size() == 2 and main.player.bonds.has("legs") and prof.crystal_total("fire") == 0.0, "switching to slot 2 plays its climber (marks, crystals)")
-	_check(main.climber_look == A.look(prof.appearance) and prof.chest.is_empty() and M.settings["condense"] == "35", "...in their own look and train, the settings unchanged")
+	_check(main.climber_look == A.look(prof.appearance) and prof.chest.is_empty() and is_equal_approx(float(M.settings["music"]), 0.35), "...in their own look and train, the settings unchanged")
 	Engine.remove_meta("sixfold_title_seen")
 	S.forget()
 	_check(S.current() == 2, "the slot played last is remembered")
@@ -13180,7 +13156,7 @@ func _climber_slot_tests() -> void:
 	prof.save()
 	prof.saving = false
 	_check(S.peek(2).crystal_total("water") == 10.0 and S.peek(1).crystal_total("water") == 0.0 and S.peek(1).crystal_total("fire") == 50.0, "the climber played saves only into their own slot")
-	M.settings["condense"] = keep_condense
+	M.settings["music"] = keep_music
 	# The title: Climbers, naming the current climber.
 	main.choosing_tower = true
 	menu.open("title")
@@ -13268,7 +13244,7 @@ func _climber_slot_tests() -> void:
 	old.set_value("look", "appearance", {"name": "Old", "cloak": "plum"})
 	old.set_value("look", "created", true)
 	old.set_value("unbound", "state", {"on": false})
-	old.set_value("settings", "condense", "35")
+	old.set_value("settings", "shake", false)
 	old.set_value("settings", "music", 0.4)
 	old.set_value("pad", "layouts", {"Some pad": {"a": 1}})
 	old.save(S.settings_path())
@@ -13289,7 +13265,7 @@ func _climber_slot_tests() -> void:
 	_check(m.created and m.regarded and m.bonds.size() == 2 and m.crystal_total("fire") == 30.0 and m.chest.size() == 1 and m.path == "life" and m.appearance["name"] == "Old" and m.climbs == 4 and m.best_floor == 5, "...and it loads as the same climber")
 	var st := ConfigFile.new()
 	st.load(S.settings_path())
-	_check(st.get_value("settings", "condense", "") == "35" and st.has_section("pad") and st.get_value("guide", "on", true) == false and not st.has_section("profile") and not st.has_section("train") and not st.has_section_key("guide", "told"), "...the settings file keeps only what's shared (settings, controller, tips on or off)")
+	_check(st.get_value("settings", "shake", true) == false and st.has_section("pad") and st.get_value("guide", "on", true) == false and not st.has_section("profile") and not st.has_section("train") and not st.has_section_key("guide", "told"), "...the settings file keeps only what's shared (settings, controller, tips on or off)")
 	var bak := ConfigFile.new()
 	_check(bak.load(S.backup_path()) == OK and bak.get_value("profile", "climbs", 0) == 4 and bak.get_value("settings", "music", 0.0) == 0.4, "...and a copy of the old file is kept as it was")
 	Guide.load_from(S.settings_path(), S.path(1))

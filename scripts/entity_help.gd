@@ -227,7 +227,6 @@ static var HELP: Dictionary = OutfitterName.named({
 	"setting:hud_scale": "How big the bars and slots are in play. This one: {choice}.",
 	"setting:lighting": "Lighting quality. Lower is kinder to a phone. This one: {choice}.",
 	"setting:effects": "Sparks, embers and glints from enchanted weapons and spells. Low keeps the lights, Medium is usual, High adds more. This one: {choice}.",
-	"setting:condense": "How much of what you bank at a stair becomes crystals: {choice}. Your body and your marks share the rest.",
 	"setting:entity_help": "Me, explaining buttons as you point at them, or hold them on a phone.",
 	"setting:arrange": "Arrange mode: move and resize what's on this screen yourself. On the train: each car's furniture and what's on it; ‹ Car and Car › move along. Save keeps it.",
 	"setting:arrange_train": "Back to the train, in Arrange mode: move and resize each car's furniture and what's on it.",

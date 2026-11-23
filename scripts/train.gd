@@ -24,7 +24,7 @@ extends RefCounted
 ##
 ## Essence crystals are the only currency (profile.gd keeps them as
 ## {kind, amount}, one crystal of each kind). Every price is in one kind of
-## essence. Crystals come from condensing at every stair (CONDENSE_*), the
+## essence. Crystals come from condensing at every stair (condense_share), the
 ## outfitter's pay for every climb (CLIMB_PAY), selling, and prizes. Names, words,
 ## prices and numbers live here so they're easy to change.
 
@@ -38,6 +38,7 @@ const Charms := preload("res://scripts/charms.gd")
 const Shop := preload("res://scripts/shop.gd")
 const Outfitter := preload("res://scripts/outfitter.gd")
 const OutfitterName := preload("res://scripts/outfitter_name.gd")
+const BasicGift := preload("res://scripts/basic_gift.gd")
 const VESSEL := "res://scripts/vessel.gd"  # (loaded when needed: vessel.gd preloads the bench, which preloads this)
 
 ## The cars, front to back: [id, name]. The train opens on HOME. (Their short
@@ -113,17 +114,13 @@ const ANY := "any"
 static var ANY_PRICE := {"scroll": 60}
 
 ## Condensing (at every stair, the first climb's too): the crystals' part of
-## the split (essence_flow.gd SPLIT): this share of the essence you bank
-## becomes essence crystals, per kind and in proportion (whole essence only:
-## a kind with too little for one whole essence goes to your body and marks
-## in full), and your body and your marks share the rest. Crystals are the
-## train's money. Settings changes the share (CONDENSE_CHOICES, in percent);
-## it's kept with the settings (menu.gd), so a new climber keeps it. (Before
-## the split the default was 20%: a settings file from then that still held
-## it moves to the new default once, menu.gd load_settings_from.)
-const CONDENSE_DEFAULT := "30"
-const CONDENSE_OLD_DEFAULT := "20"
-const CONDENSE_CHOICES := [["0", "0%"], ["10", "10%"], ["20", "20%"], ["30", "30%"], ["50", "50%"]]
+## the split, a fixed share in data (essence_flow.gd SPLIT "crystals", in the
+## Data editor): that share of the essence you bank becomes essence crystals,
+## per kind and in proportion (whole essence only: a kind with too little for
+## one whole essence goes to your body and marks in full), and your body and
+## your marks share the rest. Crystals are the train's money. (It was once a
+## setting, "To crystals": the owner fixed it, and an old saved value is
+## ignored: condense_share.)
 ## The outfitter's pay for a climb, however it ends (a fall too): crystals of
 ## the tower's kind, PER_FLOOR for every floor reached and PER_BEST more for
 ## every floor past your best in that tower before the climb.
@@ -231,11 +228,9 @@ static var TEXT: Dictionary = OutfitterName.named({
 	"depart_none": "nothing in your pack",
 	"depart_risk": "Fall, and your pack and belt are lost; your stash, heirlooms and crystals are safe.",
 	"last": "last climbed",
-	# Condensing at the stair (main.gd _arrive), its setting, and the outfitter's pay for a climb
+	# Condensing at the stair (main.gd _arrive), and the outfitter's pay for a climb
 	"banked": "Banked %d essence",
 	"condensed": "%d condensed into crystals",
-	"condense_setting": "To crystals",
-	"condense_note": "At each stair the essence you bank splits three ways: this share condenses into crystals (the train's money), and your body and your marks share the rest.",
 	"pay": "{outfitter} pays for your climb: +%s",
 	# The Library: the Entity's Archive on its shelves, read at the lectern
 	"bookcase": "The Entity's Archive  ·  %s",
@@ -321,10 +316,11 @@ static func gear_price(g) -> int:
 
 ## What a piece sells for: SELL_SHARE of its price (with a `profile`, his
 ## tree's better share: outfitter.gd sell_share; less for a worn Common
-## piece), at least 1.
+## piece), at least 1. The basic sword and bow sell for nothing: nobody buys
+## what's given away (basic_gift.gd).
 static func gear_sell(g, profile = null) -> int:
 	var r := Gear.rec(g)
-	if r.is_empty():
+	if r.is_empty() or BasicGift.is_basic(r):
 		return 0
 	var k := maxf(Gear.condition(r), WORN_SELL)
 	var share := Outfitter.sell_share(profile) if profile != null else SELL_SHARE
@@ -368,12 +364,9 @@ static func item_sell(id: String) -> Array:
 # --- condensing and the outfitter's pay ------------------------------------------------
 
 ## The share of banked essence that condenses into crystals at a stair (0 to
-## 1), from the settings (menu.gd: "condense", in percent).
-static func condense_share(settings: Dictionary) -> float:
-	var pct := str(settings.get("condense", CONDENSE_DEFAULT))
-	if not CONDENSE_CHOICES.any(func(c): return c[0] == pct):
-		pct = CONDENSE_DEFAULT
-	return clampf(float(pct) / 100.0, 0.0, 1.0)
+## 1): fixed, essence_flow.gd SPLIT "crystals" (no longer a setting).
+static func condense_share() -> float:
+	return load("res://scripts/essence_flow.gd").default_crystal_share()
 
 
 ## What the outfitter pays for a climb that reached `reached` in a tower whose
@@ -552,9 +545,10 @@ static func hold(profile, i: int) -> String:
 
 
 ## The Common pieces anyone can buy: weapons, armor and worn pieces that
-## are Common by nature.
+## are Common by nature. Never the basic sword or bow: the outfitter gives
+## those away (basic_gift.gd).
 static func common_pool(profile = null) -> Array:
-	var out: Array = Gear.WEAPON_DROP_WEIGHT.keys().filter(func(id): return profile == null or Shop.piece_open(profile, id))  # (pistols and crossbows hang later: shop.gd WEAPON_RANK)
+	var out: Array = Gear.WEAPON_DROP_WEIGHT.keys().filter(func(id): return (profile == null or Shop.piece_open(profile, id)) and not BasicGift.is_basic_base(String(id)))  # (pistols and crossbows hang later: shop.gd WEAPON_RANK)
 	for id in Gear.ARMOR_ORDER:
 		if id != "":
 			out.append(id)
@@ -830,12 +824,15 @@ static func move(profile, player, where: String, i: int) -> String:
 
 
 ## Sells a piece from your pack or chest: it becomes a crystal of its kind.
-## Returns what it fetched ("5 Blade"), or "" if there was nothing there.
+## Returns what it fetched ("5 Blade"), or "" if there was nothing there
+## (or it can't be sold: the basic sword and bow, basic_gift.gd).
 static func sell(profile, where: String, i: int) -> String:
 	var from := _list(profile, where)
 	if i < 0 or i >= from.size():
 		return ""
 	var g = from[i]
+	if not can_sell(g):
+		return ""
 	var kind := gear_kind(g)
 	var got := gear_sell(g, profile)
 	from.remove_at(i)
@@ -844,28 +841,44 @@ static func sell(profile, where: String, i: int) -> String:
 	return price_text(kind, got)
 
 
+## Can this piece be sold (to the store or a climber, or broken down at
+## the bench)? Not the basic sword or bow: they're given away (basic_gift.gd).
+static func can_sell(g) -> bool:
+	return Gear.is_gear(g) and not BasicGift.is_basic(g)
+
+
+## Does the basic sword or bow worn in `slot` (`held`) give way to a pack
+## piece as you set off? Only if it isn't your heirloom and your stash has
+## room for it (it waits there, safe on the train).
+static func basic_yields(profile, slot: String, held) -> bool:
+	return BasicGift.is_basic(held) and profile.chest.size() < CHEST_SIZE \
+		and Gear.heirloom_pieces(profile.heirlooms, Gear.heirloom_slot_for_carry(slot)).is_empty()
+
+
 ## Leaving the train for a tower: pieces in your pack go on in any slot
-## that's empty (or holds only the starting sword or bow, not an
-## heirloom); the rest go up the tower in your pack. Packed supplies go
-## onto your belt. The store's stock clears, for new stock next visit.
+## that's empty, or that holds only the basic sword or bow (which then
+## waits in your stash: basic_yields); the rest go up the tower in your
+## pack. Packed supplies go onto your belt. The store's stock clears, for
+## new stock next visit.
 static func pack_up(profile, player) -> void:
 	if not profile.wear.is_empty():
-		dress(profile, player)  # (what you chose to wear goes on first, over the heirloom or starting piece)
-	var starts := {"melee": Gear.make(Gear.Weapons.START_MELEE), "ranged": Gear.make(Gear.Weapons.START_RANGED)}
+		dress(profile, player)  # (what you chose to wear goes on first, over the heirloom)
 	for g in profile.pack:
 		var r := Gear.rec(g)
 		if r.is_empty():
 			continue
 		var slot: String = player.slot_for(r)
 		var held = player.gear.get(slot, {})
-		var free: bool = not Gear.is_gear(held) or (starts.has(slot) and Gear.same(held, starts[slot]) and not profile.wear.has(slot) \
-			and Gear.heirloom_pieces(profile.heirlooms, Gear.heirloom_slot_for_carry(slot)).is_empty())
-		if free:
+		var yields := basic_yields(profile, slot, held)
+		if not Gear.is_gear(held) or yields:
+			if yields:
+				profile.chest.append(Gear.rec(held))  # (the basic piece waits in your stash)
 			player.take_gear(r, slot)
 		else:
 			player.pack.append(r)
 	profile.pack = []
 	profile.wear = {}  # (it's on you now: worn pieces, like any you find)
+	BasicGift.departing(profile)  # (what you wear is out on the climb: fall, and the sword and bow come back as gifts)
 	load(VESSEL).pack_up(profile, player)  # (a vessel packed from the chest goes on the belt)
 	for id in profile.supplies.keys():
 		for k in int(profile.supplies[id]):
@@ -886,10 +899,12 @@ static func pack_up(profile, player) -> void:
 # --- the loadout: what you'll wear when you set off ---------------------------------
 # On the train you choose what to wear from your pack or your stash
 # (loadout_page.gd). The chosen pieces (profile.wear: carried slot ->
-# record) go on as you depart, over your heirloom or the starting piece in
-# that slot (an heirloom you don't wear waits on the train, still yours);
-# from then on they're worn pieces like any you find. Pieces left in your
-# pack still go on in a slot nothing is worn in (pack_up). The climber on
+# record) go on as you depart, over your heirloom in that slot (an
+# heirloom you don't wear waits on the train, still yours); from then on
+# they're worn pieces like any you find. Pieces left in your pack still go
+# on in a slot nothing is worn in, or that holds only the basic sword or
+# bow (pack_up). A new climber's basic sword and bow are chosen pieces
+# like any other (basic_gift.gd): nothing puts them back by itself. The climber on
 # the train wears the loadout already (dress), so the climber screen and
 # the figure show it.
 
@@ -907,11 +922,13 @@ const SLOT_ORDER := ["melee", "ranged", "armor", "helm", "gloves", "legs", "boot
 
 
 ## What you'd wear with these chosen pieces (`wear`, else profile.wear):
-## the starting sword and bow, your heirlooms in their slots, then the chosen
-## pieces over them (carried slot -> record).
+## your heirlooms in their slots, then the chosen pieces over them (carried
+## slot -> record). Nothing else: the basic sword and bow are chosen pieces.
 static func dressed(profile, wear = null) -> Dictionary:
 	var chosen: Dictionary = profile.wear if wear == null else wear
-	var g := Gear.start_gear()
+	var g := {}
+	for s in Gear.SLOTS:
+		g[s] = {}
 	for hs in profile.heirlooms:
 		var gs := Gear.gear_slot_for(String(hs))
 		if gs == "":
@@ -934,20 +951,20 @@ static func dress(profile, player) -> void:
 
 
 ## What you'll set off in, slot by slot: {slot: {"rec", "from"}} where
-## "from" is "wear" (chosen), "heir" (your heirloom), "start" (the sword or
-## bow every climb starts with) or "pack" (a pack piece that goes on because
-## nothing else is worn there; its "i" in the pack). Empty slots are left out.
+## "from" is "wear" (chosen), "basic" (the basic sword or bow, chosen:
+## basic_gift.gd), "heir" (your heirloom) or "pack" (a pack piece that goes
+## on because nothing else is worn there, or only the basic piece; its "i"
+## in the pack). Empty slots are left out.
 static func setoff(profile, _player = null) -> Dictionary:
 	var g := dressed(profile)
-	var starts := {"melee": Gear.make(Gear.Weapons.START_MELEE), "ranged": Gear.make(Gear.Weapons.START_RANGED)}
 	var out := {}
 	for slot in WEAR_SLOTS:
 		var r = g.get(slot, {})
 		if not Gear.is_gear(r):
 			continue
-		var from := "wear" if profile.wear.has(slot) else ("start" if starts.has(slot) and Gear.same(r, starts[slot]) else "heir")
-		if from == "start" and not Gear.heirloom_pieces(profile.heirlooms, Gear.heirloom_slot_for_carry(slot)).is_empty():
-			from = "heir"  # (an heirloom that's the very same as the starting piece)
+		var from := "heir"
+		if profile.wear.has(slot):
+			from = "basic" if BasicGift.is_basic(r) else "wear"
 		out[slot] = {"rec": r, "from": from}
 	for i in profile.pack.size():
 		var p := Gear.rec(profile.pack[i])
@@ -960,7 +977,7 @@ static func setoff(profile, _player = null) -> Dictionary:
 				slot = sl
 				break
 		var held: Dictionary = out.get(slot, {})
-		if held.is_empty() or held["from"] == "start":
+		if held.is_empty() or (held["from"] == "basic" and basic_yields(profile, slot, held["rec"])):
 			out[slot] = {"rec": p, "from": "pack", "i": i}
 	return out
 

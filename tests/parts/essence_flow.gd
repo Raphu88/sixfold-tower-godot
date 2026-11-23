@@ -81,13 +81,15 @@ func _split() -> void:
 	_check(is_equal_approx(float(sh["body"]) + float(sh["marks"]) + float(sh["crystals"]), 1.0) and is_equal_approx(float(sh["crystals"]), 0.3)
 		and is_equal_approx(float(sh["body"]) / float(sh["marks"]), float(Flow.SPLIT["body"]) / float(Flow.SPLIT["marks"])),
 		"the split's shares add up, the crystals at the setting and body and marks in their proportions (%s)" % sh)
-	_check(Train.CONDENSE_DEFAULT == "30" and is_equal_approx(Flow.default_crystal_share(), 0.3), "the default crystal share is 30%")
+	_check(is_equal_approx(Flow.default_crystal_share(), 0.2) and is_equal_approx(Train.condense_share(), 0.2) and not M.settings.has("condense"), "the crystal share is fixed at 20%, no longer a setting")
+	var of := float(Flow.OVERFLOW["crystals"])
+	_check(of > 0.0 and of <= 0.34, "of what the marks or Nodes can't take, only a share condenses (%d%%): the rest goes back to the well" % int(round(of * 100.0)))
 	var xp0 := float(prof.bonds["hand"]["xp"]) + float(prof.bonds["legs"]["xp"])
 	var out: Dictionary = prof.pour({"air": 100.0, "fire": 50.0}, {"heart": 2.0, "back": 1.0}, 0.3)
 	var total := float(out["body"]) + float(out["marks"]) + float(out["crystals"])
 	_check(is_equal_approx(total, 150.0) and is_equal_approx(float(out["total"]), 150.0), "the split sums to what was banked (%.1f of 150)" % total)
-	_check(float(out["crystals"]) == 45.0 and prof.crystal_total("air") == 30.0 + floorf(40.0 - 40.0 * float(MU.USE["trickle"]) * prof.body_drag() * 2.0)
-		and prof.crystal_total("fire") == 15.0 + 20.0, "30%% condenses into crystals, per kind, and what the unused marks leave of their share with it (%s)" % [prof.crystals])
+	_check(float(out["crystals"]) == 45.0 and prof.crystal_total("air") == 30.0 + floorf((40.0 - 40.0 * float(MU.USE["trickle"]) * prof.body_drag() * 2.0) * of)
+		and prof.crystal_total("fire") == 15.0 + floorf(20.0 * of), "30%% condenses into crystals, per kind, and a share of what the unused marks leave of their share with it (%s)" % [prof.crystals])
 	_check(is_equal_approx(float(out["body"]), 45.0) and is_equal_approx(float(out["marks"]), 60.0), "body and marks share the rest, 3 to 4 (%.1f, %.1f)" % [out["body"], out["marks"]])
 	_check(is_equal_approx(_sum(prof.density), 45.0), "only the body's share settles as density (%.1f)" % _sum(prof.density))
 	_check(float(prof.soak.get("heart", 0.0)) > float(prof.soak.get("back", 0.0)) and float(prof.soak.get("back", 0.0)) > 0.0 and not prof.soak.has("hand"),
@@ -117,30 +119,35 @@ func _split() -> void:
 	var hand0: float = U.size(prof, "hand")
 	c0 = prof.crystal_total("blade")
 	out = prof.pour({"blade": 50.0}, {}, 0.3)
-	_check(is_equal_approx(U.size(prof, "hand"), hand0) and prof.crystal_total("blade") - c0 == 50.0, "...an awake, full Node never used takes none: it condenses into crystals")
+	_check(is_equal_approx(U.size(prof, "hand"), hand0) and prof.crystal_total("blade") - c0 == 15.0 + floorf(35.0 * of) and is_equal_approx(float(out["over"]), 35.0),
+		"...an awake, full Node never used takes none: a share of it condenses into crystals, the rest goes back to the well (%d)" % int(prof.crystal_total("blade") - c0))
+	# Eating a crystal into that full Node loses nothing: it stays a crystal.
+	prof.add_crystal("blade", 10.0)
+	c0 = prof.crystal_total("blade")
+	out = prof.pour({"blade": 10.0}, {}, 0.0, false)
+	_check(prof.crystal_total("blade") - c0 == 10.0 and float(out["lost"]) == 0.0, "...and a crystal eaten into it isn't lost: it stays a crystal")
+	# An eaten crystal keeps the Node's use for the stair (it isn't spent away from one).
+	U.note_use(prof, "hand", 5.0, "action")
+	var used0: float = U.used(prof, "hand")
+	prof.pour({"blade": 1.0}, {}, 0.0, false)
+	_check(U.used(prof, "hand") > 0.0 and U.used(prof, "hand") < used0, "eating a crystal refills some of a Node's use, and the rest waits for the stair (%.2f of %.2f)" % [U.used(prof, "hand"), used0])
 
 
 func _stair_line() -> void:
 	await _fresh()
 	var main = t.main
-	var keep = M.settings["condense"]
-	M.settings["condense"] = Train.CONDENSE_DEFAULT
 	main.floor_num = 2
 	main.run_essence = {"air": 50.0}
 	main.run_soak = {"heart": 4.0}
 	main._arrive()
 	await t._frames(2)
-	var want: String = Flow.TEXT["split"] % [50, 15, 20, 15]
+	var sh: Dictionary = Flow.shares(Train.condense_share())
+	var c := int(floorf(50.0 * float(sh["crystals"])))
+	var m := int(round((50.0 - c) * float(sh["marks"]) / (float(sh["marks"]) + float(sh["body"]))))
+	var want: String = Flow.TEXT["split"] % [50, 50 - m - c, m, c]
 	var lines: Array = main.banner.get("lines", [])
 	_check(lines.has(want), "the stair's line shows the three shares: \"%s\" (%s)" % [want, lines])
-	_check(main.profile.crystal_total("air") >= 15.0, "...and the crystals' share is there in your crystals (with what the unused marks left: mark_use.gd)")
-	M.settings["condense"] = "0"
-	main.floor_num = 4
-	main.run_essence = {"air": 70.0}
-	main._arrive()
-	await t._frames(2)
-	_check((main.banner.get("lines", []) as Array).has(Flow.TEXT["split"] % [70, 30, 40, 0]), "To crystals at 0%%: body and marks share it all (%s)" % [main.banner.get("lines", [])])
-	M.settings["condense"] = keep
+	_check(main.profile.crystal_total("air") >= float(c), "...and the crystals' share is there in your crystals")
 
 
 # --- slower than before -------------------------------------------------------------------
@@ -436,7 +443,7 @@ func _entity() -> void:
 	_check(how.has("how_essence") and Talk.DIALOGUE["how_essence"]["choices"].has("how_flow") and Talk.DIALOGUE["how_essence"]["choices"].has("how_tinctures") and how.has("how_new_mark") and String(Talk.DIALOGUE["how_new_mark"]["ask"]) == "How do I earn a new mark?",
 		"the Entity can say how essence flows, what tinctures are and how to earn a new mark")
 	var flow_line: String = Talk.line_for(main, "how_flow")
-	var sh: Dictionary = Flow.shares(Train.condense_share(M.settings))
+	var sh: Dictionary = Flow.shares(Train.condense_share())
 	_check(flow_line.contains("%d%%" % int(round(float(sh["body"]) * 100.0))) and flow_line.contains("%d%%" % int(round(float(sh["marks"]) * 100.0))) and not flow_line.contains("{"),
 		"its numbers come from the tables: %s" % flow_line)
 	var earn: String = Talk.line_for(main, "how_new_mark")
@@ -449,24 +456,18 @@ func _entity() -> void:
 
 
 func _old_saves() -> void:
-	# Settings saved before the split, at the old default: the new default, once.
+	# Settings saved with the old "To crystals" share: it's ignored (the share is fixed now).
 	var path := "user://test_old_settings.cfg"
 	var cfg := ConfigFile.new()
-	cfg.set_value("settings", "condense", "20")
+	cfg.set_value("settings", "condense", "50")
+	cfg.set_value("settings", "split", true)
+	cfg.set_value("settings", "music", 0.5)
 	cfg.save(path)
 	var keep = M.settings.duplicate()
 	M.load_settings_from(path)
-	_check(M.settings["condense"] == "30", "settings from before the split, at the old 20%%, move to the new default (%s)" % M.settings["condense"])
-	cfg.set_value("settings", "condense", "20")
-	cfg.set_value("settings", "split", true)
-	cfg.save(path)
-	M.load_settings_from(path)
-	_check(M.settings["condense"] == "20", "a 20% chosen since stays 20%")
-	cfg.set_value("settings", "condense", "35")
-	cfg.erase_section_key("settings", "split")
-	cfg.save(path)
-	M.load_settings_from(path)
-	_check(M.settings["condense"] == "30", "an old 35% (no longer a choice) loads as the default")
+	_check(not M.settings.has("condense") and not M.settings.has("split") and is_equal_approx(float(M.settings["music"]), 0.5) and is_equal_approx(Train.condense_share(), float(Flow.SPLIT["crystals"]) / 100.0),
+		"an old settings file's \"To crystals\" share is ignored as it loads (the rest kept): the share is fixed")
+	M.settings.clear()
 	for k in keep:
 		M.settings[k] = keep[k]
 	DirAccess.remove_absolute(ProjectSettings.globalize_path(path))

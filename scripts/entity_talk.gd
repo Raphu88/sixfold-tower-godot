@@ -80,7 +80,7 @@ static var DIALOGUE: Dictionary = OutfitterName.named({
 		"lines": ["{controls_how}", "{controls_list}", "Press H any time to show or hide this list in the corner of the screen. Settings & Controls lets you change any key."],
 		"choices": ["how", "bye"]},
 	"how_start": {"ask": "How did my start work?", "fact": "start",
-		"lines": ["Three questions made your start. What you did before gave your weapon and armour: Soldier a sword and chain, Hunter a shortbow, a dagger and leather, Labourer a war hammer and padding, Beggar a dagger and nothing, Scholar a sword cane and padding, Sailor a flintlock and leather. They're heirlooms, so every climb begins with them. Where you grew up chose your first tower and your home station. Why you climb set how hard it was: born into it, fine gear, {born_crystals} crystals and a family title; hired, common gear, {hired_crystals} crystals, a title and a contract; self made, worn gear and nothing else, but renown a quarter faster until a first title. {start_line}"],
+		"lines": ["Three questions made your start. What you did before gave your weapon and armour: Soldier a sword and chain, Hunter a shortbow, a dagger and leather, Labourer a war hammer and padding, Beggar a dagger and nothing, Scholar a sword cane and padding, Sailor a flintlock and leather. They're heirlooms, so every climb begins with them; a plain sword and shortbow filled the weapon slots they left empty. Where you grew up chose your first tower and your home station. Why you climb set how hard it was: born into it, fine gear, {born_crystals} crystals and a family title; hired, common gear, {hired_crystals} crystals, a title and a contract; self made, worn gear and nothing else, but renown a quarter faster until a first title. {start_line}"],
 		"choices": ["how_titles", "how_renown", "how", "bye"]},
 	"how_stamina": {"ask": "Stamina, and why my bar shrinks?", "fact": "rules",
 		"lines": ["Rolls, strikes, shots and jumps cost stamina, and it refills fast, {sta_regen} a second once you stop for a breath. Act with too little and it still happens, but the missing part comes off your max stamina: fatigue. The bar's lost end goes dark, and it fills only to what's left, never below {sta_floor} of it. A Stamina Vial shakes it all off and fills you up. So does a camp's rest, and every climb starts fresh. The stair's rest doesn't touch it."],
@@ -89,7 +89,7 @@ static var DIALOGUE: Dictionary = OutfitterName.named({
 		"lines": ["Monsters, caches and finished tasks give essence. You carry it until a stair banks it, and a fall loses what you carry. At a stair it splits three ways: {body} to your body, {marks} to your marks, {condense} into crystals, the train's money."],
 		"choices": ["how_flow", "how_tinctures", "how_marks", "how", "bye"]},
 	"how_flow": {"ask": "How does essence flow?", "fact": "rules",
-		"lines": ["Divided, never copied. Of what you bank at a stair, {body} soaks into your body, spread by what each part did: unmarked parts fill toward a new mark. {marks} goes to your marks: it refills what each one's spells used and deepens it, and what they can't take condenses into crystals. {condense} becomes crystals; To crystals, in Settings, sets that share, and body and marks share the rest. Eat a crystal and it flows the same way, without the crystals' share. Only a tincture lets you steer."],
+		"lines": ["Divided, never copied. Of what you bank at a stair, {body} soaks into your body, spread by what each part did: unmarked parts fill toward a new mark. {marks} goes to your marks: it refills what each one's spells used and deepens it; of what they can't take, a little condenses into crystals and the rest goes back to the well. {condense} becomes crystals, always, and body and marks share the rest. Eat a crystal and it flows the same way, without the crystals' share. Only a tincture lets you steer."],
 		"choices": ["how_tinctures", "how_marks", "how", "bye"]},
 	"how_tinctures": {"ask": "What are tinctures?", "fact": "rules",
 		"lines": ["A vial of {tincture} essence of one kind. Drink it and you choose where it goes: one mark, where its own kind counts {own}x and any other {other}x, and it's concentrated, {boost}x what banked essence gives, or one unmarked part, toward a new mark there. Vaults and secret rooms hold them, now and then a monster drops one, {outfitter} stocks {store_kinds} each visit, and the Workshop crafts one from {craft} crystals of its kind."],
@@ -150,8 +150,11 @@ static var DIALOGUE: Dictionary = OutfitterName.named({
 		"lines": ["After your first, tournaments belong to {manager}, who moves round the six stations, a stop after each of your climbs. Each place has its own arena: pillars, hazards, the creatures of the first round, and rivals whose marks lean to its tower. Entry costs a fee. A win pays renown, crystals, essence ({half} of the usual), a Healing Vial anywhere, and the first win of a higher bracket at each place, a prize found only there. {manager_line}"],
 		"choices": ["how_tourney", "how_grace", "how", "bye"]},
 	"how_fall": {"ask": "What comes home: a fall, a recall, a summit?", "fact": "rules",
-		"lines": ["A fall: your pack, what you wear and your belt are lost, unbanked essence too (a Keeper's Purse keeps itself and one piece), and {weapon} of the time the weapon in your hand. Never an heirloom, never the starting sword or bow. A recall scroll: you leave safe with what you wear and your pack, and unbanked essence becomes crystals. A summit: you may keep one piece as an heirloom, and what's left on your belt becomes crystals."],
-		"choices": ["how_belt", "how", "bye"]},
+		"lines": ["A fall: your pack, what you wear and your belt are lost, unbanked essence too (a Keeper's Purse keeps itself and one piece), and {weapon} of the time the weapon in your hand. Never an heirloom, and the plain sword and bow aren't remembered for a cache: come back with no weapon for a slot and {outfitter} gives you one. A recall scroll: you leave safe with what you wear and your pack, and unbanked essence becomes crystals. A summit: you may keep one piece as an heirloom, and what's left on your belt becomes crystals."],
+		"choices": ["how_gift", "how_belt", "how", "bye"]},
+	"how_gift": {"ask": "The plain sword and bow?", "fact": "rules",
+		"lines": ["You started with a plain sword and shortbow where your past gave no weapon. They're yours like anything else, and nothing puts them back by itself. Fall and come back with no melee weapon, and {outfitter} gives you a plain sword; no ranged weapon, a plain shortbow. One in your stash goes on instead, so they never pile up. Gifts aren't for sale: he never stocks them, and nobody buys them back."],
+		"choices": ["how_fall", "how", "bye"]},
 	"how_belt": {"ask": "The belt?", "fact": "rules",
 		"lines": ["Your belt holds {kinds} kinds of item, {stack} of each (a few stack otherwise; a Belt Pouch, a Climber's Pack or a Belt Hook charm adds a kind). Pick up a new kind with a full belt and you choose a stack to swap out. The staples are the Healing Vial, the Stamina Vial and the Essence Vial: cheap, and common from monsters. Everything else is rare in the tower, a few in a whole climb, so keep it for when it counts; {outfitter} sells them if you want one on purpose. What you buy or brew on the train goes on it."],
 		"choices": ["how_wheel", "how_states", "how_fall", "how", "bye"]},
@@ -189,8 +192,8 @@ static var DIALOGUE: Dictionary = OutfitterName.named({
 		"lines": ["Your bag sets how many spare pieces your pack holds: {bag_none} with none, {bag_sizes}. Small bags never slow you. A big one does once it's nearly full, {heavy_at} of its spaces or more, and the pack's heading says \"heavy\". Lighten it and you're quick again."],
 		"choices": ["how_shop", "how_charms", "how", "bye"]},
 	"how_shop": {"ask": "How does the shop change?", "fact": "rules",
-		"lines": ["His stock follows your rank: that's the trunk of his upgrade tree. Higher up: more on his rail (up to {rail_most}, all shown at once), more kinds on the shelf (up to {kinds_most}), more Fine and Rare pieces, pistols and crossbows from {gun_rank}, now and then a named piece or a relic. It's new every visit. The title you wear tilts his rail, and some titles take a little off. The rest you buy on his tree."],
-		"choices": ["how_shop_tree", "how_renown", "how", "bye"]},
+		"lines": ["His stock follows your rank: that's the trunk of his upgrade tree. Higher up: more on his rail (up to {rail_most}, all shown at once), more kinds on the shelf (up to {kinds_most}), more Fine and Rare pieces, pistols and crossbows from {gun_rank}, now and then a named piece or a relic. It's new every visit. The title you wear tilts his rail, and some titles take a little off. The rest you buy on his tree. Never a plain sword or shortbow: he gives those to climbers who come back from a fall without one, and won't buy them back."],
+		"choices": ["how_shop_tree", "how_renown", "how_gift", "how", "bye"]},
 	"how_shop_tree": {"ask": "How does his upgrade tree work?", "fact": "rules",
 		"lines": ["Your rank is the trunk; four branches grow from it: Prices, Stock, Gifts, Info. A node opens at its rank once the one below it is yours; {tree_titled} also need a title from the Noble. Buy it with crystals of any kind and it's yours for good; there are {tree_total} in all. Discounts from the tree and your worn title stop at {tree_cap} off. Choose a node and its card says what it does. On a wide screen the Upgrades sign under {outfitter} folds the tree away, to give him room, or opens it again; the car remembers which."],
 		"choices": ["how_shop", "how_renown", "how", "bye"]},
@@ -278,7 +281,7 @@ static var DIALOGUE: Dictionary = OutfitterName.named({
 		"lines": ["As I have them. {marks}"],
 		"choices": ["marks_grow", "marks_new", "start", "bye"]},
 	"marks_grow": {"ask": "How do marks grow?", "fact": "money",
-		"lines": ["By use, refilled from essence you bank at a stair: {marks} of it goes to your marks, refilling what each one's spells used and deepening it. A mark you never cast barely grows. {condense} becomes crystals: To crystals, in Settings. A tincture puts its essence into the one mark you choose."],
+		"lines": ["By use, refilled from essence you bank at a stair: {marks} of it goes to your marks, refilling what each one's spells used and deepening it. A mark you never cast barely grows. {condense} becomes crystals. A tincture puts its essence into the one mark you choose."],
 		"choices": ["marks_new", "start", "bye"]},
 	"marks_new": {"ask": "Will I get another mark?", "fact": "soak",
 		"lines": ["{soak}"],
@@ -696,7 +699,7 @@ static func _fact_soak(main) -> Dictionary:
 static func _fact_money(main) -> Dictionary:
 	var prof = main.profile if main != null else null
 	var M = load("res://scripts/menu.gd")
-	var share := Train.condense_share(M.settings)
+	var share := Train.condense_share()
 	var sh: Dictionary = Flow.shares(share)
 	return {"crystals": int(prof.crystals_held()) if prof != null else 0, "condense": "%d%%" % int(round(share * 100.0)),
 		"body": "%d%%" % int(round(float(sh["body"]) * 100.0)), "marks": "%d%%" % int(round(float(sh["marks"]) * 100.0))}

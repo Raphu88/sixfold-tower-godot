@@ -13,6 +13,7 @@ extends RefCounted
 
 const Bonds := preload("res://scripts/bonds.gd")
 const Gear := preload("res://scripts/gear.gd")
+const BasicGift := preload("res://scripts/basic_gift.gd")
 const Secret := preload("res://scripts/secret.gd")
 const Appearance := preload("res://scripts/appearance.gd")
 const Unbound := preload("res://scripts/unbound.gd")
@@ -103,7 +104,7 @@ var part_density := {}  # part -> {kind -> amount}
 var heirlooms := {}
 ## Essence crystals: essence held outside you, kept between climbs: the
 ## train's money. Every stair condenses a share of what you bank into them
-## (essence_flow.gd, the setting train.gd CONDENSE_*), the outfitter pays some for every climb
+## (essence_flow.gd SPLIT, a fixed share), the outfitter pays some for every climb
 ## (CLIMB_PAY), a vault or a secret room may hold some, and reading a recall
 ## scroll turns unbanked essence into them; consuming one banks its essence
 ## into you (main.gd consume_crystal). Each is {"kind", "amount"}; crystals
@@ -125,8 +126,13 @@ var pack: Array = []
 ## What you'll wear when you set off (the Loadout in your car, loadout_page.gd):
 ## carried slot ("armor", "helm", "ring1"...) -> a gear record, chosen from
 ## your pack or your stash. It goes on over your heirloom or the starting
-## piece in that slot as you depart, and is cleared then (old saves: none).
-var wear := {}
+## piece in that slot as you depart, and is cleared then. A new climber
+## starts with the basic sword and bow here (basic_gift.gd; old saves are
+## handed them once, as they load).
+var wear := BasicGift.kit()
+## The basic sword and bow (basic_gift.gd): "out" while what you wear is up
+## a tower, "said" for the outfitter's words about a gift, shown once.
+var gift := {}
 var supplies := {}
 var supply_paid := {}
 var store := {}
@@ -297,7 +303,8 @@ func reset() -> void:
 	last_pay = {}
 	chest = []
 	pack = []
-	wear = {}
+	wear = BasicGift.kit()  # (a new climber starts with the basic sword and bow: basic_gift.gd)
+	gift = {}
 	supplies = {}
 	supply_paid = {}
 	store = {}
@@ -364,6 +371,10 @@ func load_save() -> void:
 	chest =_records(cfg.get_value("train", "chest", []))
 	pack = _records(cfg.get_value("train", "pack", []))
 	wear = _worn_set(cfg.get_value("train", "wear", {}))
+	var gf = cfg.get_value("train", "gift", {})
+	gift = gf if gf is Dictionary else {}
+	if not cfg.has_section_key("train", "gift"):
+		BasicGift.adopt_old(self)  # (a save from before the gift: the sword and bow it always had)
 	supplies = {}
 	var sup = cfg.get_value("train", "supplies", {})
 	if sup is Dictionary:
@@ -463,6 +474,7 @@ func save() -> void:
 	cfg.set_value("train", "chest", chest)
 	cfg.set_value("train", "pack", pack)
 	cfg.set_value("train", "wear", wear)
+	cfg.set_value("train", "gift", gift)
 	cfg.set_value("train", "supplies", supplies)
 	cfg.set_value("train", "supply_paid", supply_paid)
 	cfg.set_value("train", "store", store)
@@ -635,7 +647,7 @@ func spend_any(amount: float) -> Dictionary:
 	return paid
 
 
-## Condensing at a stair (train.gd CONDENSE_*): `share` of each kind of
+## Condensing at a stair (essence_flow.gd SPLIT "crystals"): `share` of each kind of
 ## essence being banked becomes crystals instead (whole essence, rounded
 ## down; a kind with too little to make one stays banked in full). Adds the
 ## crystals and returns {"keep": what's left to bank, "made": {kind: amount
@@ -715,17 +727,23 @@ func bank(essence: Dictionary, run_soak: Dictionary) -> Array:
 ## Pours banked essence into you, split three ways (essence_flow.gd): a share
 ## (`crystal_share`, whole essence only) condenses into crystals, and body and
 ## marks divide the rest. The marks' share refills and deepens each mark by
-## its use (mark_use.gd settle); what they leave condenses into crystals at a
-## stair (`at_stair`), or goes to the body otherwise. Returns {"lines",
-## "made" (kind -> crystals), "keep" (kind -> what went into you), "body",
-## "marks", "crystals", "total", "mark_left" (what the marks' share left, in
-## crystals), "refilled" (part -> essence back in its pool), "deepened"
-## (parts grown by use)}.
+## its use (mark_use.gd settle); what they leave goes to the body away from
+## a stair (eating a crystal). At a stair, what the marks or an Unbound's
+## Nodes can't take (the overflow) only partly condenses (essence_flow.gd
+## OVERFLOW): the rest goes back to the well. Eating a crystal loses nothing
+## (what a Node can't take stays a crystal). Returns {"lines",
+## "made" (kind -> crystals), "keep" (kind -> what reached body and marks
+## before the overflow), "body", "marks" (their shares), "crystals" (the
+## split's crystals), "total", "mark_left" (what the marks' share left, in
+## crystals), "over" (the overflow), "lost" (what of it went back to the
+## well), "refilled" (part -> essence back in its pool), "deepened" (parts
+## grown by use)}.
 func pour(essence: Dictionary, run_soak: Dictionary, crystal_share := 0.0, at_stair := true) -> Dictionary:
 	var sh: Dictionary = Flow.shares(crystal_share)
 	var unbound := Unbound.is_on(self)
 	var marked := not bonds.is_empty() and not unbound
-	var out := {"lines": [], "made": {}, "keep": {}, "body": 0.0, "marks": 0.0, "crystals": 0.0, "total": 0.0, "mark_left": 0.0, "refilled": {}, "deepened": []}
+	var out := {"lines": [], "made": {}, "keep": {}, "body": 0.0, "marks": 0.0, "crystals": 0.0, "total": 0.0, "mark_left": 0.0, "over": 0.0, "lost": 0.0, "refilled": {}, "deepened": []}
+	var over := clampf(float(Flow.OVERFLOW.get("crystals", 1.0)), 0.0, 1.0) if at_stair else 1.0  # (what can't go in: at a stair only a share condenses, the rest goes back to the well; an eaten crystal's stays whole)
 	var to_body := {}
 	var to_marks := {}
 	var bm := float(sh["body"]) + float(sh["marks"])
@@ -759,11 +777,13 @@ func pour(essence: Dictionary, run_soak: Dictionary, crystal_share := 0.0, at_st
 		for kind in settled["left"]:
 			var left := float(settled["left"][kind])
 			if at_stair:
-				var cl := floorf(left)
+				var cl := floorf(left * over)
 				if cl >= 1.0:
 					add_crystal(kind, cl)
 					out["made"][kind] = float(out["made"].get(kind, 0.0)) + cl
 					left_total += cl
+				out["over"] += left
+				out["lost"] += left - maxf(cl, 0.0)
 			else:
 				to_body[kind] = float(to_body.get(kind, 0.0)) + left
 				out["body"] += left
@@ -792,14 +812,16 @@ func pour(essence: Dictionary, run_soak: Dictionary, crystal_share := 0.0, at_st
 			# (the Unbound: it soaks into a sleeping Node, or tops up an awake
 			# one and refills its use, growing it; what can't go in condenses)
 			var left := Unbound.settle(self, kind, b)
-			var spill := floorf(left)
+			var spill := floorf(left * over)
+			out["over"] += left
+			out["lost"] += left - maxf(spill, 0.0)
 			if spill >= 1.0:
 				add_crystal(kind, spill)
 				out["made"][kind] = float(out["made"].get(kind, 0.0)) + spill
 				if Unbound.diverted(self, kind):
-					out["lines"].append(Unbound.TEXT["spill_sealed"] % [Flow.Essence.display(kind), int(spill)])  # (its Node is sealed: most condenses on the way)
+					out["lines"].append(Unbound.TEXT["spill_sealed" if at_stair else "spill_sealed_eaten"] % [Flow.Essence.display(kind), int(spill)])  # (its Node is sealed: most condenses on the way)
 				else:
-					out["lines"].append(Unbound.TEXT["spill"] % [Unbound.node_name(Unbound.part_for(self, kind)), Flow.Essence.display(kind), int(spill)])
+					out["lines"].append(Unbound.TEXT["spill" if at_stair else "spill_eaten"] % [Unbound.node_name(Unbound.part_for(self, kind)), Flow.Essence.display(kind), int(spill)])
 		elif style_total > 0.0:
 			for part in style:
 				var pd: Dictionary = part_density.get(part, {})
@@ -815,7 +837,8 @@ func pour(essence: Dictionary, run_soak: Dictionary, crystal_share := 0.0, at_st
 	if unbound:
 		out["lines"].append_array(Unbound.absorb(self))
 		out["lines"].append_array(unbound_levels(levels_before, grown_before))
-		Unbound.end_stair(self)  # (use not refilled here is gone)
+		if at_stair:
+			Unbound.end_stair(self)  # (use not refilled here is gone; an eaten crystal keeps it for the stair)
 	return out
 
 

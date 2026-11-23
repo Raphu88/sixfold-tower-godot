@@ -115,10 +115,9 @@ const SETTINGS_TABS := [["settings", "Settings"], ["controls", "Controls"]]
 const COMPACT_H := 600.0
 
 ## Settings, kept between sessions (in the settings file, shared by every climber: slots.gd).
-## "condense": the share of banked essence that condenses into crystals at a
-## stair, in percent (train.gd CONDENSE_CHOICES; your body and your marks share
-## the rest: essence_flow.gd). "split": saved since the split (a file without
-## it, still at the old default share, moves to the new default once). "train_rail": the train's
+## (The share of banked essence that condenses into crystals was once a
+## setting, "condense": it's fixed now, essence_flow.gd SPLIT, and an old
+## file's value is dropped as it loads.) "train_rail": the train's
 ## rail as a menu ("menu") or drawn as the train on end ("end"), a dev-tools
 ## mock-up (rail.gd). "abilities_tab": the climber screen has opened on its
 ## Abilities tab once (saves from before it start there). "ui_size": the
@@ -131,7 +130,7 @@ const COMPACT_H := 600.0
 ## the goods (on a wide screen; folded to its sign by default, so there's
 ## room for the outfitter himself: store_page.gd).
 static var settings := {"music": 0.8, "sounds": 1.0, "shake": true, "help": false, "ui_size": "normal", "world_zoom": "normal", "hud_scale": "normal", "climber_tab": "abilities", "lighting": "", "effects": "medium",
-	"condense": Train.CONDENSE_DEFAULT, "train_rail": "menu", "abilities_tab": false, "entity_help": true, "split": true, "store_upgrades": false}
+	"train_rail": "menu", "abilities_tab": false, "entity_help": true, "store_upgrades": false}
 static var settings_loaded := false
 
 var main
@@ -2000,8 +1999,6 @@ func settings_body() -> void:
 	_choice("HUD size", "hud_scale", [["small", "Small"], ["normal", "Normal"], ["large", "Large"]])
 	_choice("Lighting", "lighting", [["low", "Low"], ["medium", "Medium"], ["high", "High"]])
 	_choice(Particles.TEXT["setting"], "effects", Particles.LEVEL_ORDER.map(func(k): return [k, Particles.EFFECTS[k]["name"]]))
-	_choice(Train.TEXT["condense_setting"], "condense", Train.CONDENSE_CHOICES)
-	_note(Train.TEXT["condense_note"])
 	_guide_settings()
 	_pad_settings()
 	load("res://scripts/arrange.gd").settings_button(self)  # Arrange this screen (the train) yourself: the way in on a phone
@@ -2426,6 +2423,15 @@ func _unbound_essence(prof) -> void:
 		_note(UNBOUND_ESSENCE["note"])
 
 
+## The record's "Kind of climb": the first climb, an Unbound's, or a marked climber's.
+static func climb_kind_text(first: bool, unbound: bool, marks: int) -> String:
+	if first:
+		return "the first climb, before the Regard"
+	if unbound:
+		return "an Unbound's climb, with your Nodes"
+	return "a climb with your mark" if marks == 1 else "a climb with your marks"
+
+
 ## Record: the climb you're on and your record on the left, your heirlooms
 ## on the right.
 func _climber_record(prof) -> void:
@@ -2447,7 +2453,7 @@ func _climber_record(prof) -> void:
 	_pair(g, "Tower", t["name"], Essence.color(t["essence"]))
 	_pair(g, "Floor", "%d" % main.floor_num)
 	_pair(g, "Essence", "%s" % Essence.display(t["essence"]), Essence.color(t["essence"]))
-	_pair(g, "Kind of climb", "the first climb, before the Regard" if main.first_climb else "a climb with your marks")
+	_pair(g, "Kind of climb", climb_kind_text(main.first_climb, Unbound.is_on(prof), prof.bonds.size()))
 	_section("Your record", left)
 	var r := _grid_in(left)
 	if compact():
@@ -3612,7 +3618,7 @@ func _show_details(key: String) -> void:
 
 
 ## What to set a worn piece against: gear lying at your feet for the same
-## slot, else what every climb starts with (null for nothing).
+## slot, else the basic sword or bow (basic_gift.gd; null for nothing).
 func _compare_with(p, slot: String, g):
 	if not main.gear_here.is_empty() and p.slot_for(main.gear_here["id"]) == slot and Gear.slot_of(main.gear_here["id"]) != "fists":
 		return main.gear_here.get("rec", main.gear_here["id"])
@@ -4488,12 +4494,8 @@ static func load_settings_from(path: String) -> void:
 	settings["store_upgrades"] = settings["store_upgrades"] is bool and bool(settings["store_upgrades"])  # (anything odd in the file: folded)
 	if not UI.WORLD_ZOOMS.has(str(settings["world_zoom"])):
 		settings["world_zoom"] = "normal"
-	settings["condense"] = str(settings["condense"])
-	if not cfg.has_section_key("settings", "split") and settings["condense"] == Train.CONDENSE_OLD_DEFAULT:
-		settings["condense"] = Train.CONDENSE_DEFAULT  # (saved before the split, at the old default: the new default, once)
-	settings["split"] = true
-	if not Train.CONDENSE_CHOICES.any(func(c): return c[0] == settings["condense"]):
-		settings["condense"] = Train.CONDENSE_DEFAULT  # (an old or broken save: the default share)
+	settings.erase("condense")  # (the old "To crystals" setting: the share is fixed now, essence_flow.gd SPLIT)
+	settings.erase("split")
 	if not bool(settings["abilities_tab"]):
 		# (Saved before the Abilities tab: the climber screen opens on it once.)
 		settings["abilities_tab"] = true
@@ -4511,6 +4513,9 @@ static func save_settings_to(path: String) -> void:
 	cfg.load(path)
 	for k in settings:
 		cfg.set_value("settings", k, settings[k])
+	for gone in ["condense", "split"]:  # (the old "To crystals" setting: no longer kept)
+		if cfg.has_section_key("settings", gone):
+			cfg.erase_section_key("settings", gone)
 	cfg.save(path)
 
 

@@ -10,7 +10,12 @@ extends RefCounted
 ## (tests/progression_measure.gd "plans": every planned monster's drop, the
 ## kills' extra essence and the caches, the Proving's sentinel, adds and
 ## shadow on floor 6, the beast on 12). Measure again after changing drops
-## and copy the printed tables here.
+## and copy the printed tables here. (ESSENCE is the table measured before
+## the drops went to seven eighths with the fixed 20% crystal share, times
+## 7/8: what flows into you stays as it was. A fresh "plans" measure then
+## gave about 8% less, the floor plans having changed since; real play by
+## the floor bot gave more than either, as the plans leave out the floor's
+## task, puzzles and caches.)
 ##
 ## A climb counts after the bondless first climb (which ends in the Regard):
 ## "climb 3" is the third climb with a mark.
@@ -21,7 +26,7 @@ const Towers := preload("res://scripts/towers.gd")
 const Bonds := preload("res://scripts/bonds.gd")
 
 ## Essence banked at each floor's stair, floors 1 to 12 (12: the beast).
-const ESSENCE := [52.0, 62.0, 65.0, 79.0, 89.0, 71.0, 125.0, 137.0, 157.0, 193.0, 217.0, 65.0]
+const ESSENCE := [45.5, 54.25, 56.875, 69.125, 77.875, 62.125, 109.375, 119.875, 137.375, 168.875, 189.875, 56.875]
 ## Monsters slain per floor (each may leave a tincture: items.gd DROPS).
 const KILLS := [6.3, 7.2, 6.2, 6.2, 6.8, 4.0, 8.1, 8.7, 9.8, 9.8, 10.2, 1.0]
 ## Each tower's essence by kind (its monsters are not all of its kind).
@@ -80,6 +85,7 @@ static func run(pattern: String, climbs: int, earned := false, bought := BOUGHT_
 	prof.add_bond(FIRST_PART, FIRST_BOND, false)
 	var steps: Array = []
 	var xps: Array = []
+	var crystals: Array = []  # (the crystals held after each climb: the split's share and what the marks couldn't take)
 	var second := 0
 	var marks_at: Array = []
 	var others: Array = Towers.ORDER.filter(func(t): return t != OWN_TOWER)
@@ -121,8 +127,9 @@ static func run(pattern: String, climbs: int, earned := false, bought := BOUGHT_
 		if bought > 0.0:
 			prof.drink(String(Towers.TOWERS[OWN_TOWER]["essence"]), float(Flow.TINCTURE["essence"]) * bought, FIRST_PART)
 		xps.append(float(prof.bonds[FIRST_PART]["xp"]))
+		crystals.append(prof.crystals_held())
 		steps.append(Profile.step_for_xp(float(prof.bonds[FIRST_PART]["xp"])))
-	return {"steps": steps, "second": second, "marks_at": marks_at, "xp": xps}
+	return {"steps": steps, "second": second, "marks_at": marks_at, "xp": xps, "crystals": crystals}
 
 
 ## The chance a slain monster leaves a tincture (items.gd DROPS).
@@ -202,7 +209,7 @@ const UB_SPAM := 10.0
 ## drains what the Nodes hold back into the well (unbound.gd drain; sizes
 ## kept), as in the game; false shows the pace without it. Returns {"sizes": [after each climb, part -> size], "awake": part
 ## -> the climb it woke (0: never), "top": part -> the climb it reached level
-## 12 (0: never)}.
+## 12 (0: never), "crystals": the crystals held after each climb}.
 static func run_unbound(pattern: String, climbs: int, use := "typical", routing := "natural", sealed := [], drain := true) -> Dictionary:
 	var U = load("res://scripts/unbound.gd")
 	var Tech = load("res://scripts/technique.gd")
@@ -218,6 +225,7 @@ static func run_unbound(pattern: String, climbs: int, use := "typical", routing 
 	var woke := {}
 	var top := {}
 	var sizes: Array = []
+	var crystals: Array = []
 	var others: Array = Towers.ORDER.filter(func(t): return t != OWN_TOWER)
 	var oi := 0
 	var list: Array = PATTERNS[pattern]
@@ -262,12 +270,13 @@ static func run_unbound(pattern: String, climbs: int, use := "typical", routing 
 			if not top.has(part) and U.level(prof, part) >= U.MAX_LEVEL:
 				top[part] = c + 1
 		sizes.append(now)
+		crystals.append(prof.crystals_held())
 	for part in U.PARTS:
 		if not woke.has(part):
 			woke[part] = 0
 		if not top.has(part):
 			top[part] = 0
-	return {"sizes": sizes, "awake": woke, "top": top}
+	return {"sizes": sizes, "awake": woke, "top": top, "crystals": crystals}
 
 
 ## A climber growing all six Nodes travels: away from their own tower they

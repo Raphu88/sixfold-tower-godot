@@ -50,6 +50,7 @@ extends Node2D
 const Bonds := preload("res://scripts/bonds.gd")
 const Items := preload("res://scripts/items.gd")
 const Gear := preload("res://scripts/gear.gd")
+const BasicGift := preload("res://scripts/basic_gift.gd")
 const GearLook := preload("res://scripts/gear_look.gd")
 const Appearance := preload("res://scripts/appearance.gd")
 const Essence := preload("res://scripts/essence.gd")
@@ -111,7 +112,7 @@ static var RULES := {
 	"duel_renown": 6, "duel_gear": 0.5, "duel_ward": 1, "duel_bonus": 1.5, "duel_time": 120.0,
 	"team_share": 0.5, "team_drops": 0.5, "team_renown": 3, "ally_taken": 0.6, "ally_leave": 0.2,
 	"rescue_cost": 0.25, "rescue_renown": 8, "gift_crystals": 15.0,
-	"greed_essence": 18.0, "greed_per_floor": 4.0, "greed_row": 1, "greed_renown": 5,
+	"greed_essence": 15.75, "greed_per_floor": 3.5, "greed_row": 1, "greed_renown": 5,
 	"trade_offers": 3, "fair_low": 0.6, "fair_high": 1.6, "trade_crystals": 12.0, "trade_per_floor": 1.5,
 	"kept": 24,
 }
@@ -881,7 +882,7 @@ func make_offers() -> Array:
 	var gives: Array = []
 	var fl: int = main.floor_num
 	var g := Gear.roll_gear("", [], true, fl, String(main.tower))
-	if Gear.is_gear(g):
+	if Gear.is_gear(g) and not BasicGift.is_basic(g):  # (never the basic sword or bow: they're given away, basic_gift.gd)
 		gives.append({"type": "gear", "rec": g})
 	var id := Items.random_item(main.player != null and not main.player.bonds.is_empty(), ["scroll", "vessel"], false, String(main.tower))
 	gives.append({"type": "item", "id": id})
@@ -920,7 +921,7 @@ func _want_for(give: Dictionary, asked: Array) -> Dictionary:
 				continue
 			cands.append({"type": "item", "id": id})
 		for r in p.pack:
-			if Gear.is_gear(r):
+			if Gear.is_gear(r) and not BasicGift.is_basic(r):  # (nor do they take yours as payment)
 				cands.append({"type": "gear", "rec": r})
 	for c in cands:
 		if asked.any(func(a): return _same_thing(a, c)) or (String(give["type"]) == "item" and String(c["type"]) == "item" and String(c["id"]) == String(give["id"])):

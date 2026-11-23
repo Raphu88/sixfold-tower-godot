@@ -956,7 +956,7 @@ static func trade_offers(prof, rec: Dictionary) -> Array:
 	else:
 		for code in rec.get("gear", []):
 			var g := Gear.rec(code)
-			if Gear.is_gear(g):
+			if Gear.is_gear(g) and Train.can_sell(g):  # (never the basic sword or bow: nobody sells what's given away, basic_gift.gd)
 				out.append({"type": "give", "thing": {"type": "gear", "rec": g}, "kind": Train.gear_kind(g), "price": maxi(1, int(round(float(Train.gear_price(g)) * (1.0 - off))))})
 				break
 	# One piece of yours they'd buy: the stash piece of their essence worth the most, else any.
@@ -964,8 +964,8 @@ static func trade_offers(prof, rec: Dictionary) -> Array:
 	var pick_v := -1
 	for i in prof.chest.size():
 		var g = prof.chest[i]
-		if not Gear.is_gear(g):
-			continue
+		if not Train.can_sell(g):
+			continue  # (nor would they buy yours)
 		var v: int = Train.gear_price(g) + (1000 if Train.gear_kind(g) == k else 0)
 		if v > pick_v:
 			pick_v = v

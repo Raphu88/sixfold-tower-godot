@@ -18,8 +18,9 @@ extends RefCounted
 ##   what it HOLDS (profile.part_density: part -> {kind: amount}; it powers
 ##   the Node's techniques and can be moved) and its SIZE, its density
 ##   (state "size": how much it can hold, 0 to CAP 120). It never holds more
-##   than its size: banked essence that doesn't fit condenses into crystals
-##   (essence is never lost).
+##   than its size: of banked essence that doesn't fit at a stair, a share
+##   condenses into crystals (essence_flow.gd OVERFLOW) and the rest goes
+##   back to the well; a crystal eaten that doesn't fit stays a crystal.
 ##   ASLEEP: a Node starts asleep, at size 0, holding nothing. Banked essence
 ##     routed to it (its natural kind: Blade the hand, Air the legs...; or
 ##     wherever a kind is ROUTED at the train) soaks into it and grows its
@@ -256,7 +257,8 @@ static var TEXT := {
 	"full_up": "Your %s reaches level 12: %s",
 	"pure_up": "Pure %s fills your %s: %s",
 	"grew": "Your %s grows with use (size %s)",
-	"spill": "Your %s can't hold more %s: %d condenses into crystals",
+	"spill": "Your %s can't hold more %s: %d condenses into crystals, the rest goes back to the well",
+	"spill_eaten": "Your %s can't hold more %s: %d stays a crystal",
 	"core_led": "Your %s is core-led: %s",
 	"minor": "Now and then %s carry a touch of %s: %s.",
 	"minor_none": "Its minor ability wakes when it awakens (level %d).",
@@ -273,7 +275,8 @@ static var TEXT := {
 	"cant_empty": "No %s in your %s",
 	"cant_asleep": "Your %s is asleep: it holds nothing yet",
 	"cant_sealed": "Your %s is sealed: it takes no essence",
-	"spill_sealed": "%s essence finds its Node sealed: %d condenses into crystals on the way to your open Nodes",
+	"spill_sealed": "%s essence finds its Node sealed and your open Nodes full: %d condenses into crystals, the rest goes back to the well",
+	"spill_sealed_eaten": "%s essence finds its Node sealed and your open Nodes full: %d stays a crystal",
 	# Sealing (node_seal.gd has the Body tab's words).
 	"sealed": "sealed",
 	"seal_unbound": "Only the Unbound can seal a Node",

@@ -90,8 +90,15 @@ func _cups() -> void:
 	r.part_density = {"legs": {"air": 120.0}}
 	U.state(r)["primary"] = {"legs": "air"}
 	var held: float = r.crystal_total("air")
-	r.pour({"air": 100.0}, {}, 0.0)
-	_check(r.crystal_total("air") >= held + 99.0, "banked into a full part, it condenses into crystals instead (essence is never lost)")
+	var poured: Dictionary = r.pour({"air": 100.0}, {}, 0.0)
+	var of := float(load("res://scripts/essence_flow.gd").OVERFLOW["crystals"])
+	_check(r.crystal_total("air") >= held + floorf(100.0 * of) - 1.0 and r.crystal_total("air") <= held + ceilf(100.0 * of) and float(poured["lost"]) >= 100.0 * (1.0 - of) - 1.0,
+		"banked into a full part at a stair, a share condenses into crystals (%d) and the rest goes back to the well" % int(r.crystal_total("air") - held))
+	var r2 = _prof()
+	r2.part_density = {"legs": {"air": 120.0}}
+	U.state(r2)["primary"] = {"legs": "air"}
+	r2.pour({"air": 10.0}, {}, 0.0, false)
+	_check(r2.crystal_total("air") == 10.0, "...but a crystal eaten into it isn't lost: it stays a crystal")
 	# Levels bring their pieces.
 	var s = _prof()
 	U.put(s, "brow", "fire", 29.0)

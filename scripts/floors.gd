@@ -132,8 +132,8 @@ const PREFAB_CHANCE := {"entrance": 0.5, "guard": 0.45, "stair": 0.5, "branch": 
 const SPRING := {"r": 46.0, "heal": 50.0, "rate": 24.0}
 const CACHE := {
 	"name": "Essence cache",
-	"base": 8.0,  # essence on floor 2...
-	"per_floor": 3.0,  # ...and this much more each floor up
+	"base": 7.0,  # essence on floor 2...
+	"per_floor": 2.625,  # ...and this much more each floor up
 	"reach": 34.0,  # how close you walk to open it
 }
 const DIRS := [Vector2i.RIGHT, Vector2i.LEFT, Vector2i.DOWN, Vector2i.UP]

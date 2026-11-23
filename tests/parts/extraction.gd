@@ -1,7 +1,7 @@
 extends RefCounted
 ## Getting out alive: a recall scroll (or the top of the tower) brings home
-## what you wear and your pack; a fall loses them. Heirlooms and the sword
-## and bow every climb starts with don't come home twice.
+## what you wear and your pack; a fall loses them. Heirlooms don't come
+## home twice; the basic bow comes home like any worn piece (basic_gift.gd).
 
 const Gear := preload("res://scripts/gear.gd")
 const Train := preload("res://scripts/train.gd")
@@ -36,7 +36,7 @@ func run(smoke) -> void:
 	t._check(prof.wear.has("armor") and Gear.same(prof.wear["armor"], chest) and prof.wear.has("melee") and Gear.same(prof.wear["melee"], blade),
 		"what you found and wore comes home on you (%s)" % [prof.wear.keys()])
 	t._check(not prof.wear.has("helm"), "...your heirloom isn't brought home a second time")
-	t._check(not prof.wear.has("ranged") or not Gear.same(prof.wear["ranged"], Gear.make(Gear.Weapons.START_RANGED)), "...nor the bow every climb starts with (%s)" % [bow_before.get("base", "")])
+	t._check(prof.wear.has("ranged") and Gear.same(prof.wear["ranged"], bow_before), "...the basic bow you wore comes home on you too: nothing would put it back by itself (%s)" % [bow_before.get("base", "")])
 	t._check(prof.pack.size() == 1 and Gear.same(prof.pack[0], Gear.make("soft_boots")), "...and your pack comes down too")
 	var lines: Array = main.victory.get("lines", [])
 	t._check(lines.any(func(l): return String(l).contains("wearing what you found")), "...and the summary says so")
@@ -62,6 +62,9 @@ func run(smoke) -> void:
 	p.parry_t = 0.0
 	p.receive_attack(99999.0, null)
 	await t._frames(3)
-	t._check(p.dead and prof.wear.is_empty() and prof.pack.is_empty(), "a fall loses what you wore and your pack")
+	var kept: Array = prof.wear.keys()
+	kept.sort()
+	t._check(p.dead and kept == ["melee", "ranged"] and prof.wear.values().all(func(g): return main.BasicGift.is_basic(g)) and prof.pack.is_empty(),
+		"a fall loses what you wore and your pack (all that's left is the basic sword and bow, given back: %s)" % [kept])
 	main.menu.close()
 	t.paused = false

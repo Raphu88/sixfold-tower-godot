@@ -21,6 +21,7 @@ extends RefCounted
 
 const Slots := preload("res://scripts/slots.gd")
 const Gear := preload("res://scripts/gear.gd")
+const BasicGift := preload("res://scripts/basic_gift.gd")
 const Towers := preload("res://scripts/towers.gd")
 const Renown := preload("res://scripts/renown.gd")
 const Pronouns := preload("res://scripts/pronouns.gd")
@@ -68,9 +69,10 @@ static var QUESTIONS := [
 ]
 
 ## What each answer gives. Weapons are weapons.gd ids, armour gear.gd ARMOR ids
-## ("" for none). Every climb also starts with the shortbow (gear.gd
-## start_gear) unless a ranged weapon is given here, and the sword unless a
-## melee weapon is (the Sailor keeps the sword beside the flintlock).
+## ("" for none). A new climber also starts with the basic shortbow
+## (basic_gift.gd) unless a ranged weapon is given here, and the basic sword
+## unless a melee weapon is (the Sailor keeps the sword beside the
+## flintlock). Those two aren't heirlooms: lose them and a fall gives them back.
 static var PAST := {
 	"soldier": {"melee": "sword", "ranged": "", "armor": "chain"},
 	"hunter": {"melee": "dagger", "ranged": "shortbow", "armor": "leather"},
@@ -279,9 +281,14 @@ static func apply(profile, picks: Dictionary) -> void:
 	profile.home = home
 	profile.last_tower = home
 	# The starting weapon and armour, kept as heirlooms: every climb begins with them.
+	# The basic sword and bow (chosen to wear: basic_gift.gd) fill only the weapon slots the past leaves empty.
 	var pieces := start_pieces(past, String(w["quality"]))
+	for s in BasicGift.SLOTS:
+		if not profile.wear.has(s) or BasicGift.is_basic(profile.wear[s]):
+			profile.wear[s] = BasicGift.piece(s)
 	for slot in pieces:
 		profile.heirlooms[Gear.heirloom_slot_for_carry(slot)] = pieces[slot]
+		profile.wear.erase(slot)
 	# Crystals of the home tower's kind.
 	if int(w["crystals"]) > 0:
 		profile.add_crystal(String(Towers.TOWERS[home]["essence"]), float(w["crystals"]))
@@ -314,7 +321,8 @@ static func give_contract(profile, home: String) -> void:
 
 
 ## The climber's gear for this climb, from their start: worn pieces stay
-## worn until the Regard (the self made). Called as a climb begins.
+## worn until the Regard (the self made; not the basic sword or bow, which
+## aren't from their past). Called as a climb begins.
 static func dress(profile, player) -> void:
 	if player == null or profile.regarded:
 		return
@@ -323,7 +331,7 @@ static func dress(profile, player) -> void:
 		return
 	for slot in ["melee", "ranged", "armor"]:
 		var g = player.gear.get(slot, {})
-		if g is Dictionary and g.has("wear"):
+		if g is Dictionary and g.has("wear") and not (BasicGift.is_basic(g) and Gear.heirloom_pieces(profile.heirlooms, slot).is_empty()):
 			g["wear"] = minf(float(g["wear"]), WORN_START)
 	if player.has_method("refresh_gear"):
 		player.refresh_gear()
