@@ -93,13 +93,13 @@ static var HELP: Dictionary = OutfitterName.named({
 	"tree_buy": "Buys {piece} for {price}, for good: {desc}",
 	"slot:unique": "{piece}, {price}: a relic he brought out for you, once. {versus}",
 	"slot:unique:empty": "Nothing waits here.",
-	"slot:supply": "{piece}, {price}: {desc}. It goes on your belt for your next climb.",
+	"slot:supply": "{piece}, {price}: {desc}. It goes on your belt for your next climb.{any}",
 	"slot:outfit": "{piece} on his rail, {price}. {versus}",
 	"slot:outfit:empty": "Sold. The rail fills again after your next climb.",
 	"slot:today": "Today's piece: {piece}, {price}. A new one after every climb. {versus}",
 	"slot:today:empty": "Today's piece is sold. A new one after your next climb.",
 	"slot:order": "{piece}: {outfitter} is holding it for you.",
-	"buy:supply": "Buys {piece} for {price}. It goes on your belt for your next climb.",
+	"buy:supply": "Buys {piece} for {price}. It goes on your belt for your next climb.{any}",
 	"buy": "Buys {piece} for {price}, into your pack. It goes up the tower with you.",
 	"buy:chest": "Buys {piece} for {price}, into your stash. It stays on the train.",
 	"buy:wear": "Buys {piece} for {price} and puts it on at once.",
@@ -140,6 +140,13 @@ static var HELP: Dictionary = OutfitterName.named({
 	"bench_tab:recall": "Recall scroll: bind one to leave a climb safely.{crafter}",
 	"bench_tab:vessel": "Vessel: brew one, or work a full one into a piece.{crafter}",
 	"bench_tab:tincture": "Tinctures: craft one from crystals of its kind, or drink one you've packed.",
+	"bench_tab:exchange": "Exchange: trade crystals of one kind for another. Some is lost in the working.",
+	"slot:bench:x": "{piece}: you hold {count}. Choose it to give it at the Exchange; its card picks the kind to get.",
+	"exchange_to": "Get {piece} for what you give. You hold {count} {piece} now.",
+	"exchange_step": "Steps the amount you give by {count}. Trades go in whole lots.",
+	"exchange_step:all": "Gives all the {piece} you can trade: {count}, in whole lots.",
+	"exchange_do": "Makes the trade: {price}.",
+	"exchange_do:big": "Makes the trade: {price}. A trade this big asks first.",
 	"bench_tab:charm": "Charms: refill a charm's spent charge with crystals of its kind, or craft a new charm.{crafter}",
 	"bench_tab": "{counter}.{crafter}",
 	"rune_artist_npc": "{artist}, who works the bench. Without the Rune Artist's mark, they craft for you: the same crystals plus a premium on top. Press to hear them.",
@@ -405,6 +412,7 @@ static var TEXT := {
 	"even": "About as good as what you'd wear.",
 	"crafter_you": " You craft it yourself.",
 	"crafter_artist": " The Rune Artist here crafts it for you: materials + premium.",
+	"any_kind": " Any kind of essence pays for it: your fullest crystals first.",
 	"counted": "%d of %d",
 	"best": "Your best there: floor %d.",
 	"best_none": "You haven't climbed it yet.",
@@ -467,7 +475,7 @@ static func key_for(b: Control) -> String:
 				var key := "slot:" + head
 				if head == "bench":
 					var sub := s.get_slice(":", 1)
-					key = "slot:bench:" + sub if sub in ["item", "supply", "tincture", "craft"] else "slot:bench"
+					key = "slot:bench:" + sub if sub in ["item", "supply", "tincture", "craft", "x"] else "slot:bench"
 				if b.get("empty") == true and HELP.has(key + ":empty"):
 					key += ":empty"
 				return key
@@ -684,6 +692,8 @@ static func facts(m, b: Control, key: String) -> Dictionary:
 			var p: Array = Train.supply_price(prof, Items.old_id(sk))
 			f["piece"] = Items.item_name(sk)
 			f["price"] = Train.price_text(p[0], int(p[1]))
+			if p[0] == Train.ANY:
+				f["any"] = String(TEXT["any_kind"])  # (an everyday good: train.gd ANY_GOODS)
 		if s.begins_with("bench:item:") and prof != null:
 			f["price"] = Train.paid_text(Bench.brew_cost(prof, s.get_slice(":", 2)))
 		if s.begins_with("bench:craft:"):
@@ -716,6 +726,8 @@ static func facts(m, b: Control, key: String) -> Dictionary:
 		f["piece"] = Items.item_name(id)
 		var p: Array = Train.supply_price(prof, id)
 		f["price"] = Train.price_text(p[0], int(p[1]))
+		if p[0] == Train.ANY:
+			f["any"] = String(TEXT["any_kind"])
 	# Tinctures and crystals (pour_page.gd, the Workshop's tincture counter).
 	if head in ["tincture_craft", "tincture_drink", "pour"] or (b.has_meta("slot") and String(b.get_meta("slot")).begins_with("bench:tincture:")):
 		var sel := String(m.inv_sel) if m != null else ""

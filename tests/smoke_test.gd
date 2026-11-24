@@ -8744,7 +8744,7 @@ func _economy_tests() -> void:
 		var cheapest := 9999
 		for id in T.supplies():
 			var pr: Array = T.item_price(id)
-			if pr[0] == kind:
+			if pr[0] == kind or pr[0] == T.ANY:  # (everyday goods take any kind: train.gd ANY_GOODS)
 				cheapest = mini(cheapest, int(pr[1]))
 		for id in T.common_pool():
 			var g = G.make(id)
@@ -9085,15 +9085,15 @@ func _train_tests() -> void:
 	_check(prof.crystal_total("stone") == 55.0 - dprice and prof.crystal_count("stone") == 1, "%d Stone paid from your Stone crystal (%s)" % [dprice, prof.crystals])
 	var labels: Array = _all_labels(menu).map(func(l): return l.text)
 	_check(labels.any(func(t): return t.begins_with("Bought: Healing Vial")), "...and the card says so")
-	# A price you can't pay says why.
-	menu.inv_sel = "supply:vial"
+	# A price you can't pay says why (the recall scroll: more than every crystal held).
+	menu.inv_sel = "supply:scroll"
 	menu.open("train")
 	await _frames(2)
 	labels = _all_labels(menu).map(func(l): return l.text)
-	buy = _car_buttons("buy", "vial")
-	var vneed := "needs %d more Water" % int(T.supply_price(prof, "vial")[1])
-	_check(buy.size() == 1 and buy[0].disabled and labels.any(func(t): return t.contains(vneed)), "a price you can't pay says why: %s" % vneed)
-	_check(T.buy_supply(prof, p, "vial") == "needs %d more Water" % int(T.supply_price(prof, "vial")[1]) and not prof.supplies.has("vial"), "...and buying it does nothing")
+	buy = _car_buttons("buy", "scroll")
+	var vneed: String = T.short_of(prof, T.ANY, int(T.supply_price(prof, "scroll")[1]))
+	_check(vneed != "" and buy.size() == 1 and buy[0].disabled and labels.any(func(t): return t.contains(vneed)), "a price you can't pay says why: %s" % vneed)
+	_check(T.buy_supply(prof, p, "scroll") == vneed and not prof.supplies.has("scroll"), "...and buying it does nothing")
 	# The belt's room: the starting draught plus what's packed, up to 3.
 	_check(T.supply_room(prof, p, "draught") == 1, "the belt holds 3 draughts: 1 to start, 1 packed, room for 1")
 	_check(T.put_back(prof, "draught") and prof.crystal_total("stone") == 55.0 and not prof.supplies.has("draught"), "putting it back returns the full price")
@@ -9429,7 +9429,7 @@ func _bench_tests() -> void:
 	menu.open("train")
 	await _frames(2)
 	var tabs: Array = _all_buttons(menu).filter(func(b): return b.get_meta("bench_tab", "") != "")
-	_check(tabs.map(func(b): return b.get_meta("bench_tab")) == ["brew", "temper", "retrait", "join", "break", "inscribe", "recall", "vessel", "tincture", "charm"], "the bench's counters: brew, temper, retrait, join, break down, inscribe, recall scroll, vessel, tinctures, charms")
+	_check(tabs.map(func(b): return b.get_meta("bench_tab")) == ["brew", "temper", "retrait", "join", "break", "inscribe", "recall", "vessel", "tincture", "charm", "exchange"], "the bench's counters: brew, temper, retrait, join, break down, inscribe, recall scroll, vessel, tinctures, charms, the Exchange")
 	var brew: Array = bench_buttons.call("brew", "draught")
 	_check(brew.size() == 1 and not brew[0].disabled, "anyone can brew a Healing Vial")
 	if brew.size() == 1:
@@ -9497,8 +9497,8 @@ func _bench_tests() -> void:
 	var axe_v: int = T.gear_sell(G.make("axe"))
 	_check(B.break_down(prof, "pack:1") == "%d Blade" % axe_v and prof.crystal_total("blade") == 105.0 + axe_v and prof.pack.size() == 1, "breaking down an axe gives %d Blade, as the store's Sell" % axe_v)
 	T.pack_supply(prof, "tonic", {"water": 8})
-	var tonic_v := maxi(1, int(round(float(T.item_price("tonic")[1]) * T.SELL_SHARE)))
-	_check(B.break_down(prof, "supply:tonic") == "%d Water" % tonic_v and prof.crystal_total("water") == float(tonic_v) and not prof.supplies.has("tonic"), "a packed tonic breaks into %d Water" % tonic_v)
+	var tonic_v := maxi(1, int(floor(8.0 * T.SELL_SHARE)))  # (40% of what was paid for it: train.gd item_sell)
+	_check(B.break_down(prof, "supply:tonic") == "%d Water" % tonic_v and prof.crystal_total("water") == float(tonic_v) and not prof.supplies.has("tonic"), "a packed tonic breaks into %d Water (40%% of the 8 paid)" % tonic_v)
 	# Inscribe: a lasting rune, its effect in the gear's numbers and drawn on its icon.
 	prof.add_crystal("iron", 25.0)
 	var strike2: float = G.effects(prof.heirlooms["melee"])["strike"]

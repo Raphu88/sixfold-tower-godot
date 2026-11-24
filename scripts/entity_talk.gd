@@ -76,7 +76,7 @@ static var DIALOGUE: Dictionary = OutfitterName.named({
 	# to "how"'s choices.
 	"how": {"ask": "How do things work here?",
 		"lines": ["Which part? I'll keep it short.", "Ask. The rules are simpler than they look. Mostly."],
-		"choices": ["how_controls", "how_start", "how_grace", "how_training", "how_stamina", "how_essence", "how_marks", "how_burns", "how_new_mark", "how_part_fills", "how_dodge", "how_synergies", "how_renown", "how_travel", "how_titles", "how_contracts", "how_tourney", "how_manager", "how_climb", "how_first_mark", "how_mark_seal", "how_barrier", "how_fall", "how_belt", "how_wheel", "how_states", "how_handy", "how_charms", "how_workshop", "how_offhand", "how_item_pool", "how_gear", "how_summit", "how_deeds", "how_bags", "how_shop", "how_ward", "how_secret", "how_portals", "how_aura", "how_unbound", "how_passing", "how_nodes", "how_sealing", "how_drain", "how_sworn", "how_unbound_words", "how_unbound_techniques", "how_bestiary", "how_guardians", "how_wild", "how_rivals", "how_dining", "how_bets", "how_duels", "how_glows", "how_ways_down", "how_foes", "start", "bye"]},
+		"choices": ["how_controls", "how_start", "how_grace", "how_training", "how_stamina", "how_essence", "how_marks", "how_burns", "how_new_mark", "how_part_fills", "how_dodge", "how_synergies", "how_renown", "how_travel", "how_titles", "how_contracts", "how_tourney", "how_manager", "how_climb", "how_first_mark", "how_mark_seal", "how_barrier", "how_fall", "how_belt", "how_wheel", "how_states", "how_handy", "how_charms", "how_workshop", "how_offhand", "how_item_pool", "how_gear", "how_summit", "how_deeds", "how_bags", "how_shop", "how_exchange", "how_ward", "how_secret", "how_portals", "how_aura", "how_unbound", "how_passing", "how_nodes", "how_sealing", "how_drain", "how_sworn", "how_unbound_words", "how_unbound_techniques", "how_bestiary", "how_guardians", "how_wild", "how_rivals", "how_dining", "how_bets", "how_duels", "how_glows", "how_ways_down", "how_foes", "start", "bye"]},
 	"how_controls": {"ask": "What are the controls?", "fact": "controls",
 		"lines": ["{controls_how}", "{controls_list}", "Press H any time to show or hide this list in the corner of the screen. Settings & Controls lets you change any key."],
 		"choices": ["how", "bye"]},
@@ -176,7 +176,7 @@ static var DIALOGUE: Dictionary = OutfitterName.named({
 		"choices": ["how_workshop", "how_bags", "how", "bye"]},
 	"how_workshop": {"ask": "The Workshop and its Rune Artist?", "fact": "rules",
 		"lines": ["The Workshop's bench has a counter for each kind of work. Brewing, breaking down, tinctures and refilling charms are anyone's. The rest is crafting: tempering, swapping a trait, joining two pieces, a lasting rune, a recall scroll, a vessel, a new charm. With the Rune Artist's mark you craft it yourself with your own essence, and brew for less. Without the mark, {artist} at the bench crafts it for you. You bring the same crystals a Rune Artist would use, plus {artist_premium} on top for the craft, and {artist_work} when a full vessel does the work. Every card says who crafts and what the price is made of."],
-		"choices": ["how_charms", "how", "bye"]},
+		"choices": ["how_charms", "how_exchange", "how", "bye"]},
 	"how_offhand": {"ask": "How does the off-hand work?",
 		"lines": ["Your off-hand holds a second one-handed weapon, a shield or a wand. A second blade puts its own strike into your chains, just before the finisher. A shield blocks while you keep holding parry after the parry's moment: blows from in front hurt less, and each costs stamina; run dry and the guard breaks. A clean parry still beats a block. A wand casts a small power with the off-hand button. Enchanted ones have their own pool of uses, fed with essence like a charm. Two-handed weapons and bows need both hands: the off-hand waits."],
 		"choices": ["how_charms", "how", "bye"]},
@@ -196,8 +196,11 @@ static var DIALOGUE: Dictionary = OutfitterName.named({
 		"lines": ["Your bag sets how many spare pieces your pack holds: {bag_none} with none, {bag_sizes}. Small bags never slow you. A big one does once it's nearly full, {heavy_at} of its spaces or more, and the pack's heading says \"heavy\". Lighten it and you're quick again."],
 		"choices": ["how_shop", "how_charms", "how", "bye"]},
 	"how_shop": {"ask": "How does the shop change?", "fact": "rules",
-		"lines": ["His stock follows your rank: that's the trunk of his upgrade tree. Higher up: more on his rail (up to {rail_most}, all shown at once), more kinds on the shelf (up to {kinds_most}), more Fine and Rare pieces, pistols and crossbows from {gun_rank}, now and then a named piece or a relic. It's new every visit. The title you wear tilts his rail, and some titles take a little off. The rest you buy on his tree. Never a plain sword or shortbow: he gives those to climbers who come back from a fall without one, and won't buy them back."],
-		"choices": ["how_shop_tree", "how_renown", "how_gift", "how", "bye"]},
+		"lines": ["His stock follows your rank: that's the trunk of his upgrade tree. Higher up: more on his rail (up to {rail_most}, all shown at once), more kinds on the shelf (up to {kinds_most}), more Fine and Rare pieces, pistols and crossbows from {gun_rank}, now and then a named piece or a relic. It's new every visit. The title you wear tilts his rail, and some titles take a little off. The rest you buy on his tree. Never a plain sword or shortbow: he gives those to climbers who come back from a fall without one, and won't buy them back. Everyday goods, everything on his shelf but tinctures, take crystals of any kind, your fullest first; gear and charms want their own kind."],
+		"choices": ["how_shop_tree", "how_exchange", "how_renown", "how_gift", "how", "bye"]},
+	"how_exchange": {"ask": "Crystals I can't use, and the Exchange?", "fact": "rules",
+		"lines": ["First, spend them: everyday goods on {outfitter}'s shelf, the vials, tonics, bombs and scrolls, take crystals of any kind, the kinds you hold most of first. Gear, charms and the bench's work want their own kind. For those there's the Workshop's Exchange: choose a crystal to give, then on its card the kind to get and how much, {x_steps} at a time or All. The Rune Artist recasts every {x_give} you give into {x_get} of the kind you chose, whole lots only: {x_lost} is lost in the working, so the kinds keep their worth. A trade of {x_big} or more asks first. Nothing bought with any kind sells back for more than it cost, so don't look for a way round it. I did."],
+		"choices": ["how_shop", "how_workshop", "how", "bye"]},
 	"how_shop_tree": {"ask": "How does his upgrade tree work?", "fact": "rules",
 		"lines": ["Your rank is the trunk; four branches grow from it: Prices, Stock, Gifts, Info. A node opens at its rank once the one below it is yours; {tree_titled} also need a title from the Noble. Buy it with crystals of any kind and it's yours for good; there are {tree_total} in all. Discounts from the tree and your worn title stop at {tree_cap} off. Choose a node and its card says what it does. On a wide screen the Upgrades sign under {outfitter} folds the tree away, to give him room, or opens it again; the car remembers which."],
 		"choices": ["how_shop", "how_renown", "how", "bye"]},
@@ -809,6 +812,13 @@ static func _fact_rules() -> Dictionary:
 	var share := float(Bench.PREMIUM["share"])
 	f["artist_premium"] = "half the materials again" if is_equal_approx(share, 0.5) else "%d%% of the materials" % int(round(share * 100.0))
 	f["artist_work"] = "a fee of %d crystals of the piece's kind" % int(Bench.PREMIUM["work"])
+	# The Exchange (bench.gd EXCHANGE).
+	f["x_give"] = int(Bench.EXCHANGE["give"])
+	f["x_get"] = int(Bench.EXCHANGE["get"])
+	f["x_big"] = int(Bench.EXCHANGE["big"])
+	var lost := 1.0 - float(Bench.EXCHANGE["get"]) / maxf(1.0, float(Bench.EXCHANGE["give"]))
+	f["x_lost"] = "a third" if is_equal_approx(lost, 1.0 / 3.0) else "%d%%" % int(round(lost * 100.0))
+	f["x_steps"] = " or ".join(Bench.EXCHANGE_STEPS.map(func(n): return str(int(n))))
 	# Charms and bags (charms.gd, gear.gd BAG): from their tables.
 	var Shop = load("res://scripts/shop.gd")
 	var last: Dictionary = Shop.RANK_STOCK[-1]

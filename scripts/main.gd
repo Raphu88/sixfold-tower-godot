@@ -2749,7 +2749,8 @@ func _take_belt_pick(pick: String) -> void:
 
 
 ## The end of a survived climb (or a recall scroll): unused belt items
-## break into essence crystals at half their worth, one crystal per kind.
+## break into essence crystals at half their worth, one crystal per kind
+## (one bought on the train: half what it cost, train.gd belt_worth).
 ## Returns the line to show ("" if nothing was carried). `skip` leaves out
 ## items (the recall scroll being read).
 func break_belt(skip: Array = []) -> String:
@@ -2765,7 +2766,8 @@ func break_belt(skip: Array = []) -> String:
 			continue
 		if not (id in skip) and id != Vessel.ID and int(player.items[id]) > 0:  # (a vessel comes home whole: Vessel.bring_home)
 			carried[id] = int(player.items[id])
-	var worth: Dictionary = Items.break_value(carried)
+	var worth: Dictionary = Train.belt_worth(profile, carried)  # (found ones at half their worth; bought ones at half what they cost, in what paid)
+	profile.belt_paid = {}
 	var made: Array = []
 	for k in Essence.KINDS:
 		var amount := float(worth.get(k, 0.0))

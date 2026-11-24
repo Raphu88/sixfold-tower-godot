@@ -72,6 +72,9 @@ const WHEEL_GAP := 220  # ms between cars on the mouse wheel (a trackpad sends m
 var m  # the menu (menu.gd)
 var tips := {}  # car -> the Entity's tip said there this visit (kept while the page rebuilds)
 var charm_tip := ""  # the Entity's first line about charms, said at the bench's Charms counter this visit
+var exchange_tip := ""  # the Entity's first line about the Exchange, said at its counter this visit
+var x_to := ""  # the Exchange: the kind to get ("": the default, exchange_default)
+var x_amount := 30  # the Exchange: how much to give (kept to whole lots, bench.gd exchange_amount)
 var artist_line := -1  # the line the workshop's Rune Artist says (-1: their greeting; each press on them, the next)
 var view  # the drawn train (m.train_view)
 var roots := {}  # car -> its things (a VBoxContainer in its room)
@@ -433,6 +436,8 @@ func _shop_tips() -> Array:
 	var prof = _prof()
 	if (store.tree_fits() and store.upgrades_wanted()) or m.train_store == "tree":
 		out.append("shop_tree")
+	if Train.shelf(prof).any(func(id): return Train.everyday(String(id)) and String(id) != "scroll"):
+		out.append("any_goods")  # (everyday goods take any kind of essence: train.gd ANY_GOODS)
 	if Renown.rank(prof) >= 1:
 		out.append("shop_grows")
 	if Shop.title_line(prof) != "":
@@ -898,13 +903,15 @@ func _workshop(root: Node) -> void:
 				keys.append(s.get_meta("slot"))
 		"charm":
 			keys = _charm_counter(left)
+		"exchange":
+			keys = _exchange_counter(left)
 		_:
 			keys = _bench_pieces(left, func(_g): return true)
 	if keys.is_empty():
 		var empty: String = B["nothing_join"] if counter == "join" else (B["nothing_break"] if counter == "break" else B["nothing"])
 		_note(left, empty)
 		keys.append("bench:none")
-	_card(row, keys, "")
+	_card(row, keys, "bench:x:" + _x_fullest() if counter == "exchange" else "")
 
 
 ## The Rune Artist who works the bench (bench.gd ARTIST; drawn by
@@ -925,6 +932,8 @@ func _rune_artist(parent: Node) -> void:
 	row.add_child(npc)
 	var A: Dictionary = Bench.ARTIST
 	var said: String = String(A["marked"] if Bench.rune_artist(_prof()) else A["greeting"])
+	if m.train_bench == "exchange":
+		said = String(Bench.EXCHANGE_TEXT["artist"])  # (at the Exchange: what they do there)
 	if artist_line >= 0 and not A["lines"].is_empty():
 		said = String(A["lines"][artist_line % A["lines"].size()])
 	var bubble := artist_says(said, small)
@@ -1121,6 +1130,193 @@ func _charm_craft_card(id: String) -> void:
 	var C: Dictionary = Bench.Charms.TEXT
 	_ask_button(m.details, C["craft"], C["craft_ask"], "craft:" + id, why, "bench_do", "craft")
 	_why_line(why)
+
+
+## THE EXCHANGE (bench.gd EXCHANGE): your six crystals, one to give. Its
+## card picks the kind to get and how much, previews the trade ("Give 30
+## Fire, get 20 Stone") and makes it (a big one asks first). The first
+## time here the Entity explains it (on a phone, on the card: no room here).
+func _exchange_counter(parent: Node) -> Array:
+	var prof = _prof()
+	var X: Dictionary = Bench.EXCHANGE_TEXT
+	var first: String = m.main.tip_now("exchange", false)
+	if first != "":
+		exchange_tip = first
+	if exchange_tip != "" and not _small():
+		_note(parent, Entity.fill_keys(exchange_tip, "keys", false)).set_meta("entity", "exchange")
+	_tag(parent, X["give_head"])
+	var grid := _grid(parent, 3)
+	var keys: Array = []
+	for kind in Essence.KINDS:
+		var s = m._slot(grid, "bench:x:" + kind, _cell(), "" if _small() else Essence.display(kind))
+		s.kind = "crystal"
+		s.id = kind
+		s.count = int(prof.crystal_total(kind))
+		s.empty = prof.crystal_count(kind) <= 0
+		s.tint = Essence.color(kind)
+		s.set_meta("help_facts", {"piece": String(Items.CRYSTAL["name"]) % Essence.display(kind), "count": str(int(prof.crystal_total(kind)))})
+		keys.append(s.get_meta("slot"))
+	return keys
+
+
+## The kind you hold most of (the Exchange's first crystal to give).
+func _x_fullest() -> String:
+	var prof = _prof()
+	var best := String(Essence.KINDS.keys()[0])
+	for k in Essence.KINDS:
+		if prof.crystal_total(k) > prof.crystal_total(best):
+			best = String(k)
+	return best
+
+
+## The kind to get when none is chosen (or it's the one given): the
+## essence of the tower chosen at the engine, else the kind you hold least of.
+func _x_default(give: String) -> String:
+	if x_to != "" and x_to != give and Essence.KINDS.has(x_to):
+		return x_to
+	var prof = _prof()
+	var home := String(load("res://scripts/towers.gd").TOWERS.get(String(m.train_tower), {}).get("essence", ""))
+	if home != "" and home != give and Essence.KINDS.has(home):
+		return home
+	var least := ""
+	for k in Essence.KINDS:
+		if k != give and (least == "" or prof.crystal_total(k) < prof.crystal_total(least)):
+			least = String(k)
+	return least
+
+
+## The Exchange's card for the crystal to give.
+func _exchange_card(give: String) -> void:
+	var prof = _prof()
+	var X: Dictionary = Bench.EXCHANGE_TEXT
+	if not Essence.KINDS.has(give):
+		give = _x_fullest()
+	var gname := Essence.display(give)
+	_head("crystal", give, "%s: %s" % [X["title"], gname], Essence.color(give))
+	if exchange_tip != "" and _small():
+		m._detail_text(Entity.fill_keys(exchange_tip, "touch" if m.main.touch_active else "keys", false), UI.GILT_HI)
+	m._detail_text(X["hold"] % [int(prof.crystal_total(give)), gname], UI.DIM)
+	x_to = _x_default(give)
+	# The kind to get: the other five, the chosen one lit.
+	m.details.add_child(m._small_label(X["get_head"], UI.DIM))
+	var kinds := GridContainer.new()
+	kinds.columns = 3
+	kinds.add_theme_constant_override("h_separation", 4)
+	kinds.add_theme_constant_override("v_separation", 4)
+	m.details.add_child(kinds)
+	for k in Essence.KINDS:
+		if k == give:
+			continue
+		var b: Button = m._button(Essence.display(k), _x_pick.bind(String(k)), kinds)
+		b.custom_minimum_size.y = 36
+		b.set_meta("exchange_to", String(k))
+		b.set_meta("help", "exchange_to")
+		b.set_meta("help_facts", {"piece": Essence.display(k), "count": str(int(prof.crystal_total(k)))})
+		_x_chip(b, String(k), k == x_to)
+		UI.keep_text(b)
+	# How much: whole lots, quick steps and All.
+	var most := Bench.exchange_most(prof, give)
+	x_amount = Bench.exchange_amount(x_amount, most)
+	m.details.add_child(m._small_label(X["amount"], UI.DIM))
+	var steps := HBoxContainer.new()
+	steps.add_theme_constant_override("separation", 4)
+	m.details.add_child(steps)
+	var list: Array = []
+	for n in Bench.EXCHANGE_STEPS:
+		list.push_front(-int(n))
+		list.append(int(n))
+	for n in list:
+		var label := ("+%d" if n > 0 else "-%d") % absi(n)
+		var sb: Button = m._button(label, _x_step.bind(n), steps)
+		sb.custom_minimum_size = Vector2(44, 36)
+		sb.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		sb.set_meta("exchange_step", label)
+		sb.set_meta("help", "exchange_step")
+		sb.set_meta("help_facts", {"count": str(absi(n)), "choice": "more" if n > 0 else "less"})
+		UI.keep_text(sb)
+	var ab: Button = m._button(X["all"], _x_step.bind(0), steps)
+	ab.custom_minimum_size = Vector2(44, 36)
+	ab.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	ab.set_meta("exchange_step", "all")
+	ab.set_meta("help", "exchange_step:all")
+	ab.set_meta("help_facts", {"count": str(most), "piece": gname})
+	UI.keep_text(ab)
+	# The trade, in words, and its button.
+	var preview := Label.new()
+	preview.text = Bench.exchange_text(give, x_to, x_amount)
+	preview.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	preview.custom_minimum_size.x = 200.0
+	UI.style_label(preview, "display", 18 if _small() else 20, UI.GILT_HI)
+	preview.set_meta("exchange_preview", preview.text)
+	m.details.add_child(preview)
+	m._detail_text(X["rate"] % [int(Bench.EXCHANGE["give"]), int(Bench.EXCHANGE["get"])], UI.FAINT)
+	var why := Bench.exchange_why(prof, give, x_to, x_amount)
+	var tb: Button = m._button(X["trade"], _x_trade.bind(give), m.details)
+	tb.custom_minimum_size.y = 40
+	tb.disabled = why != ""
+	tb.set_meta("exchange_do", give)
+	tb.set_meta("help", "exchange_do:big" if Bench.exchange_asks(x_amount) else "exchange_do")
+	tb.set_meta("help_facts", {"price": Bench.exchange_text(give, x_to, x_amount)})
+	if Bench.exchange_asks(x_amount):
+		tb.set_meta("asks", true)  # (it opens the pop-up)
+	UI.keep_text(tb)
+	_why_line(why)
+	if not m.compact():
+		m._detail_text(X["how"], UI.FAINT)
+
+
+## A kind to get, as a flat chip in its essence's colour (gilt-edged when chosen).
+func _x_chip(b: Button, kind: String, on: bool) -> void:
+	var col: Color = Essence.color(kind)
+	for st_name in ["normal", "hover", "pressed"]:
+		var bg := Color(col, 0.34 if on else (0.18 if st_name == "hover" else 0.08))
+		b.add_theme_stylebox_override(st_name, UI.box(bg, UI.GILT_HI if on else Color(col, 0.6), 6, 2 if on else 1, 6.0))
+	b.add_theme_color_override("font_color", col.lightened(0.55) if on else col.lightened(0.3))
+	b.add_theme_color_override("font_hover_color", col.lightened(0.6))
+	b.add_theme_color_override("font_focus_color", col.lightened(0.6))
+
+
+func _x_pick(kind: String) -> void:
+	x_to = kind
+	m.toast = ""
+	m.feedback("choose", "ui_confirm")
+	m._want_focus = {"meta": "exchange_to", "value": kind}
+	m.open("train")
+
+
+## A quick step on the amount (`by` essence more or less; 0: all you can give).
+func _x_step(by: int) -> void:
+	var give := String(m.inv_sel).get_slice(":", 2)
+	var most := Bench.exchange_most(_prof(), give) if Essence.KINDS.has(give) else 0
+	x_amount = most if by == 0 else x_amount + by
+	x_amount = Bench.exchange_amount(x_amount, most)
+	m.toast = ""
+	m.main.sfx("ui_confirm", 1.1, -8.0, 0.0)
+	var label := "all" if by == 0 else ("+%d" if by > 0 else "-%d") % absi(by)
+	m._want_focus = {"meta": "exchange_step", "value": label}
+	m.open("train")
+
+
+## Trade pressed: a big trade asks first (the confirmation pop-up), a small one is made.
+func _x_trade(give: String) -> void:
+	var X: Dictionary = Bench.EXCHANGE_TEXT
+	var to := _x_default(give)
+	var amount := x_amount
+	if Bench.exchange_asks(amount):
+		m.ask(X["ask"] % [amount, Essence.display(give), Bench.exchange_get(amount), Essence.display(to)], X["trade"], _x_make.bind(give, to, amount))
+	else:
+		_x_make(give, to, amount)
+
+
+func _x_make(give: String, to: String, amount: int) -> void:
+	var X: Dictionary = Bench.EXCHANGE_TEXT
+	var why := Bench.exchange(_prof(), give, to, amount)
+	m._want_focus = {"meta": "exchange_do", "value": give}
+	if why == "":
+		artist_line = -1
+		_done(X["done"] % [amount, Essence.display(give), Bench.exchange_get(amount), Essence.display(to)], "", "craft")
+	else:
+		_done(B["cant"] % why, "", "ui_back")
 
 
 ## A counter's price drawn on a piece's slot (Temper's cost, what Break down gives).
@@ -1624,6 +1820,9 @@ func _bench_card(arg: String) -> void:
 		return
 	if arg.begins_with("tincture:"):
 		_tincture_card(arg.substr(9))
+		return
+	if arg.begins_with("x:"):
+		_exchange_card(arg.substr(2))
 		return
 	match counter:
 		"charm":
@@ -2203,9 +2402,11 @@ func _buy_supply(key: String) -> void:
 	var why := Train.buy_supply(_prof(), _player(), id)
 	if why == "":
 		var said: String = T["bought"] % Items.item_name(id)
+		var line := Train.line("bought")
 		if Train.item_price(id)[0] == Train.ANY:
 			said += "  ·  " + T["paid_with"] % Train.paid_text(Train.last_paid(_prof(), id))  # (which crystals it took)
-		_done(said, Train.line("bought"), "buy")
+			line = Train.line("any")  # (he says any kind spends on his shelf)
+		_done(said, line, "buy")
 	else:
 		_done(T["cant"] % why, Train.line("poor") if why.begins_with("needs") else "", "ui_back")
 
