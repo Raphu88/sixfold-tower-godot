@@ -151,8 +151,9 @@ static var TEXT := {
 	"wisp_found": "The wisp follows you",
 	"wisp_hides": "The wisp hides",
 }
-## When it's done: essence at the stair (this, plus this much a floor).
-static var REWARD := {"essence": 4.0, "per_floor": 1.3, "light": 230.0}
+## When it's done: essence at the stair (this, plus this much a floor: 87%
+## of 4 and 1.3, as a stair's crystal share went to 8%, essence_flow.gd SPLIT).
+static var REWARD := {"essence": 3.48, "per_floor": 1.131, "light": 230.0}
 
 ## Dev tool and tests: when set, every floor of rooms gets this kind.
 static var forced := ""

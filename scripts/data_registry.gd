@@ -254,8 +254,8 @@ const SECTIONS := [
 		"tables": ["bestiary/TIERS"], "kinds": ["number"],
 		"names": {"TIERS": "Slayings for each tier (monsters, beasts): health, weakness, states"}},
 	{"id": "items_numbers", "group": "numbers", "name": "Items and camps", "when": "live",
-		"tables": ["items/ITEMS", "items/BELT", "items/CAMP", "items/CRYSTAL", "items/RECALL", "items/DROPS", "lost/WEAPON_CHANCE", "lost/CACHE_CHANCE", "vessel/CAPACITY", "vessel/VAULT_CHANCE"], "kinds": ["number"],
-		"names": {"DROPS": "Drops: essence instead of items, how rare the non-staples are, a tower's handy items"}},
+		"tables": ["items/ITEMS", "items/BELT", "items/CAMP", "items/CRYSTAL", "items/RECALL", "items/DROPS", "items/BREAK_SHARE", "lost/WEAPON_CHANCE", "lost/CACHE_CHANCE", "vessel/CAPACITY", "vessel/VAULT_CHANCE"], "kinds": ["number"],
+		"names": {"DROPS": "Drops: essence instead of items, how rare the non-staples are, a tower's handy items", "BREAK_SHARE": "The belt into crystals at a survived climb's end (share of worth)"}},
 	{"id": "entity_numbers", "group": "numbers", "name": "The Entity: how long its words stay in a climb", "when": "live",
 		"tables": ["entity/TIMING"], "kinds": ["number"],
 		"names": {"TIMING": "Seconds: a tip (base, per letter, least, most), a one-line tidbit (base, per letter), and how long a tidbit may wait"}},
@@ -450,7 +450,7 @@ const KEY_NAMES := {"desc": "description", "dmg": "damage", "hp": "health", "mor
 ## key or its end): [lowest, highest, step].
 const NUMBER_HINTS := {
 	"chance": [0.0, 1.0, 0.01], "odds": [0.0, 100.0, 1.0], "share": [0.0, 1.0, 0.01], "keep": [0.0, 1.0, 0.01],
-	"SELL_SHARE": [0.0, 1.0, 0.01], "WORN_SELL": [0.0, 1.0, 0.01], "MARK_FULL": [0.1, 1.0, 0.01], "VIGNETTE": [0.0, 1.0, 0.01],
+	"SELL_SHARE": [0.0, 1.0, 0.01], "BREAK_SHARE": [0.0, 1.0, 0.01], "WORN_SELL": [0.0, 1.0, 0.01], "MARK_FULL": [0.1, 1.0, 0.01], "VIGNETTE": [0.0, 1.0, 0.01],
 	"ATTRIBUTE_CAP": [0.0, 1.0, 0.01], "roll_iframes": [0.0, 1.0, 0.01], "CHEST_SIZE": [8.0, 200.0, 1.0],
 }
 

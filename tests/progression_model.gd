@@ -21,7 +21,9 @@ extends RefCounted
 ## beast's shadow, from the drop table); floors 7 to 11 keep the old table,
 ## as floor 7 still matches it; 12 is the beast.
 ## tests/parts/essence_pace.gd holds the drop tables to this. Measure again
-## after changing drops or finds.
+## after changing drops or finds. (Every amount is 87% of what was measured,
+## as the drops and finds went when a stair's crystal share went from 20% to
+## 8%: what flows into the climber, 92% of it, is about what 80% was.)
 
 ## A climb counts after the bondless first climb (which ends in the Regard):
 ## "climb 3" is the third climb with a mark.
@@ -32,11 +34,16 @@ const Towers := preload("res://scripts/towers.gd")
 const Bonds := preload("res://scripts/bonds.gd")
 
 ## Essence banked at each floor's stair, floors 1 to 12 (12: the beast).
-const ESSENCE := [8.5, 52.5, 72.5, 80.5, 92.0, 62.0, 109.375, 119.875, 137.375, 168.875, 189.875, 56.0]
+const ESSENCE := [7.395, 45.675, 63.075, 70.035, 80.04, 53.94, 95.156, 104.291, 119.516, 146.921, 165.191, 48.72]
 ## Monsters slain per floor by a thorough player, the adds among them (each
 ## may leave a tincture: items.gd DROPS); floors 8 to 11 the plans' counts
 ## times floor 7's measured share. (It was about 6.5 a floor, from the plans.)
 const KILLS := [3.6, 8.2, 7.4, 10.3, 11.6, 4.0, 10.6, 11.4, 12.8, 12.8, 13.4, 1.0]
+## A light player's floor (the task, the monsters in the way, then the stair)
+## against a thorough one's: the floor bot's plain run (tests/essence_measure.gd
+## without "thorough", floors 2-5, 7 and 9 of the Chimera's tower) gathered
+## 260 where the model counts 544.
+const LIGHT := 0.48
 ## Each tower's essence by kind (its monsters are not all of its kind).
 const MIX := {
 	"gryphon": {"air": 0.91, "water": 0.05, "iron": 0.04},
@@ -89,13 +96,18 @@ const FORCE_LIMIT := {"careful": Forcing.BURNED, "reckless": Forcing.BROKEN}
 ## climb], "second": the climb the second mark came on (0: none),
 ## "marks_at": [the climb each new mark came on], "xp": [first mark's growth
 ## after each climb], "per_climb": growth a climb, "forced": essence forced
-## past full (`force`: FORCE_LIMIT key, or "" never)}.
-static func run(pattern: String, climbs: int, earned := false, bought := BOUGHT_TINCTURES, use := 1.0, force := "") -> Dictionary:
+## past full (`force`: FORCE_LIMIT key, or "" never), "inflow": what reached
+## body and marks after each climb (the split's rest, less what the marks
+## couldn't take)}. `amount`: the floors' essence times this (LIGHT: a light
+## player's floors).
+static func run(pattern: String, climbs: int, earned := false, bought := BOUGHT_TINCTURES, use := 1.0, force := "", amount := 1.0) -> Dictionary:
 	var prof = Profile.new()
 	var cs: float = Flow.default_crystal_share()
+	var inflow := 0.0
+	var inflows: Array = []
 	# The first climb: bondless, three floors of the mark's tower, then the Regard.
 	for f in range(1, Profile.FIRST_CLIMB_FLOORS + 1):
-		prof.pour(_essence(OWN_TOWER, f), STYLE, cs)
+		prof.pour(_essence(OWN_TOWER, f, amount), STYLE, cs)
 	prof.regarded = true
 	prof.add_bond(FIRST_PART, FIRST_BOND, false)
 	var steps: Array = []
@@ -121,7 +133,8 @@ static func run(pattern: String, climbs: int, earned := false, bought := BOUGHT_
 		for f in range(1, last + 1):
 			for part in prof.bonds:
 				MarkUse.note_use(prof, part, (MARK_USE if part == FIRST_PART else OTHER_MARK_USE) * use)
-			prof.pour(_essence(tower, f), STYLE, cs)
+			var poured: Dictionary = prof.pour(_essence(tower, f, amount), STYLE, cs)
+			inflow += float(poured["body"]) + float(poured["marks"]) - float(poured["over"])
 			Forcing.stair(prof)
 			if force != "":
 				forced += force_marks(prof, force)
@@ -148,8 +161,9 @@ static func run(pattern: String, climbs: int, earned := false, bought := BOUGHT_
 			prof.drink(String(Towers.TOWERS[OWN_TOWER]["essence"]), float(Flow.TINCTURE["essence"]) * bought, FIRST_PART)
 		xps.append(float(prof.bonds[FIRST_PART]["xp"]))
 		crystals.append(prof.crystals_held())
+		inflows.append(inflow)
 		steps.append(Profile.step_for_xp(float(prof.bonds[FIRST_PART]["xp"])))
-	return {"steps": steps, "second": second, "marks_at": marks_at, "xp": xps, "crystals": crystals, "forced": forced}
+	return {"steps": steps, "second": second, "marks_at": marks_at, "xp": xps, "crystals": crystals, "forced": forced, "inflow": inflows}
 
 
 ## Force-eats crystals into the first mark (its own kind first), a crystal
@@ -200,11 +214,12 @@ static func _new_mark(prof) -> void:
 	prof.add_bond(part, id, false)
 
 
-## A floor's essence in a tower, by kind.
-static func _essence(tower: String, f: int) -> Dictionary:
+## A floor's essence in a tower, by kind (times `amount`: LIGHT for a light
+## player's floor).
+static func _essence(tower: String, f: int, amount := 1.0) -> Dictionary:
 	var out := {}
 	for k in MIX[tower]:
-		out[k] = ESSENCE[f - 1] * float(MIX[tower][k])
+		out[k] = ESSENCE[f - 1] * float(MIX[tower][k]) * amount
 	return out
 
 
@@ -257,14 +272,15 @@ const UB_SPAM := 10.0
 ## kept), as in the game; false shows the pace without it. Returns {"sizes": [after each climb, part -> size], "awake": part
 ## -> the climb it woke (0: never), "top": part -> the climb it reached level
 ## 12 (0: never), "crystals": the crystals held after each climb}.
-static func run_unbound(pattern: String, climbs: int, use := "typical", routing := "natural", sealed := [], drain := true, force := "") -> Dictionary:
+## `amount`: the floors' essence times this (LIGHT: a light player's floors).
+static func run_unbound(pattern: String, climbs: int, use := "typical", routing := "natural", sealed := [], drain := true, force := "", amount := 1.0) -> Dictionary:
 	var U = load("res://scripts/unbound.gd")
 	var Tech = load("res://scripts/technique.gd")
 	var prof = Profile.new()
 	prof.saving = false
 	var cs: float = Flow.default_crystal_share()
 	for f in range(1, Profile.FIRST_CLIMB_FLOORS):
-		prof.pour(_essence(OWN_TOWER, f), STYLE, cs)
+		prof.pour(_essence(OWN_TOWER, f, amount), STYLE, cs)
 	prof.regarded = true
 	U.become(prof)
 	for part in sealed:
@@ -300,7 +316,7 @@ static func run_unbound(pattern: String, climbs: int, use := "typical", routing 
 						U.note_use(prof, part, UB_CASTS * boost * k, "boost")
 					else:
 						U.note_use(prof, part, UB_ACTION * k, "action")
-			prof.pour(_essence(tower, f), {}, cs)
+			prof.pour(_essence(tower, f, amount), {}, cs)
 			Forcing.stair(prof)
 			if force != "":
 				force_nodes(prof, force)

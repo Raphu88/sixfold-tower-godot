@@ -108,11 +108,11 @@ static var RULES := {
 	"chance": 0.45, "from": 2, "per_climb": 2, "sure_by": 3, "return_chance": 0.35, "return_steps": 1, "grow_mark": 0.3,
 	"second_from": 4, "second": 0.5, "third_from": 8, "third": 0.4, "step_floors": 4.0, "step_spread": 1,
 	"reach": 34.0, "hp": 110.0, "hp_per_step": 10.0, "armor": 0.2, "pair_bias": 0.75, "state_seconds": 4.0,
-	"duel_yield": 0.12, "duel_left": 0.2, "duel_toll": 0.25, "duel_toll_min": 5.0, "duel_crystals": 10.0, "duel_per_floor": 2.0,
+	"duel_yield": 0.12, "duel_left": 0.2, "duel_toll": 0.25, "duel_toll_min": 5.0, "duel_crystals": 5.0, "duel_per_floor": 1.0,
 	"duel_renown": 6, "duel_gear": 0.5, "duel_ward": 1, "duel_bonus": 1.5, "duel_time": 120.0,
 	"team_share": 0.5, "team_drops": 0.5, "team_renown": 3, "ally_taken": 0.6, "ally_leave": 0.2,
-	"rescue_cost": 0.25, "rescue_renown": 8, "gift_crystals": 15.0,
-	"greed_essence": 15.75, "greed_per_floor": 3.5, "greed_row": 1, "greed_renown": 5,
+	"rescue_cost": 0.25, "rescue_renown": 8, "gift_crystals": 8.0,  # (a duel's crystals and a gift's: half what they were, slow growth)
+	"greed_essence": 13.7025, "greed_per_floor": 3.045, "greed_row": 1, "greed_renown": 5,  # (the hoard's essence: 87% of what it was, as every essence find: essence_flow.gd SPLIT)
 	"trade_offers": 3, "fair_low": 0.6, "fair_high": 1.6, "trade_crystals": 12.0, "trade_per_floor": 1.5,
 	"kept": 24,
 }

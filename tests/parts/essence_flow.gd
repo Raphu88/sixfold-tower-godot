@@ -81,7 +81,7 @@ func _split() -> void:
 	_check(is_equal_approx(float(sh["body"]) + float(sh["marks"]) + float(sh["crystals"]), 1.0) and is_equal_approx(float(sh["crystals"]), 0.3)
 		and is_equal_approx(float(sh["body"]) / float(sh["marks"]), float(Flow.SPLIT["body"]) / float(Flow.SPLIT["marks"])),
 		"the split's shares add up, the crystals at the setting and body and marks in their proportions (%s)" % sh)
-	_check(is_equal_approx(Flow.default_crystal_share(), 0.2) and is_equal_approx(Train.condense_share(), 0.2) and not M.settings.has("condense"), "the crystal share is fixed at 20%, no longer a setting")
+	_check(is_equal_approx(Flow.default_crystal_share(), 0.08) and is_equal_approx(Train.condense_share(), 0.08) and not M.settings.has("condense"), "the crystal share is fixed at 8%, no longer a setting")
 	var of := float(Flow.OVERFLOW["crystals"])
 	_check(of > 0.0 and of <= 0.34, "of what the marks or Nodes can't take, only a share condenses (%d%%): the rest goes back to the well" % int(round(of * 100.0)))
 	var xp0 := float(prof.bonds["hand"]["xp"]) + float(prof.bonds["legs"]["xp"])
