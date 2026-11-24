@@ -540,6 +540,7 @@ func _begin_sentinel() -> void:
 	e.dmg *= tough.y
 	e.position = main.clear_spot(at, e.radius * 1.4)
 	e.state_t = 0.8
+	e.set_meta("add", "proving")  # (the tower's measure: it pays as it always did, essence.gd ADDS)
 	main.add_child(e)
 	e.wake()
 	sentinel = e
@@ -549,6 +550,7 @@ func _begin_sentinel() -> void:
 		var side := away.orthogonal() * (1.0 if k % 2 == 0 else -1.0)
 		var spot: Vector2 = at + side * (90.0 + 30.0 * (k / 2)) - away * 30.0 * (k / 2)
 		var a = main.spawn_enemy(String(tw.get("sentinel_adds", "slime")), main.walkable_point(at, spot, 16.0))
+		a.set_meta("add", "proving")
 		a.wake()
 		mobs.append(a)
 	main.fx_burst(at, Vector2.UP, GOLD, 26, 200.0)

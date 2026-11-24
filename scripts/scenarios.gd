@@ -61,9 +61,9 @@ static var SCENARIOS := {
 }
 ## What a grade pays: essence (base, per floor) and renown.
 static var GRADES := {
-	"gold": {"essence": 12.25, "per_floor": 2.625, "renown": 8, "name": "Gold"},
-	"silver": {"essence": 7.875, "per_floor": 1.75, "renown": 4, "name": "Silver"},
-	"bronze": {"essence": 4.375, "per_floor": 0.875, "renown": 2, "name": "Bronze"},
+	"gold": {"essence": 9.25, "per_floor": 2.0, "renown": 8, "name": "Gold"},
+	"silver": {"essence": 6.0, "per_floor": 1.3, "renown": 4, "name": "Silver"},
+	"bronze": {"essence": 3.25, "per_floor": 0.65, "renown": 2, "name": "Bronze"},
 	"none": {"essence": 0.0, "per_floor": 0.0, "renown": 0, "name": "No grade"},
 }
 static var TEXT := {
@@ -516,7 +516,7 @@ func _finish(s: Dictionary, grade: String, why := "") -> void:
 		return
 	var kind: String = main.tower_data().get("essence", "air")
 	var amount: float = float(g["essence"]) + float(g["per_floor"]) * main.floor_num
-	main.gather_essence(kind, amount, main.player.global_position)
+	main.gather_essence(kind, amount, main.player.global_position, "scenario")
 	var lines: Array = [TEXT["noticed_line"] % [th["name"], g["name"]]]
 	# The lane says the beast noticed; the feed and the Entity's log keep
 	# the grade and the renown.

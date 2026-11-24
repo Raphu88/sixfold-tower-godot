@@ -63,6 +63,7 @@ func tick(delta: float) -> void:
 			var at: Vector2 = host._spot()
 			if at != Vector2.INF:
 				var e = main.spawn_enemy("slime", at)  # (a walker: it can hold a plate down)
+				e.set_meta("add", "summoned")  # (sent again and again: it pays no essence, essence.gd ADDS)
 				e.wake()
 				main.floor_total += 1
 				main.foes_changed()

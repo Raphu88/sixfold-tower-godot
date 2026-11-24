@@ -13,58 +13,81 @@ static var KINDS := {
 	"blade": {"name": "Blade", "color": Color(0.88, 0.36, 0.4)},
 }
 
-## What each monster drops: kind and amount (more on higher floors). (Seven
-## eighths of the old amounts since the crystal share was fixed at 20%: what
-## flows into you stays the same, crystals come slower: essence_flow.gd SPLIT.)
+## What each monster drops: kind and amount (more on higher floors). (Half of
+## what they were, the guardians' excepted: measured in real, thorough play
+## (tests/essence_measure.gd "thorough": every monster, chest and cache on
+## the floor) a floor gave far more than the pace model holds; with the
+## finds at three quarters a thorough floor now gives what the model counts:
+## tests/progression_model.gd ESSENCE, held by tests/parts/essence_pace.gd.)
 static var DROPS := {
-	"slime": ["water", 2.625],
-	"archer": ["air", 3.5],
-	"knight": ["iron", 6.125],
-	"bat": ["air", 1.75],
-	"thunderling": ["air", 4.375],
+	"slime": ["water", 1.3125],
+	"archer": ["air", 1.75],
+	"knight": ["iron", 3.0625],
+	"bat": ["air", 0.875],
+	"thunderling": ["air", 2.1875],
 	"gryphon": ["air", 26.25],
-	"lurker": ["water", 3.5],
-	"shellback": ["iron", 4.375],
+	"lurker": ["water", 1.75],
+	"shellback": ["iron", 2.1875],
 	"kraken": ["water", 26.25],
-	"cinder": ["fire", 3.5],
-	"smith": ["iron", 5.25],
-	"golem": ["iron", 6.125],  # the forge golem (scripts/towers/forge_golem.gd)
+	"cinder": ["fire", 1.75],
+	"smith": ["iron", 2.625],
+	"golem": ["iron", 3.0625],  # the forge golem (scripts/towers/forge_golem.gd)
 	"wyvern": ["fire", 26.25],
-	"scorpling": ["stone", 2.625],
-	"ram": ["stone", 5.25],
-	"burrower": ["stone", 4.375],  # the burrower (scripts/towers/burrower.gd)
+	"scorpling": ["stone", 1.3125],
+	"ram": ["stone", 2.625],
+	"burrower": ["stone", 2.1875],  # the burrower (scripts/towers/burrower.gd)
 	"manticore": ["stone", 26.25],
-	"wisp": ["fire", 2.625],
-	"bloomcap": ["fire", 4.375],
+	"wisp": ["fire", 1.3125],
+	"bloomcap": ["fire", 2.1875],
 	"firebird": ["fire", 26.25],
-	"thornhound": ["blade", 2.625],
-	"mongrel": ["blade", 5.25],
+	"thornhound": ["blade", 1.3125],
+	"mongrel": ["blade", 2.625],
 	"chimera": ["blade", 26.25],
-	"deepfin": ["water", 4.375],  # (the Kraken's tower: scripts/towers/deepfin.gd)
-	"harrier": ["air", 3.5],  # (the Gryphon's tower: scripts/towers/harrier.gd)
-	"ashwing": ["fire", 3.9375],  # (the Firebird's tower: scripts/towers/ashwing.gd)
-	"briar": ["blade", 4.375],  # (the Chimera's tower: scripts/towers/briar.gd)
-	"mimic": ["iron", 1.75],  # (every tower: scripts/mimic.gd spills the rest, in the tower's essence)
-	"husk": ["iron", 4.375],  # (every tower: scripts/foes/)
-	"bellringer": ["iron", 1.75],
-	"squall": ["air", 2.625],  # (the Gryphon's tower)
-	"rookery": ["air", 2.625],
-	"stormstone": ["air", 3.5],
-	"inkling": ["water", 2.625],  # (the Kraken's tower)
-	"drowned": ["water", 4.375],
-	"driftbell": ["water", 2.625],
-	"stoker": ["fire", 3.5],  # (the Wyvern's tower)
-	"slagworm": ["fire", 3.5],
-	"riveter": ["iron", 2.625],
+	"deepfin": ["water", 2.1875],  # (the Kraken's tower: scripts/towers/deepfin.gd)
+	"harrier": ["air", 1.75],  # (the Gryphon's tower: scripts/towers/harrier.gd)
+	"ashwing": ["fire", 1.96875],  # (the Firebird's tower: scripts/towers/ashwing.gd)
+	"briar": ["blade", 2.1875],  # (the Chimera's tower: scripts/towers/briar.gd)
+	"mimic": ["iron", 0.875],  # (every tower: scripts/mimic.gd spills the rest, in the tower's essence)
+	"husk": ["iron", 2.1875],  # (every tower: scripts/foes/)
+	"bellringer": ["iron", 0.875],
+	"squall": ["air", 1.3125],  # (the Gryphon's tower)
+	"rookery": ["air", 1.3125],
+	"stormstone": ["air", 1.75],
+	"inkling": ["water", 1.3125],  # (the Kraken's tower)
+	"drowned": ["water", 2.1875],
+	"driftbell": ["water", 1.3125],
+	"stoker": ["fire", 1.75],  # (the Wyvern's tower)
+	"slagworm": ["fire", 1.75],
+	"riveter": ["iron", 1.3125],
 	# The Manticore's, the Firebird's and the Chimera's newer monsters (scripts/towers/brood.gd).
-	"carrion": ["stone", 3.5], "basilisk": ["stone", 4.375], "cairn": ["stone", 5.25],
-	"kindler": ["fire", 4.375], "flamemoth": ["fire", 2.625], "salamander": ["fire", 3.9375],
-	"graftling": ["blade", 3.9375], "hydra": ["blade", 5.25], "leafmantis": ["blade", 3.5],
+	"carrion": ["stone", 1.75], "basilisk": ["stone", 2.1875], "cairn": ["stone", 2.625],
+	"kindler": ["fire", 2.1875], "flamemoth": ["fire", 1.3125], "salamander": ["fire", 1.96875],
+	"graftling": ["blade", 1.96875], "hydra": ["blade", 2.625], "leafmantis": ["blade", 1.75],
 }
 
 
+## Monsters spawned as adds pay this share of a kill's essence (main.gd
+## on_enemy_killed: the drop, the tower's bonus and any extra), by the "add"
+## mark their spawner gives them: "summoned" (a nest's hatchlings, a beast's
+## called help, the slimes a plate room sends, a wardstone's waves),
+## "punished" (the guards a wrong answer or a failed puzzle sends) and
+## "horde" (the tower's answer to a slipped or broken barrier:
+## climb_shape.gd). Any other monster pays in full. (They paid in full once:
+## a nest, a plate room or a slipped barrier could be farmed.) "proving": the
+## Proving's sentinel and its adds (proving.gd), a set piece met once a
+## climb, pay twice a kill: what they paid before the drops were halved.
+static var ADDS := {"summoned": 0.0, "punished": 0.0, "horde": 0.25, "proving": 2.0}
+
+
+## The share of a kill's essence monster `e` pays (ADDS; 1 for any other).
+static func add_pay(e) -> float:
+	if e == null or not e.has_meta("add"):
+		return 1.0
+	return clampf(float(ADDS.get(String(e.get_meta("add")), 1.0)), 0.0, 4.0)
+
+
 static func drop_for(kind: String, floor_num: int) -> Array:
-	var d: Array = DROPS.get(kind, ["air", 1.75])
+	var d: Array = DROPS.get(kind, ["air", 0.875])
 	return [d[0], d[1] * (1.0 + 0.1 * float(maxi(floor_num - 1, 0)))]
 
 

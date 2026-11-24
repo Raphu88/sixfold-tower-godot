@@ -151,7 +151,7 @@ func _spill() -> void:
 	var R: Dictionary = RoomRewards.RULES
 	var kind: String = main.tower_data().get("essence", "air")
 	var amount: float = (float(R["chest_base"]) + float(R["chest_per_floor"]) * main.floor_num) * float(R["chest_rich"]) * float(RULES["essence"])
-	main.gather_essence(kind, amount, at)
+	main.gather_essence(kind, amount, at, "mimic")
 	main.notices.feed(TEXT["spills"], Essence.color(kind), "essence")
 	if randf() < float(RULES["item"]):
 		var id := Items.random_item(not main.player.bonds.is_empty(), [], false, String(main.tower))

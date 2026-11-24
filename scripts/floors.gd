@@ -130,10 +130,10 @@ const ROOM_SIZE := {
 const PREFAB_CHANCE := {"entrance": 0.5, "guard": 0.45, "stair": 0.5, "branch": 0.3}
 ## Good rooms (themes.gd): a healing spring's pool, the essence cache's urn.
 const SPRING := {"r": 46.0, "heal": 50.0, "rate": 24.0}
-const CACHE := {
+static var CACHE := {
 	"name": "Essence cache",
-	"base": 7.0,  # essence on floor 2...
-	"per_floor": 2.625,  # ...and this much more each floor up
+	"essence": 5.25,  # essence on floor 2...
+	"per_floor": 2.0,  # ...and this much more each floor up
 	"reach": 34.0,  # how close you walk to open it
 }
 const DIRS := [Vector2i.RIGHT, Vector2i.LEFT, Vector2i.DOWN, Vector2i.UP]
@@ -1454,7 +1454,7 @@ static func _entrances(infos: Array, gi: int, loops: Array = []) -> Array:
 
 ## How much essence a cache holds on a floor.
 static func cache_amount(floor_num: int) -> float:
-	return float(CACHE["base"]) + float(CACHE["per_floor"]) * float(maxi(floor_num - 2, 0))
+	return float(CACHE["essence"]) + float(CACHE["per_floor"]) * float(maxi(floor_num - 2, 0))
 
 
 ## --- sealed wings and secret rooms ---------------------------------------------

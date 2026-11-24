@@ -47,7 +47,7 @@ static var TEXT := {
 	"shortcut": "Your bond: %s",
 }
 ## Essence in the reward: this, plus this much per floor.
-const REWARD := Vector2(8.75, 3.5)
+const REWARD := Vector2(6.5, 2.6)
 ## A failure's ambush: this many monsters, plus one per this many floors.
 const AMBUSH := Vector2i(2, 4)
 ## After a failure the puzzle resets once its ambush is dead, or after this long.
@@ -264,7 +264,7 @@ func solve() -> void:
 		set_solid(g["rect"], false)
 	var amount := REWARD.x + REWARD.y * float(maxi(main.floor_num - 2, 0))
 	for r in rewards:
-		main.gather_essence(main.tower_data().get("essence", "air"), amount, r)
+		main.gather_essence(main.tower_data().get("essence", "air"), amount, r, "puzzle")
 		main.fx_ring(r, Color(1.0, 0.85, 0.5), 60.0, 0.5, 3.0)
 	# The floor's task (objective.gd), or an optional puzzle's own vault.
 	var ob = main.get("objective")
@@ -295,6 +295,7 @@ func fail(msg: String) -> void:
 	for k in n:
 		var e = _spawn_here(2.0)
 		if e != null:
+			e.set_meta("add", "punished")  # (a failure's hunters pay no essence: essence.gd ADDS)
 			ambushers.append(e)
 	queue_redraw_all()
 

@@ -6,17 +6,23 @@ extends RefCounted
 ## numbers give the same answer, so tests/parts/progression.gd can hold the
 ## pace to its bands, and tests/progression_measure.gd prints the tables.
 ##
-## The essence per floor and its kinds were measured from real floor plans
-## (tests/progression_measure.gd "plans": every planned monster's drop, the
-## kills' extra essence and the caches, the Proving's sentinel, adds and
-## shadow on floor 6, the beast on 12). Measure again after changing drops
-## and copy the printed tables here. (ESSENCE is the table measured before
-## the drops went to seven eighths with the fixed 20% crystal share, times
-## 7/8: what flows into you stays as it was. A fresh "plans" measure then
-## gave about 8% less, the floor plans having changed since; real play by
-## the floor bot gave more than either, as the plans leave out the floor's
-## task, puzzles and caches.)
-##
+## The essence per floor and the kills were measured in real play: the floor
+## bot played floors 1 to 7 of the Chimera's, the Firebird's and the
+## Manticore's towers as a thorough player does (tests/essence_measure.gd
+## "thorough": the task, every monster it could reach, every chest, cache
+## and cracked wall; about a dozen floors each). The old table came from the
+## floor plans alone (every planned monster's drop and the chests), which
+## left out the task, puzzles, caches, cracked walls and the adds, so a real
+## floor gave about 60% more; the drops (essence.gd DROPS, towers.gd
+## ESSENCE_BONUS) and the finds were lowered until a thorough floor gives
+## about what the old table held (floors 1 to 5 together, and floor 7).
+## Floor 1 is small (no task, no chests); floor 6 is the Proving (its
+## sentinel and two adds, paying twice a kill: essence.gd ADDS, and the
+## beast's shadow, from the drop table); floors 7 to 11 keep the old table,
+## as floor 7 still matches it; 12 is the beast.
+## tests/parts/essence_pace.gd holds the drop tables to this. Measure again
+## after changing drops or finds.
+
 ## A climb counts after the bondless first climb (which ends in the Regard):
 ## "climb 3" is the third climb with a mark.
 
@@ -26,9 +32,11 @@ const Towers := preload("res://scripts/towers.gd")
 const Bonds := preload("res://scripts/bonds.gd")
 
 ## Essence banked at each floor's stair, floors 1 to 12 (12: the beast).
-const ESSENCE := [45.5, 54.25, 56.875, 69.125, 77.875, 62.125, 109.375, 119.875, 137.375, 168.875, 189.875, 56.875]
-## Monsters slain per floor (each may leave a tincture: items.gd DROPS).
-const KILLS := [6.3, 7.2, 6.2, 6.2, 6.8, 4.0, 8.1, 8.7, 9.8, 9.8, 10.2, 1.0]
+const ESSENCE := [8.5, 52.5, 72.5, 80.5, 92.0, 62.0, 109.375, 119.875, 137.375, 168.875, 189.875, 56.0]
+## Monsters slain per floor by a thorough player, the adds among them (each
+## may leave a tincture: items.gd DROPS); floors 8 to 11 the plans' counts
+## times floor 7's measured share. (It was about 6.5 a floor, from the plans.)
+const KILLS := [3.6, 8.2, 7.4, 10.3, 11.6, 4.0, 10.6, 11.4, 12.8, 12.8, 13.4, 1.0]
 ## Each tower's essence by kind (its monsters are not all of its kind).
 const MIX := {
 	"gryphon": {"air": 0.91, "water": 0.05, "iron": 0.04},

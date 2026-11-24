@@ -100,6 +100,7 @@ func _hatch() -> void:
 	b.state = "rest"
 	b.state_t = 0.6
 	b.set_meta("hatched", true)
+	b.set_meta("add", "summoned")  # (a hatchling pays no essence: essence.gd ADDS)
 	bats.append(b)
 	main.fx_burst(global_position + out * radius, out, C_EGG, 10, 160.0)
 	main.fx_text(global_position + Vector2(0, -radius - 26.0), TEXT["hatch"], Color(0.85, 0.8, 0.95))

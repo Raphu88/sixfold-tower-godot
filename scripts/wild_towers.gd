@@ -384,7 +384,7 @@ func feed(at: Vector2) -> float:
 		main.fx_text(at + Vector2(0, -40), String(TEXT["fed_full"]), Palette.WILD)
 		return 0.0
 	fed += amount
-	main.gather_essence(String(main.tower_data().get("essence", "air")), amount, at)
+	main.gather_essence(String(main.tower_data().get("essence", "air")), amount, at, "wild")
 	main.fx_text(main.player.global_position + Vector2(0, -40), String(TEXT["fed"]), Palette.WILD_HOT)
 	return amount
 
