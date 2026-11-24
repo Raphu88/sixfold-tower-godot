@@ -1372,9 +1372,10 @@ func _tick_timers(delta: float) -> void:
 	squash = move_toward(squash, 0.0, 5.0 * delta)
 	knock = knock.move_toward(Vector2.ZERO, 900.0 * delta)
 	_tick_healing(delta)
-	# Life's flow: health slowly regrows.
-	if flow_regen > 0.0 and not dead and hp < max_health():
-		hp = minf(max_health(), hp + flow_regen * delta)
+	# Life's flow: health slowly regrows (and a Core Rune of Mending's: gear.gd CORE_RUNES "mend").
+	var regrow := flow_regen + float(gear_fx.get("mend", 0.0))
+	if regrow > 0.0 and not dead and hp < max_health():
+		hp = minf(max_health(), hp + regrow * delta)
 	_tick_erode(delta)
 	hp = minf(hp, max_health())
 	sta = minf(sta, sta_cap())  # (fatigue: nothing fills past the shrunken bar)

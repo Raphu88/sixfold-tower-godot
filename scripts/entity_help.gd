@@ -114,7 +114,7 @@ static var HELP: Dictionary = OutfitterName.named({
 	"slot:chest": "{piece}, in your stash: it stays safe on the train. {versus} {pool}",
 	"slot:chest:empty": "An empty space in your stash ({count}).",
 	"slot:belt": "{piece}: packed on your belt for your next climb.",
-	"slot:vessel": "A vessel: it catches secret essence on a climb.",
+	"slot:vessel": "A vessel: it keeps essence raw on a climb, tower essence at the stairs or core essence from great foes.",
 	"open_stash": "Opens the stash: every piece in it ({count}), to sort and filter.",
 	"car_page:stash": "Opens the stash: every piece in it ({count}), to sort and filter.",
 	"car_page:climber": "Your climber's book: abilities, the tree, marks, essence and your record.",
@@ -138,8 +138,8 @@ static var HELP: Dictionary = OutfitterName.named({
 	"bench_tab:break": "Break down: a piece or a packed item becomes crystals.",
 	"bench_tab:inscribe": "Inscribe: a lasting rune on one piece.{crafter}",
 	"bench_tab:recall": "Recall scroll: bind one to leave a climb safely.{crafter}",
-	"bench_tab:vessel": "Vessel: brew one, or work a full one into a piece.{crafter}",
-	"bench_tab:tincture": "Tinctures: craft one from crystals of its kind, or drink one you've packed.",
+	"bench_tab:vessel": "Vessel: brew one, or work a full vessel of core essence into a piece: a core rune, +4 or a deep rune.{crafter}",
+	"bench_tab:tincture": "Tinctures: craft one from crystals of its kind or from raw essence in a vessel, or drink one you've packed.",
 	"bench_tab:exchange": "Exchange: trade crystals of one kind for another. Some is lost in the working.",
 	"slot:bench:x": "{piece}: you hold {count}. Choose it to give it at the Exchange; its card picks the kind to get.",
 	"exchange_to": "Get {piece} for what you give. You hold {count} {piece} now.",
@@ -181,14 +181,16 @@ static var HELP: Dictionary = OutfitterName.named({
 	"brew": "Brews {piece} for {price}. It goes on your belt.",
 	"bench_do:temper": "Raises {piece} a rank. It asks first.",
 	"bench_do:break": "Breaks {piece} down into crystals. It asks first.",
-	"bench_do:vtemper": "Works a full vessel into {piece}: a rank past +3. It asks first.",
-	"bench_do:vrune": "Works a full vessel into {piece}: a deep rune. It asks first.",
+	"bench_do:vtemper": "Works a full vessel of core essence into {piece}: a rank past +3. The vessel stays, empty. It asks first.",
+	"bench_do:vrune": "Works a full vessel of core essence into {piece}: a deep rune. The vessel stays, empty. It asks first.",
+	"core_rune": "Works this core rune into {piece}, powered by a full vessel of core essence. It fades after its floors worn; the vessel stays, empty. It asks first.",
 	"retrait": "Swaps the chosen trait for one of this essence. It asks first.",
 	"retrait_pick": "Chooses which trait to swap.",
 	"join": "Joins {piece} with this one into a Rare. It asks first.",
 	"inscribe": "Puts this rune on {piece} for good. It asks first.",
 	"vessel_pack": "Packs the vessel for your next climb, or leaves it here.",
-	"vessel_trade": "Trades the vessel's essence. It asks first.",
+	"vessel_catch": "Switches what this empty vessel catches: raw essence at the stairs, or the core essence that isn't your path, from great foes.",
+	"vessel_tincture": "Makes one tincture from raw essence in a vessel in your stash, packed for your next climb. Far cheaper than crystals.",
 	"vessel_brew": "Brews an empty vessel.",
 	"tech_slot": "A Node's mark button and the technique it casts (once the Node reaches level 6). Press to see and change it below.",
 	"tech_form": "A form: the shape this Node's technique takes. Press to use it; it changes at once. A dark one opens as the Node grows.",
@@ -302,6 +304,9 @@ static var HELP: Dictionary = OutfitterName.named({
 	"station_do:wear": "Wears this title (or takes it off). Only the worn title gives its benefits.",
 	"station_do:take": "Takes this contract. It's tracked at the top of the screen while you climb.",
 	"station_do:drop": "Gives this contract up. The Noble has others.",
+	"station_do:deliver": "Gives the Noble your full vessel for the city: renown and a piece from the city's stores. The vessel is theirs. It asks first.",
+	"station_do:decline": "Declines the city's ask. Another may come at a later visit.",
+	"pick:ask": "{name}: {desc}",
 	# --- training and tournaments (training.gd, tournaments.gd) -----------------------------------------
 	"pick:advanced": "{name}: advanced or mark training. {desc}",
 	"pick:first": "Your first tournament: three rounds, then the Noble's Grace, win or lose. Each round won adds a reward.",
@@ -426,7 +431,7 @@ const TAGS := [
 	["board", "v"], ["store_tab", "v"], ["tree_buy", ""], ["put_back", ""], ["sell", ""],
 	["equip", ""], ["move", "move"], ["unequip", "tail"], ["brew", ""], ["bench_tab", "v"],
 	["bench_do", "v"], ["retrait", ""], ["retrait_pick", ""], ["join", ""], ["inscribe", ""],
-	["vessel_pack", ""], ["vessel_trade", ""], ["vessel_brew", ""],
+	["vessel_pack", ""], ["vessel_brew", ""],
 	["tech_slot", ""],
 	["shelf", "shelf"], ["archive", ""], ["bestiary", ""], ["bestiary_locked", ""], ["panel_tab", "v"], ["ribbon", "tabbed"], ["tab", "v"], ["choice_key", "setting"], ["setting", "setting"],
 	["over", ""], ["car_page", "v"], ["open_stash", ""], ["cycler", "v"], ["pick", "head"], ["station_do", "v"],
@@ -864,6 +869,10 @@ static func _pick_facts(m, pick: String, f: Dictionary) -> void:
 			var o: Dictionary = Contracts.find(m.main.profile, id) if m != null and m.main != null else {}
 			f["name"] = Contracts.name_of(o) if not o.is_empty() else id
 			f["desc"] = Contracts.goal_of(o) if not o.is_empty() else ""
+		"ask":
+			var a: Dictionary = Contracts.ask(m.main.profile) if m != null and m.main != null else {}
+			f["name"] = Contracts.ask_name(a) if not a.is_empty() else ""
+			f["desc"] = Contracts.ask_goal(a) if not a.is_empty() else ""
 		"rank":
 			f["name"] = Renown.rank_name(int(id))
 			f["desc"] = "it opens " + ", ".join(Renown.opens(int(id))) + "."
