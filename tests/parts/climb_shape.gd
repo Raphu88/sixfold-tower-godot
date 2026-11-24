@@ -40,6 +40,7 @@ func run(smoke) -> void:
 	await _gate()
 	await _ward()
 	await _maker_after_three()
+	await _unbound_maker()
 	await _ending()
 	await _glimpses()
 	_words()
@@ -346,6 +347,29 @@ func _ward() -> void:
 	_check(main.stair_open, "the horde down, the stair opens")
 	cs.barriers_on = false
 
+
+
+## An Unbound's third slip brings a Maker too (the Makers watch rule-breakers), with words for the Unbound.
+func _unbound_maker() -> void:
+	await _fresh()
+	var main = t.main
+	var cs = main.climb_shape
+	var p = main.player
+	Unbound.become(main.profile)
+	cs.barriers_on = true
+	main.profile.record["slip_warned"] = 1
+	main.profile.record["slips"] = 2
+	main._start_floor(3)
+	await t._frames(2)
+	p.iframes = 9999.0
+	p.global_position = main.stair_pos + Vector2(0, 10)
+	p.roll_t = 0.3
+	cs.try_slip()
+	_check(Unbound.is_on(main.profile) and cs.maker_due and main.profile.count("slips") == 3, "an Unbound's third slip: a Maker is coming too")
+	_check(CS.CONFRONT.has("speech_unbound") and String(CS.CONFRONT["speech_unbound"][0]) != String(CS.CONFRONT["speech"][0]), "...with its own words for the Unbound")
+	cs.maker_due = false
+	await _clear_foes()
+	await t._ticks(3)
 
 # --- a Maker after three slips ---------------------------------------------------------------
 
