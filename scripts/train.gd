@@ -109,9 +109,24 @@ static var SUPPLY_PRICE := {"draught": 3, "stamina": 3, "vial": 4}
 ## scrolls should take any kind of essence and always be available"). The
 ## recall scroll is always on the shelf, and buying one never empties it
 ## (you carry one at most). Paid from your biggest crystals first
-## (profile.gd spend_any).
+## (profile.gd spend_any). ANY_PRICE sets the price of one paid this way
+## that has no worth of its own to go by.
 const ANY := "any"
 static var ANY_PRICE := {"scroll": 60}
+## EVERYDAY GOODS take any kind of essence (the owner's call: crystals of a
+## kind you don't climb for had nothing to buy). With "supplies" on (1),
+## every consumable on his shelf (the Healing and Stamina Vials, tonics,
+## bombs, scrolls, belt items) is priced in any essence, at its usual
+## amount, paid from the kinds you hold most of first (profile.gd
+## spend_any) and noted, so putting it back returns exactly what it took.
+## Tinctures always keep their own kind (they ARE that essence: buying one
+## with another kind would be a free exchange), as do the ids in OWN_KIND.
+## Gear, charms, the bench's crafting and brewing keep their own kinds; the
+## Workshop's Exchange (bench.gd EXCHANGE) trades one kind for another, at
+## a loss. (There are no repairs or bag upkeep to pay for: the wandering
+## trader in a tower already takes unbanked essence of every kind.)
+static var ANY_GOODS := {"supplies": 1}
+static var OWN_KIND := ["vessel"]
 
 ## Condensing (at every stair, the first climb's too): the crystals' part of
 ## the split, a fixed share in data (essence_flow.gd SPLIT "crystals", in the
@@ -123,8 +138,10 @@ static var ANY_PRICE := {"scroll": 60}
 ## ignored: condense_share.)
 ## The outfitter's pay for a climb, however it ends (a fall too): crystals of
 ## the tower's kind, PER_FLOOR for every floor reached and PER_BEST more for
-## every floor past your best in that tower before the climb.
-static var CLIMB_PAY := {"per_floor": 2, "per_best": 3}
+## every floor past your best in that tower before the climb. (PER_FLOOR was
+## 2, until a climb still left too many crystals: slow growth. PER_BEST, paid
+## once a floor, stays 3, so a first fall on floor 3 still buys something.)
+static var CLIMB_PAY := {"per_floor": 1, "per_best": 3}
 ## The essence a piece is priced in and sells for, when it has no trait (or
 ## name) to say: by its slot.
 const SLOT_KIND := {
@@ -139,12 +156,12 @@ static var TEXT: Dictionary = OutfitterName.named({
 	"purse": "Your crystals",
 	"home": "Your pack comes down with you: %d %s",
 	"home_worn": "You come down wearing what you found: %d %s",
-	"money": "{outfitter} prices everything in one kind of essence, and takes it from your crystal of that kind.",
+	"money": "{outfitter} prices gear in one kind of essence, and takes it from your crystal of that kind. Everyday goods on his shelf take any kind.",
 	"needs": "needs %d more %s",
 	"price": "%d %s",
 	"price_any": "%d of any kind",
 	"needs_any": "needs %d more essence, of any kind",
-	"any_note": "Paid from your crystals of any kind, the biggest first.",
+	"any_note": "An everyday good: paid from your crystals of any kind, the kinds you hold most of first.",
 	"paid_with": "paid %s",
 	"buy": "Buy",
 	"bought": "Bought: %s",
@@ -276,6 +293,12 @@ static var OUTFITTER: Dictionary = OutfitterName.named({
 		"Essence first, then we talk.",
 	],
 	"put_back": ["Changed your mind? Your essence back, then."],
+	# After an everyday good is bought (train.gd ANY_GOODS: any kind of essence pays for it).
+	"any": [
+		"Any kind spends on my shelf. A vial's a vial, whatever tower paid for it.",
+		"Took it from your fullest crystals. Gear's another matter: that wants its own kind.",
+		"Crystals you can't use? Spend them on my shelf, or see the Rune Artist's Exchange in the Workshop.",
+	],
 	# His greeting while a climb's pay is fresh (%s is what he paid: "14 Water").
 	"paid": [
 		"Your pay for the climb: %s. A floor's a floor, even on the way down.",
@@ -337,7 +360,25 @@ static func item_price(id: String) -> Array:
 	if ANY_PRICE.has(id):
 		return [ANY, int(ANY_PRICE[id])]
 	var kind := String(d.get("kind", v.keys()[0]))
-	return [kind, int(SUPPLY_PRICE.get(id, v.get(kind, 0)))]
+	var amount := int(SUPPLY_PRICE.get(id, v.get(kind, 0)))
+	return [ANY if everyday(id) else kind, amount]
+
+
+## Is this consumable an everyday good, priced in essence of any kind
+## (ANY_GOODS)? Never a tincture (it keeps its own kind) nor one in OWN_KIND.
+static func everyday(id: String) -> bool:
+	if ANY_PRICE.has(id):
+		return true
+	if int(ANY_GOODS.get("supplies", 0)) <= 0 or id in OWN_KIND or Flow.is_tincture(id):
+		return false
+	return not Items.ITEMS.get(id, {}).get("value", {}).is_empty()
+
+
+## The kind an item is worth in: its own essence (what the belt breaks a found one into).
+static func home_kind(id: String) -> String:
+	var d: Dictionary = Items.ITEMS.get(id, {})
+	var v: Dictionary = d.get("value", {})
+	return String(d.get("kind", v.keys()[0] if not v.is_empty() else ""))
 
 
 ## What a packed consumable gives back when there's no note of what was paid
@@ -352,8 +393,22 @@ static func item_refund(id: String) -> Dictionary:
 
 
 ## What a packed consumable breaks down into at the bench: [kind, amount]
-## (SELL_SHARE of its price, in its own kind).
-static func item_sell(id: String) -> Array:
+## (SELL_SHARE of its price, in its own kind). Given the `profile`, one
+## bought or brewed breaks down for SELL_SHARE of what was actually paid for
+## it (the note of the last one packed, rounded down), in the kind most of
+## it was paid in: so an everyday good bought with any kind never comes
+## back as more, nor as another kind at better than the Exchange's rate.
+static func item_sell(id: String, profile = null) -> Array:
+	if profile != null:
+		var paid := last_paid(profile, id)
+		var total := 0.0
+		var most := ""
+		for k in paid:
+			total += float(paid[k])
+			if most == "" or float(paid[k]) > float(paid[most]):
+				most = String(k)
+		if total >= 1.0 and most != "":
+			return [most, maxi(1, int(floor(total * SELL_SHARE)))]
 	var back := item_refund(id)
 	if back.is_empty():
 		return ["", 0]
@@ -880,13 +935,19 @@ static func pack_up(profile, player) -> void:
 	profile.wear = {}  # (it's on you now: worn pieces, like any you find)
 	BasicGift.departing(profile)  # (what you wear is out on the climb: fall, and the sword and bow come back as gifts)
 	load(VESSEL).pack_up(profile, player)  # (a vessel packed from the chest goes on the belt)
+	profile.belt_paid = {}
 	for id in profile.supplies.keys():
+		var paid: Array = profile.supply_paid.get(id, []).duplicate()
+		var went := 0
 		for k in int(profile.supplies[id]):
-			if not player.add_item(id):
-				var paid: Array = profile.supply_paid.get(id, [])
+			if player.add_item(id):
+				went += 1
+			else:
 				var back: Dictionary = paid.pop_back() if not paid.is_empty() else item_refund(id)
 				for kind in back:
 					profile.add_crystal(kind, float(back[kind]))  # (no room after all: what it cost back)
+		if went > 0 and not Flow.is_tincture(id) and not paid.is_empty():
+			profile.belt_paid[id] = paid.slice(maxi(0, paid.size() - went))  # (what the bought ones cost: belt_worth)
 	profile.supplies = {}
 	profile.supply_paid = {}
 	for id in Outfitter.belt_gifts(profile):
@@ -894,6 +955,34 @@ static func pack_up(profile, player) -> void:
 	profile.store = {}
 	profile.last_pay = {}  # (the outfitter's greeting about the last climb's pay is said)
 	profile.save()
+
+
+## What a belt left at the end of a survived climb breaks into ({kind:
+## essence}; `carried` is {id: count}). Found items break at Items
+## BREAK_SHARE of their worth, as ever; those bought or brewed on the train
+## (profile.belt_paid, noted as they were packed: the leftovers count as
+## bought first) break at BREAK_SHARE of what they cost, in the kinds that
+## paid for them. So a vial bought with any kind of essence never comes home
+## as more essence, nor as a kind it wasn't bought with.
+static func belt_worth(profile, carried: Dictionary) -> Dictionary:
+	var out := {}
+	var notes = profile.get("belt_paid") if profile != null else null
+	if not (notes is Dictionary):
+		notes = {}
+	for id in carried:
+		var n := int(carried[id])
+		var list: Array = notes.get(id, [])
+		var bought := mini(n, list.size())
+		for j in bought:
+			var note = list[list.size() - 1 - j]
+			if note is Dictionary:
+				for k in note:
+					out[k] = float(out.get(k, 0.0)) + float(note[k]) * Items.BREAK_SHARE
+		if n - bought > 0:
+			var found: Dictionary = Items.break_value({id: n - bought})
+			for k in found:
+				out[k] = float(out.get(k, 0.0)) + float(found[k])
+	return out
 
 
 # --- the loadout: what you'll wear when you set off ---------------------------------

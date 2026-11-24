@@ -14,6 +14,8 @@ extends Node2D
 ##   retrieve  a named thing waits on floor X of a named tower: pick it up
 ##             (walk onto it) and take the stair with it. A fall drops it:
 ##             it waits on its floor again next time.
+## And the city's ask (ASK, below): now and then the Noble asks for a full
+## vessel of raw or core essence (vessel.gd), delivered from your stash.
 ## A contract never blocks anything: the retrieved thing lies where you can
 ## walk to it (reach.gd live_check from the floor's start), off the stair's
 ## way, and nothing about a floor waits on it.
@@ -97,7 +99,7 @@ var t := 0.0
 
 static func data(profile) -> Dictionary:
 	var c: Dictionary = Renown.state(profile)["contracts"]
-	var defaults := {"active": [], "offers": [], "visit": -1, "done": 0, "next_id": 1}
+	var defaults := {"active": [], "offers": [], "visit": -1, "done": 0, "next_id": 1, "ask": {}}
 	for k in defaults:
 		if not c.has(k) or typeof(c[k]) != typeof(defaults[k]):
 			c[k] = defaults[k].duplicate() if defaults[k] is Array else defaults[k]
@@ -142,6 +144,7 @@ static func offers(profile) -> Array:
 			if not o.is_empty():
 				list.append(o)
 		c["offers"] = list
+		_maybe_ask(profile)  # (now and then the city asks for a vessel: below)
 		profile.save()
 	return c["offers"]
 
@@ -333,6 +336,131 @@ static func complete(profile, o: Dictionary, m = null) -> Array:
 
 
 const KINDS_COLOR := Color(0.92, 0.8, 0.98)
+
+
+# --- the city's ask: a vessel contract (vessel.gd) ---------------------------------------
+# The cities run on raw essence (city_lore.gd): crystals have to be broken
+# down again before they're any use, and most is lost. So now and then a
+# Noble asks a climber for a full vessel for the city: raw essence of one
+# kind, or, once the climber has a path, the core essence that isn't it.
+# One ask stands at a time (data's "ask"), offered at ASK "chance" of station
+# visits while none stands, kept until delivered at any Noble (the vessel,
+# from your stash, is theirs) or declined. It's a contract like the others
+# (it counts as one done) but holds no slot: it needs nothing done in the
+# tower but filling a vessel. It pays slowly, never piles of crystals:
+# renown, and one piece of gear into your stash (a Fine piece or better for
+# raw essence; Rare or better for core essence).
+
+## The ask's numbers: the chance a visit brings one (none standing), the
+## share of asks for core essence (with a path), the renown each pays, the
+## least rarity of its piece and the floor it's rolled for.
+static var ASK := {"chance": 0.34, "core_share": 0.34, "renown": 12, "renown_core": 18, "gear": "fine", "gear_core": "rare", "gear_floor": 6}
+
+static var ASK_TEXT := {
+	"head": "The city asks",
+	"name": "A vessel of %s",
+	"goal": "The city runs on raw essence, and crystals won't do: the Noble asks for a full vessel of %s. Fill one in the towers, then deliver it from your stash at any Noble. The vessel is theirs.",
+	"reward": "Pays: +%d renown and a %s piece or better, from the city's stores",
+	"have": "You have one full, in your stash",
+	"need": "Not yet: no full vessel of it in your stash",
+	"deliver": "Deliver the vessel",
+	"deliver_ask": "Give the Noble your full vessel of %s for the city? The vessel is theirs.",
+	"decline": "Decline the ask",
+	"no_vessel": "no full vessel of %s in your stash",
+	"stash_full": "your stash is full",
+	"delivered": "Delivered: a vessel of %s, for the city",
+	"piece": "From the city's stores: %s, in your stash",
+	"declined": "The Noble will ask someone else.",
+	"deed": "A vessel for the city",
+}
+
+
+## The ask standing now ({} for none).
+static func ask(profile) -> Dictionary:
+	if profile == null:
+		return {}
+	var a = data(profile).get("ask", {})
+	return a if a is Dictionary else {}
+
+
+## A station visit (offers): with no ask standing, now and then the Noble asks.
+static func _maybe_ask(profile) -> void:
+	var c := data(profile)
+	if not ask(profile).is_empty():
+		return
+	if randf() < float(ASK["chance"]):
+		c["ask"] = roll_ask(profile)
+
+
+## A new ask: raw essence of a tower's kind, or (with a path, now and then)
+## the core essence that isn't the path.
+static func roll_ask(profile, core = null) -> Dictionary:
+	var path := String(profile.get("path")) if profile != null else ""
+	var want_core: bool = (randf() < float(ASK["core_share"])) if core == null else bool(core)
+	var want := ""
+	if want_core and path != "":
+		want = "unmaking" if path == "life" else "life"
+	else:
+		var tid: String = Towers.ORDER[randi() % Towers.ORDER.size()]
+		want = String(Towers.TOWERS[tid].get("essence", "stone"))
+	var is_core: bool = load("res://scripts/secret.gd").is_kind(want)
+	return {"want": want, "core": is_core, "renown": int(ASK["renown_core"] if is_core else ASK["renown"]), "gear": String(ASK["gear_core"] if is_core else ASK["gear"])}
+
+
+static func ask_name(a: Dictionary) -> String:
+	return ASK_TEXT["name"] % load("res://scripts/vessel.gd").kind_name(String(a.get("want", "")))
+
+
+static func ask_goal(a: Dictionary) -> String:
+	return ASK_TEXT["goal"] % load("res://scripts/vessel.gd").kind_name(String(a.get("want", "")))
+
+
+static func ask_reward(a: Dictionary) -> String:
+	var Gear = load("res://scripts/gear.gd")
+	return ASK_TEXT["reward"] % [int(a.get("renown", 0)), String(Gear.RARITIES.get(String(a.get("gear", "fine")), {}).get("name", "Fine"))]
+
+
+## Why the ask can't be delivered now ("" if it can).
+static func deliver_why(profile) -> String:
+	var a := ask(profile)
+	if a.is_empty():
+		return "?"
+	var V = load("res://scripts/vessel.gd")
+	if V.full_index(profile, String(a["want"])) < 0:
+		return ASK_TEXT["no_vessel"] % V.kind_name(String(a["want"]))
+	if profile.chest.size() >= int(load("res://scripts/train.gd").CHEST_SIZE):
+		return ASK_TEXT["stash_full"]
+	return ""
+
+
+## Delivers the ask: the full vessel goes to the city; renown and a piece of
+## gear come back. Returns the lines said (empty if it couldn't).
+static func deliver(profile) -> Array:
+	if deliver_why(profile) != "":
+		return []
+	var a := ask(profile)
+	var V = load("res://scripts/vessel.gd")
+	var Gear = load("res://scripts/gear.gd")
+	V.use_full(profile, V.full_index(profile, String(a["want"])))
+	var c := data(profile)
+	c["ask"] = {}
+	c["done"] = int(c["done"]) + 1
+	var lines: Array = [ASK_TEXT["delivered"] % V.kind_name(String(a["want"]))]
+	var g: Dictionary = Gear.roll_gear("", [], true, int(ASK["gear_floor"]), "", 0, String(a.get("gear", "fine")))
+	if not g.is_empty():
+		profile.chest.append(g)
+		lines.append(ASK_TEXT["piece"] % Gear.display(g))
+	var got := Renown.earn(profile, int(a.get("renown", 0)), TEXT["deed"] % ASK_TEXT["deed"])
+	if String(got.get("line", "")) != "":
+		lines.append(String(got["line"]))
+	profile.save()
+	return lines
+
+
+## Declines the ask standing (another may come at a later visit).
+static func decline(profile) -> void:
+	data(profile)["ask"] = {}
+	profile.save()
 
 
 # --- in play (main.gd) ------------------------------------------------------------------

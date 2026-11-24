@@ -4,7 +4,8 @@ extends Node2D
 ## dimensions and when a Maker draws you away.
 ##
 ## THE FLOOR'S PORTALS (floors.gd plans them: always one in the entrance and
-## one in the stair hall, the rest spread out; 3 a floor, 6 from floor 10)
+## one in the stair hall, the rest spread out; 3 a floor, 6 from floor 10;
+## none on floor 1, the Proving's floor 6, a camp or the summit)
 ## connect places on the SAME floor, never floor to floor. They stay ASLEEP
 ## (grey stone, a dim swirl barely turning) until the climber completes a
 ## challenge (the floor's task, a sealed wing where the Regard watches, the
@@ -30,6 +31,7 @@ extends Node2D
 
 const Palette := preload("res://scripts/palette.gd")
 const UI := preload("res://scripts/ui.gd")
+const Floors := preload("res://scripts/floors.gd")
 
 static var TEXT := {
 	"asleep": "The portal sleeps",
@@ -94,7 +96,9 @@ func _ready() -> void:
 
 func setup(plan: Dictionary) -> void:
 	clear()
-	if main == null or not main.layout_on:
+	# (None on the Proving's floor, where the first climb's Regard opens too:
+	# a set piece walked in order. floors.gd portals_on plans none there.)
+	if main == null or not main.layout_on or plan.get("proving", false) or not Floors.portals_on(int(main.floor_num)):
 		return
 	for p in plan.get("portals", []):
 		var pt := {"pos": p["pos"], "room": int(p.get("room", -1)), "seen": false, "light": -1}

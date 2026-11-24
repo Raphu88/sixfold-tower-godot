@@ -10,7 +10,7 @@ extends SceneTree
 ##
 ## Run: godot --headless -s tests/layout_sweep.gd
 ##   -- ui=large            only that Interface size (small, normal, large, larger)
-##   -- size=800x400        only that screen (1280x720 is the computer; any other is a phone)
+##   -- size=800x400        only that screen (1280x720 and 1920x1080 are computers; a shorter one is a phone)
 ##   -- only=stash          only the screens whose names hold the word (or one of several: only=stash,loadout)
 ##   -- marked / unbound    only that round
 ##   -- shots=/some/folder  save a picture of each screen there (needs a real
@@ -80,7 +80,7 @@ func _run() -> void:
 			Audit.Unbound.become(main.profile)
 		for sz in sizes:
 			root.size = sz
-			var phone: bool = sz != Audit.DESKTOP
+			var phone: bool = sz.y < 600  # (a phone: touch on; 1280x720 and bigger are computers)
 			for ui in uis:
 				menu._set_setting("ui_size", ui)
 				main.touch._set_active(phone)

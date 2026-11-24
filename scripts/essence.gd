@@ -18,51 +18,54 @@ static var KINDS := {
 ## (tests/essence_measure.gd "thorough": every monster, chest and cache on
 ## the floor) a floor gave far more than the pace model holds; with the
 ## finds at three quarters a thorough floor now gives what the model counts:
-## tests/progression_model.gd ESSENCE, held by tests/parts/essence_pace.gd.)
+## tests/progression_model.gd ESSENCE, held by tests/parts/essence_pace.gd.
+## Then every amount went to 87% of that, the guardians' too, as a stair's
+## crystal share went from 20% to 8%: what flows into you stays about the same,
+## and fewer crystals condense: essence_flow.gd SPLIT.)
 static var DROPS := {
-	"slime": ["water", 1.3125],
-	"archer": ["air", 1.75],
-	"knight": ["iron", 3.0625],
-	"bat": ["air", 0.875],
-	"thunderling": ["air", 2.1875],
-	"gryphon": ["air", 26.25],
-	"lurker": ["water", 1.75],
-	"shellback": ["iron", 2.1875],
-	"kraken": ["water", 26.25],
-	"cinder": ["fire", 1.75],
-	"smith": ["iron", 2.625],
-	"golem": ["iron", 3.0625],  # the forge golem (scripts/towers/forge_golem.gd)
-	"wyvern": ["fire", 26.25],
-	"scorpling": ["stone", 1.3125],
-	"ram": ["stone", 2.625],
-	"burrower": ["stone", 2.1875],  # the burrower (scripts/towers/burrower.gd)
-	"manticore": ["stone", 26.25],
-	"wisp": ["fire", 1.3125],
-	"bloomcap": ["fire", 2.1875],
-	"firebird": ["fire", 26.25],
-	"thornhound": ["blade", 1.3125],
-	"mongrel": ["blade", 2.625],
-	"chimera": ["blade", 26.25],
-	"deepfin": ["water", 2.1875],  # (the Kraken's tower: scripts/towers/deepfin.gd)
-	"harrier": ["air", 1.75],  # (the Gryphon's tower: scripts/towers/harrier.gd)
-	"ashwing": ["fire", 1.96875],  # (the Firebird's tower: scripts/towers/ashwing.gd)
-	"briar": ["blade", 2.1875],  # (the Chimera's tower: scripts/towers/briar.gd)
-	"mimic": ["iron", 0.875],  # (every tower: scripts/mimic.gd spills the rest, in the tower's essence)
-	"husk": ["iron", 2.1875],  # (every tower: scripts/foes/)
-	"bellringer": ["iron", 0.875],
-	"squall": ["air", 1.3125],  # (the Gryphon's tower)
-	"rookery": ["air", 1.3125],
-	"stormstone": ["air", 1.75],
-	"inkling": ["water", 1.3125],  # (the Kraken's tower)
-	"drowned": ["water", 2.1875],
-	"driftbell": ["water", 1.3125],
-	"stoker": ["fire", 1.75],  # (the Wyvern's tower)
-	"slagworm": ["fire", 1.75],
-	"riveter": ["iron", 1.3125],
+	"slime": ["water", 1.1419],
+	"archer": ["air", 1.5225],
+	"knight": ["iron", 2.6644],
+	"bat": ["air", 0.7612],
+	"thunderling": ["air", 1.9031],
+	"gryphon": ["air", 22.8375],
+	"lurker": ["water", 1.5225],
+	"shellback": ["iron", 1.9031],
+	"kraken": ["water", 22.8375],
+	"cinder": ["fire", 1.5225],
+	"smith": ["iron", 2.2837],
+	"golem": ["iron", 2.6644],  # the forge golem (scripts/towers/forge_golem.gd)
+	"wyvern": ["fire", 22.8375],
+	"scorpling": ["stone", 1.1419],
+	"ram": ["stone", 2.2837],
+	"burrower": ["stone", 1.9031],  # the burrower (scripts/towers/burrower.gd)
+	"manticore": ["stone", 22.8375],
+	"wisp": ["fire", 1.1419],
+	"bloomcap": ["fire", 1.9031],
+	"firebird": ["fire", 22.8375],
+	"thornhound": ["blade", 1.1419],
+	"mongrel": ["blade", 2.2837],
+	"chimera": ["blade", 22.8375],
+	"deepfin": ["water", 1.9031],  # (the Kraken's tower: scripts/towers/deepfin.gd)
+	"harrier": ["air", 1.5225],  # (the Gryphon's tower: scripts/towers/harrier.gd)
+	"ashwing": ["fire", 1.7128],  # (the Firebird's tower: scripts/towers/ashwing.gd)
+	"briar": ["blade", 1.9031],  # (the Chimera's tower: scripts/towers/briar.gd)
+	"mimic": ["iron", 0.7612],  # (every tower: scripts/mimic.gd spills the rest, in the tower's essence)
+	"husk": ["iron", 1.9031],  # (every tower: scripts/foes/)
+	"bellringer": ["iron", 0.7612],
+	"squall": ["air", 1.1419],  # (the Gryphon's tower)
+	"rookery": ["air", 1.1419],
+	"stormstone": ["air", 1.5225],
+	"inkling": ["water", 1.1419],  # (the Kraken's tower)
+	"drowned": ["water", 1.9031],
+	"driftbell": ["water", 1.1419],
+	"stoker": ["fire", 1.5225],  # (the Wyvern's tower)
+	"slagworm": ["fire", 1.5225],
+	"riveter": ["iron", 1.1419],
 	# The Manticore's, the Firebird's and the Chimera's newer monsters (scripts/towers/brood.gd).
-	"carrion": ["stone", 1.75], "basilisk": ["stone", 2.1875], "cairn": ["stone", 2.625],
-	"kindler": ["fire", 2.1875], "flamemoth": ["fire", 1.3125], "salamander": ["fire", 1.96875],
-	"graftling": ["blade", 1.96875], "hydra": ["blade", 2.625], "leafmantis": ["blade", 1.75],
+	"carrion": ["stone", 1.5225], "basilisk": ["stone", 1.9031], "cairn": ["stone", 2.2837],
+	"kindler": ["fire", 1.9031], "flamemoth": ["fire", 1.1419], "salamander": ["fire", 1.7128],
+	"graftling": ["blade", 1.7128], "hydra": ["blade", 2.2837], "leafmantis": ["blade", 1.5225],
 }
 
 
@@ -87,7 +90,7 @@ static func add_pay(e) -> float:
 
 
 static func drop_for(kind: String, floor_num: int) -> Array:
-	var d: Array = DROPS.get(kind, ["air", 0.875])
+	var d: Array = DROPS.get(kind, ["air", 0.7612])
 	return [d[0], d[1] * (1.0 + 0.1 * float(maxi(floor_num - 1, 0)))]
 
 

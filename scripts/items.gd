@@ -13,8 +13,9 @@ const BELT_KINDS := 4
 ## slows); a shorter press uses the quick item.
 const RING_HOLD := 0.25
 ## Unused belt items at the end of a survived climb break into essence
-## crystals at this share of their worth ("value").
-const BREAK_SHARE := 0.5
+## crystals at this share of their worth ("value"). (It was half: a quarter
+## since a climb still left too many crystals: slow growth.)
+static var BREAK_SHARE := 0.25
 ## What every climb starts with: one of each staple.
 const START := {"draught": 1, "stamina": 1}
 ## The chance that a slain monster (not a beast) leaves an item (most often
@@ -40,7 +41,7 @@ const DROP_CHANCE := 0.09
 ##   tincture_chance    the chance a kill that left neither leaves a tincture
 ##                      of its essence instead (essence_flow.gd; never on the
 ##                      bondless first climb)
-static var DROPS := {"essence_chance": 0.08, "essence_base": 1.5, "essence_per_floor": 0.2, "fallen_item": 0.2, "handy_weight": 3.0, "rare_weight": 0.3,
+static var DROPS := {"essence_chance": 0.08, "essence_base": 1.305, "essence_per_floor": 0.174, "fallen_item": 0.2, "handy_weight": 3.0, "rare_weight": 0.3,
 	"tincture_chance": 0.01}
 
 ## Items lying on the floor fade after this many seconds.
@@ -321,7 +322,7 @@ static var ITEMS := {
 	"vessel": {
 		"name": "Vessel",
 		"short": "Vessel",
-		"desc": "a sealed glass vessel bound in brass: it holds the secret essence that isn't your path instead of letting it pass (30 at most)",
+		"desc": "a sealed glass vessel bound in brass: it keeps essence raw, tower essence at the stairs or the core essence that isn't your path (30 at most)",
 		"color": Color(0.86, 0.64, 0.3),
 		"drop_weight": 0, "drop": false,
 		"max": 1,

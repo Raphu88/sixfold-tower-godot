@@ -34,7 +34,13 @@ const MAIN_TOP_SUMMITS := [8, 11]
 const OTHERS_AWAKE := [2, 12]
 const OTHERS_AWAKE_ROUTED := [2, 6]
 ## All six at level 12, routing as they fill (the owner's target: 50 to 60).
-const ALL_TOP := [66, 78]  # (the owner's 72, a multiple of six; the one rule makes the last Nodes slower)
+const ALL_TOP := [66, 84]  # (the owner's 72, a multiple of six; the one rule makes the last Nodes slower)
+## (It was 66 to 78. The routed path's choices, which tower feeds the
+## smallest Node, make this jump a few climbs with any small change of
+## essence, either way: at the old 20% share it took 76 climbs, 84 with the
+## finds at 95%, 78 at 105% and 80 at 110%. With the share at 8% and the
+## finds at 87%, what flows in is 99% of what it was, and it takes 79.)
+const ROUTED_CLIMBS := 90
 
 var t
 var T
@@ -333,7 +339,7 @@ func _pace() -> void:
 	var fast: Dictionary = M.run_unbound("summits", 30)
 	var ft := int(fast["top"][main_part])
 	_check(ft >= MAIN_TOP_SUMMITS[0] and ft <= MAIN_TOP_SUMMITS[1], "summiting every climb, level 12 after %d climbs (%d to %d)" % [ft, MAIN_TOP_SUMMITS[0], MAIN_TOP_SUMMITS[1]])
-	var routed: Dictionary = M.run_unbound("typical", 80, "typical", "spread")
+	var routed: Dictionary = M.run_unbound("typical", ROUTED_CLIMBS, "typical", "spread")
 	var rl: int = others.map(func(pt): return int(routed["awake"][pt])).max()
 	var rs: int = others.map(func(pt): return int(routed["awake"][pt])).min()
 	_check(rs >= OTHERS_AWAKE_ROUTED[0] and rl <= OTHERS_AWAKE_ROUTED[1] and rl > 0, "routing essence to them, the others wake after %d to %d climbs (%d to %d)" % [rs, rl, OTHERS_AWAKE_ROUTED[0], OTHERS_AWAKE_ROUTED[1]])
@@ -346,7 +352,7 @@ func _pace() -> void:
 	var forced: Dictionary = M.run_unbound("typical", 45, "typical", "natural", [], true, "careful")
 	var fto := int(forced["top"][main_part])
 	_check(fto >= MAIN_TOP[0] and fto <= MAIN_TOP[1] and fto >= top - 1, "a climber who force-eats every crystal: the main Node at level 12 after %d climbs (%d without; %d to %d)" % [fto, top, MAIN_TOP[0], MAIN_TOP[1]])
-	var froute: Dictionary = M.run_unbound("typical", 80, "typical", "spread", [], true, "careful")
+	var froute: Dictionary = M.run_unbound("typical", ROUTED_CLIMBS, "typical", "spread", [], true, "careful")
 	var fall: int = U.PARTS.map(func(pt): return int(froute["top"][pt])).max()
 	_check(U.PARTS.all(func(pt): return int(froute["top"][pt]) > 0) and fall >= ALL_TOP[0], "...and all six at level 12 after %d climbs, no sooner than %d (%d without forcing)" % [fall, ALL_TOP[0], all_top])
 

@@ -3512,12 +3512,18 @@ func _show_details(key: String) -> void:
 			if arg == "vessel":  # (what it holds, and that it comes home whole)
 				var V = load("res://scripts/vessel.gd")
 				_detail_text(V.TEXT["desc_state"] % V.state_text(V.carried(p)), V.color(V.carried(p)).lightened(0.3))
-				_detail_text(V.TEXT["hud_lines"][1], DIM)
+				_detail_text(V.catch_line(V.carried(p)), DIM)
+				_detail_text(V.TEXT["hud_home"], DIM)
 			_detail_text("Carrying %d of %d%s" % [n, p.max_stack(arg), "  ·  your current item" if arg == p.selected_item() and n > 0 else ""], DIM)
 			if data.has("kind"):
 				_detail_text("%s essence  ·  unused at the end of a survived climb, it breaks into a crystal" % Essence.display(data["kind"]), Color(Essence.color(data["kind"]), 0.9))
 			if arg == "vessel":
-				return  # (nothing to use: it fills as great foes fall)
+				# (nothing to use up: it fills by itself; an empty one can switch what it catches)
+				var V = load("res://scripts/vessel.gd")
+				if V.fill(V.carried(p)) <= 0.0:
+					var sw := _button(V.TEXT["catch_core"] if V.is_raw(V.carried(p)) else V.TEXT["catch_raw"], _use_item.bind(arg), details)
+					sw.set_meta("help", "vessel_catch")
+				return
 			var use := _button("Read it" if arg == "scroll" else "Use", _use_item.bind(arg), details)
 			use.disabled = n <= 0 or p.dead
 			if n > 0 and arg != p.selected_item():
@@ -3753,6 +3759,9 @@ func _use_item(id: String, sure := false) -> void:
 		toast = "Used: %s" % used_name
 	else:
 		toast = "It would do nothing now."
+		if id == "vessel":
+			var V = load("res://scripts/vessel.gd")
+			toast = V.TEXT["switched"] % V.catch_word(V.carried(p))  # (an empty vessel switched what it catches)
 		if id == "scroll" and main.first_climb:
 			toast = Items.RECALL["first_climb"]
 		p.item_sel = before

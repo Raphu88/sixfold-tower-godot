@@ -135,6 +135,10 @@ var wear := BasicGift.kit()
 var gift := {}
 var supplies := {}
 var supply_paid := {}
+## What the supplies that went up the tower on your belt cost ({id: [{kind:
+## amount}...]}, train.gd pack_up), so a bought one left at the end of a
+## climb breaks back into what paid for it (train.gd belt_worth).
+var belt_paid := {}
 var store := {}
 ## Vessels kept in your chest (vessel.gd): each {kind, amount}, one maybe
 ## "packed" to go up on your next climb.
@@ -307,6 +311,7 @@ func reset() -> void:
 	gift = {}
 	supplies = {}
 	supply_paid = {}
+	belt_paid = {}
 	store = {}
 	vessels = []
 	lost = []
@@ -388,6 +393,12 @@ func load_save() -> void:
 		for id in paid:
 			if supplies.has(String(id)) and paid[id] is Array:
 				supply_paid[String(id)] = paid[id].filter(func(c): return c is Dictionary).slice(0, int(supplies[String(id)]))
+	belt_paid = {}
+	var bp = cfg.get_value("train", "belt_paid", {})
+	if bp is Dictionary:
+		for id in bp:
+			if bp[id] is Array:
+				belt_paid[String(id)] = bp[id].filter(func(c): return c is Dictionary)
 	load("res://scripts/charms.gd").old_supplies(self)  # (consumables that became charms: what was paid comes back)
 	store = cfg.get_value("train", "store", {})
 	if not (store is Dictionary):
@@ -477,6 +488,7 @@ func save() -> void:
 	cfg.set_value("train", "gift", gift)
 	cfg.set_value("train", "supplies", supplies)
 	cfg.set_value("train", "supply_paid", supply_paid)
+	cfg.set_value("train", "belt_paid", belt_paid)
 	cfg.set_value("train", "store", store)
 	cfg.set_value("train", "vessels", vessels)
 	cfg.set_value("train", "last_pay", last_pay)

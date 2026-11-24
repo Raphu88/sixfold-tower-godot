@@ -10,13 +10,19 @@ extends RefCounted
 ##   inscribe  a lasting rune on a piece, at half the Inscribe spell's
 ##             strength (crafted; gear.gd LASTING_RUNES)
 ##   recall    bind a recall scroll (crafted; carry 1)
-##   vessel    brew a vessel, or work a full one into a piece (crafted;
-##             vessel.gd, vessel_page.gd)
-##   tincture  craft a tincture from crystals of its kind (anyone; a Rune
+##   vessel    brew a vessel, or work a full vessel of core essence into a
+##             piece: a core rune, +4, a deep rune (crafted; vessel.gd,
+##             vessel_page.gd)
+##   tincture  craft a tincture from crystals of its kind, or make one from
+##             raw essence in a vessel (vessel.gd RAW) (anyone; a Rune
 ##             Artist for less), packed for your next climb, or drink one
 ##             (essence_flow.gd; its own section below)
 ##   charm     refill a charm's spent charge with crystals of its kind
 ##             (anyone), or craft a new charm (crafted; charms.gd CRAFT)
+##   exchange  THE EXCHANGE (anyone): the Rune Artist recasts crystals of
+##             one kind into another, at a loss (EXCHANGE: 3 for 2), so a
+##             kind you don't climb for isn't stuck, and the kinds still
+##             mean something. Its own section below.
 ## The Rune Artist is the master crafter: given the essence and the skill,
 ## they can make pretty much anything. The CRAFTED work is open to every
 ## climber: one with the Rune Artist's mark crafts it with their own
@@ -37,6 +43,7 @@ extends RefCounted
 const Gear := preload("res://scripts/gear.gd")
 const Items := preload("res://scripts/items.gd")
 const Essence := preload("res://scripts/essence.gd")
+const OutfitterName := preload("res://scripts/outfitter_name.gd")
 const Train := preload("res://scripts/train.gd")
 const Charms := preload("res://scripts/charms.gd")
 
@@ -47,6 +54,7 @@ const COUNTERS := [
 	["brew", "Brew", "Brew"], ["temper", "Temper", "Temper"], ["retrait", "Retrait", "Retrait"], ["join", "Join", "Join"],
 	["break", "Break down", "Break"], ["inscribe", "Inscribe", "Inscribe"], ["recall", "Recall scroll", "Recall"],
 	["vessel", "Vessel", "Vessel"], ["tincture", "Tinctures", "Tinct."], ["charm", "Charms", "Charms"],
+	["exchange", "Exchange", "Exchange"],
 ]
 ## The crafted work: a Rune Artist does it, or the workshop's Rune Artist
 ## does it for you (materials + premium). (The vessel's counter: brewing
@@ -113,8 +121,9 @@ static var TEXT := {
 		"break": "A piece from your pack or stash, or a packed item, becomes a crystal of its kind at 40% of its price.",
 		"inscribe": "A lasting rune on one piece: it stays on it, at half the strength of the Inscribe spell.",
 		"recall": "Bind a recall scroll for your next climb: read it in the tower to leave safely, keeping everything. You carry one.",
-		"vessel": "Brew a vessel that catches the secret essence that isn't your path, or work a full one into a piece: one rank past +3, or a deep rune.",
+		"vessel": "Brew a vessel that keeps essence raw, or work a full vessel of core essence into a piece: a core rune, one rank past +3, or a deep rune.",
 		"tincture": "Craft a tincture from crystals of its kind. Drink it to send its essence where you choose: one mark, or an unmarked body part.",
+		"exchange": "Trade crystals of one kind for another. The Rune Artist recasts them, and some is lost in the working.",
 		"charm": "Refill a charm's spent charge, an off-hand piece's pool or an enchanted weapon's (every essence item's own pool), with crystals of its kind (anyone). New charms are crafted here too: by you with the Rune Artist's mark, else by the workshop's Rune Artist."
 	},
 	"where_wear": "You'll wear it when you set off.",
@@ -573,7 +582,7 @@ static func join_place(ref: String, other: String) -> String:
 ## store's Sell price for a piece; SELL_SHARE of an item's price).
 static func break_value(profile, thing: String) -> Array:
 	if thing.begins_with("supply:"):
-		return Train.item_sell(thing.substr(7))
+		return Train.item_sell(thing.substr(7), profile)  # (what was paid for it, when noted)
 	var g := piece(profile, thing)
 	return [Train.gear_kind(g), Train.gear_sell(g, profile)] if not g.is_empty() else ["", 0]
 
@@ -744,3 +753,100 @@ static func craft(profile, id: String) -> String:
 	(profile.chest if to == "chest" else profile.pack).append(g)
 	profile.save()
 	return to
+
+
+
+# --- the exchange ---------------------------------------------------------------------------------
+# The Rune Artist recasts crystals of one kind into another, at a loss:
+# every EXCHANGE "give" essence of the kind you hand over becomes "get" of
+# the kind you choose (3 for 2), in whole lots only. It never makes essence:
+# a trade always ends with less than it began, and nothing bought with any
+# kind sells or breaks back for more, nor as another kind at a better rate
+# (train.gd item_sell and belt_worth give back no more than was paid, in
+# what paid). Open to anyone, mark or none.
+
+## The rate and when it asks:
+##   give, get   this much given makes that much (3 for 2)
+##   big         a trade giving this much or more asks first (the
+##               confirmation pop-up, menu.gd ask)
+static var EXCHANGE := {"give": 3, "get": 2, "big": 60}
+## The amount's quick steps on the card (an "All" button sits beside them).
+static var EXCHANGE_STEPS := [3, 30]
+## The exchange's words. ({outfitter} is his name: outfitter_name.gd.)
+static var EXCHANGE_TEXT: Dictionary = OutfitterName.named({
+	"title": "The Exchange",
+	"give_head": "Give: choose a crystal",
+	"get_head": "Get",
+	"amount": "Amount",
+	"all": "All",
+	"hold": "You hold %d %s.",
+	"rate": "Every %d given becomes %d of the kind you choose: the rest is lost in the recasting.",
+	"preview": "Give %d %s, get %d %s",
+	"trade": "Trade",
+	"ask": "Give %d %s for %d %s? The Rune Artist recasts it, and what's lost in the working is gone for good.",
+	"done": "Traded: %d %s for %d %s",
+	"none": "no %s crystal to give",
+	"short": "needs %d more %s",
+	"same": "choose another kind to get",
+	"lots": "trades go in lots of %d",
+	"how": "Everyday goods on {outfitter}'s shelf take any kind already; the Exchange is for the rest.",
+	"artist": "Bring me a crystal you can't use. I'll recast it, but the working eats some of it.",
+})
+
+
+## What giving `amount` essence makes (whole lots only: the rest isn't used).
+static func exchange_get(amount: int) -> int:
+	var lot := maxi(1, int(EXCHANGE["give"]))
+	return int(maxi(amount, 0) / lot) * int(EXCHANGE["get"])
+
+
+## The most of a kind that can be given (whole lots of what you hold).
+static func exchange_most(profile, kind: String) -> int:
+	var lot := maxi(1, int(EXCHANGE["give"]))
+	return int(int(profile.crystal_total(kind)) / lot) * lot
+
+
+## An amount kept to whole lots: at least one lot, and at most `most` when
+## that's a lot or more.
+static func exchange_amount(amount: int, most: int) -> int:
+	var lot := maxi(1, int(EXCHANGE["give"]))
+	var a := int(maxi(amount, lot) / lot) * lot
+	return mini(a, most) if most >= lot else lot
+
+
+## Why a trade can't be made, in words, or "".
+static func exchange_why(profile, give: String, get_kind: String, amount: int) -> String:
+	var T: Dictionary = EXCHANGE_TEXT
+	if not Essence.KINDS.has(give) or not Essence.KINDS.has(get_kind) or give == get_kind:
+		return String(T["same"])
+	var lot := maxi(1, int(EXCHANGE["give"]))
+	if amount < lot or amount % lot != 0:
+		return String(T["lots"]) % lot
+	var have := int(profile.crystal_total(give))
+	if have <= 0:
+		return String(T["none"]) % Essence.display(give)
+	if have < amount:
+		return String(T["short"]) % [amount - have, Essence.display(give)]
+	return ""
+
+
+## Does a trade of this size ask first?
+static func exchange_asks(amount: int) -> bool:
+	return amount >= int(EXCHANGE["big"])
+
+
+## "Give 30 Fire, get 20 Stone".
+static func exchange_text(give: String, get_kind: String, amount: int) -> String:
+	return String(EXCHANGE_TEXT["preview"]) % [amount, Essence.display(give), exchange_get(amount), Essence.display(get_kind)]
+
+
+## Makes the trade. "" if done, else why not.
+static func exchange(profile, give: String, get_kind: String, amount: int) -> String:
+	var why := exchange_why(profile, give, get_kind, amount)
+	if why != "":
+		return why
+	if not profile.spend(give, float(amount)):
+		return String(EXCHANGE_TEXT["short"]) % [amount, Essence.display(give)]
+	profile.add_crystal(get_kind, float(exchange_get(amount)))
+	profile.save()
+	return ""

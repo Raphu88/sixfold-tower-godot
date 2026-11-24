@@ -38,8 +38,10 @@ func run(smoke) -> void:
 	await _death_marks()
 	await _lethal_again()
 	await _gate()
+	await _barrier_on_stair()
 	await _ward()
 	await _maker_after_three()
+	await _unbound_maker()
 	await _ending()
 	await _glimpses()
 	_words()
@@ -347,6 +349,29 @@ func _ward() -> void:
 	cs.barriers_on = false
 
 
+
+## An Unbound's third slip brings a Maker too (the Makers watch rule-breakers), with words for the Unbound.
+func _unbound_maker() -> void:
+	await _fresh()
+	var main = t.main
+	var cs = main.climb_shape
+	var p = main.player
+	Unbound.become(main.profile)
+	cs.barriers_on = true
+	main.profile.record["slip_warned"] = 1
+	main.profile.record["slips"] = 2
+	main._start_floor(3)
+	await t._frames(2)
+	p.iframes = 9999.0
+	p.global_position = main.stair_pos + Vector2(0, 10)
+	p.roll_t = 0.3
+	cs.try_slip()
+	_check(Unbound.is_on(main.profile) and cs.maker_due and main.profile.count("slips") == 3, "an Unbound's third slip: a Maker is coming too")
+	_check(CS.CONFRONT.has("speech_unbound") and String(CS.CONFRONT["speech_unbound"][0]) != String(CS.CONFRONT["speech"][0]), "...with its own words for the Unbound")
+	cs.maker_due = false
+	await _clear_foes()
+	await t._ticks(3)
+
 # --- a Maker after three slips ---------------------------------------------------------------
 
 func _maker_after_three() -> void:
@@ -458,3 +483,70 @@ func _words() -> void:
 	var bad: Array = BANNED.filter(func(w): return all.to_lower().contains(w))
 	_check(bad.is_empty(), "no banned words in the climb's words (%s)" % [bad])
 	_check(String(Talk.DIALOGUE["how_climb"]["lines"][0]).contains("3, 6 and 9") and String(Entity.TIPS["camp"]["more"]).contains("3, 6 and 9"), "the Entity says camps come after floors 3, 6 and 9")
+
+
+# --- the barrier sits on the stair -------------------------------------------------------------
+
+## The barrier stands over the real stair on floor 1 (an open room), an
+## ordinary floor of rooms and the floor after a camp; and a camp (a rest, no
+## task to skip: no barrier, as the README's barrier rules say) shows none,
+## nor any picture of the last floor's barrier left where its stair had been.
+func _barrier_on_stair() -> void:
+	await _fresh()
+	var main = t.main
+	var cs = main.climb_shape
+	main.grant_test_bonds()
+	main.player.iframes = 9999.0
+	cs.barriers_on = true
+	main._start_floor(1)
+	await t._frames(3)
+	_check(_on_stair(main), "floor 1: the gate stands over the stair (%s, gate %s, drawn %s)" % [main.stair_pos, cs.bar.get("rect", Rect2()), cs.drawn])
+	# An ordinary floor of rooms whose stair is well away from the open room's.
+	var far := false
+	for i in 30:
+		seed(5300 + i)
+		main._start_floor(3)
+		await t._frames(1)
+		far = main.layout_on and main.stair_pos.distance_to(main.OPEN_ROOM.get_center()) > 200.0 and main.OPEN_ROOM.has_point(main.stair_pos)
+		if far:
+			break
+	seed(Time.get_ticks_usec())
+	await t._frames(2)
+	_check(far and _on_stair(main), "floor 3, a floor of rooms: the gate stands over its stair (%s, drawn %s)" % [main.stair_pos, cs.drawn])
+	# Its stair opened the ordinary way, then up the stair to the camp.
+	await _clear_foes()
+	main.stair_open = true
+	main.room_view.stair_open = true
+	await t._ticks(3)
+	_check(cs.bar.get("state", "") == "open", "(the task done, the gate lifts)")
+	main.run_essence = {}
+	main._arrive()
+	await t._frames(3)
+	_check(main.in_camp and cs.bar.is_empty(), "a camp: no barrier (it's a rest: no task to skip, no horde)")
+	_check(cs.drawn == Rect2(), "...and nothing of floor 3's gate is left on the screen (drawn %s)" % cs.drawn)
+	_check(main.room_view.stair_pos == main.stair_pos, "...its stair drawn where it is (%s)" % main.stair_pos)
+	main.choose_camp(0)
+	await t._frames(2)
+	main.player.global_position = main.stair_pos
+	await t._wait(1.0)
+	await t._until(func(): return not main.climbing, 3.0)
+	await t._frames(3)
+	_check(main.floor_num == 4 and not main.in_camp and _on_stair(main), "past the camp, floor 4: the gate stands over its stair (%s, drawn %s)" % [main.stair_pos, cs.drawn])
+	# A floor with no barrier (the Proving's) leaves none on the screen either.
+	main.proving.enabled = true
+	main._start_floor(6)
+	await t._frames(3)
+	_check(cs.bar.is_empty() and cs.drawn == Rect2(), "the Proving's floor: no barrier, and none left drawn")
+	main.proving.enabled = false
+	cs.barriers_on = false
+
+
+## The barrier is up on this floor, over the stair's steps, and drawn there.
+func _on_stair(main) -> bool:
+	var cs = main.climb_shape
+	if cs.bar.is_empty():
+		return false
+	var sp: Vector2 = main.stair_pos
+	var steps := Rect2(sp + Vector2(-34.0, -24.0), Vector2(68.0, 40.0))  # (room.gd _draw_stair: five steps, 68 px at the foot)
+	var r: Rect2 = cs.bar["rect"]
+	return main.room_view.stair_pos == sp and r.grow(1.0).encloses(steps) and cs.drawn == r

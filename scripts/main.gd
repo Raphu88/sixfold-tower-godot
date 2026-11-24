@@ -1675,6 +1675,13 @@ func _arrive() -> void:
 	# Bank the essence gathered on this floor, split three ways
 	# (essence_flow.gd): your body, your marks, and crystals (a fixed share:
 	# essence_flow.gd SPLIT). The stair's line says how much went where.
+	# A vessel on the belt catching raw essence takes its share first: kept
+	# raw, it isn't banked (vessel.gd stair_raw).
+	for l in Vessel.stair_raw(self):
+		lines.append(l)
+		kinds[l] = "banked"
+	for l in Vessel.wear_core_runes(self):  # (a worn core rune counts a floor down: vessel.gd)
+		lines.append(l)
 	var poured: Dictionary = profile.pour(run_essence, run_soak, Train.condense_share())
 	var keep: Dictionary = poured["keep"]
 	var banked := float(poured["body"]) + float(poured["marks"]) - float(poured.get("over", 0.0))  # (what went into you: not what your marks or Nodes couldn't take)
@@ -1944,7 +1951,7 @@ func _enter_camp(lines: Array) -> void:
 	# of gear, one rarity row higher (the floor 6 camp's is Fine at least,
 	# the floor 9 camp's Rare).
 	var camp_kind := String(tower_data().get("essence", "air"))
-	var camp_amount: int = roundi(wings.crystal_amount() * 0.6) if wings != null else 10
+	var camp_amount: int = roundi(wings.crystal_amount() * float(WingsScript.REWARD.get("camp", 0.6))) if wings != null else 5
 	choices.append("crystal:%s:%d" % [camp_kind, camp_amount])
 	choices.append("gear:" + Gear.code(find_gear("", 1, "rare" if floor_num >= 9 else ("fine" if floor_num >= 6 else "common"))))
 	camp = {"stage": "item", "choices": choices, "lines": said}
@@ -2749,7 +2756,9 @@ func _take_belt_pick(pick: String) -> void:
 
 
 ## The end of a survived climb (or a recall scroll): unused belt items
-## break into essence crystals at half their worth, one crystal per kind.
+## break into essence crystals at a share of their worth (items.gd
+## BREAK_SHARE: a quarter), one crystal per kind (one bought on the
+## train: a share of what it cost, train.gd belt_worth).
 ## Returns the line to show ("" if nothing was carried). `skip` leaves out
 ## items (the recall scroll being read).
 func break_belt(skip: Array = []) -> String:
@@ -2765,7 +2774,8 @@ func break_belt(skip: Array = []) -> String:
 			continue
 		if not (id in skip) and id != Vessel.ID and int(player.items[id]) > 0:  # (a vessel comes home whole: Vessel.bring_home)
 			carried[id] = int(player.items[id])
-	var worth: Dictionary = Items.break_value(carried)
+	var worth: Dictionary = Train.belt_worth(profile, carried)  # (found ones at half their worth; bought ones at half what they cost, in what paid)
+	profile.belt_paid = {}
 	var made: Array = []
 	for k in Essence.KINDS:
 		var amount := float(worth.get(k, 0.0))

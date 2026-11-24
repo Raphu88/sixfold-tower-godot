@@ -441,7 +441,7 @@ func _all_ids(main) -> Array:
 	var tk = Talk.new()
 	tk.node = _menu().talk.node
 	var ids: Array = []
-	for i in 20:  # (every page of "Something else")
+	for i in 40:  # (every page of "Something else": room for more topics)
 		var list: Array = tk.choices(main)
 		ids += list.map(func(c): return c["id"])
 		var at: int = list.map(func(c): return c["id"]).find("+more")

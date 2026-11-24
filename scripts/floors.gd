@@ -99,6 +99,7 @@ const Cracks := preload("res://scripts/cracks.gd")
 const Styles := preload("res://scripts/floor_styles.gd")
 const Scenarios := preload("res://scripts/scenarios.gd")
 const Rivals := preload("res://scripts/rivals.gd")
+const TowersData := preload("res://scripts/towers.gd")  # (the Proving's floor: no portals there)
 
 ## The grid's tiles start here (world px), CELL px each.
 const ORIGIN := Vector2(80, 100)
@@ -132,8 +133,8 @@ const PREFAB_CHANCE := {"entrance": 0.5, "guard": 0.45, "stair": 0.5, "branch": 
 const SPRING := {"r": 46.0, "heal": 50.0, "rate": 24.0}
 static var CACHE := {
 	"name": "Essence cache",
-	"essence": 5.25,  # essence on floor 2...
-	"per_floor": 2.0,  # ...and this much more each floor up
+	"essence": 4.5675,  # essence on floor 2 (87% of 5.25, as a stair's crystal share went to 8%: essence_flow.gd SPLIT)...
+	"per_floor": 1.74,  # ...and this much more each floor up
 	"reach": 34.0,  # how close you walk to open it
 }
 const DIRS := [Vector2i.RIGHT, Vector2i.LEFT, Vector2i.DOWN, Vector2i.UP]
@@ -711,9 +712,18 @@ static func _build(infos: Array, themes: Array, floor_num: int, tower: Dictionar
 ## own tests).
 ## How many, by floor (3 or 6: counted in sixes).
 static var PORTALS := [{"to": 9, "count": 3}, {"to": 99, "count": 6}]
+## No portals on the Proving's floor (towers.gd PROVING "floor", 6: the
+## first climb's Regard opens it too). It's a set piece walked in order
+## (antechamber, gauntlet, arena), so a portal there would only skip it. Nor
+## on floor 1 (too small), in a camp or on the summit (one open room each:
+## main.gd gives them no portals).
+static func portals_on(floor_num: int) -> bool:
+	return floor_num >= 2 and floor_num != int(TowersData.PROVING["floor"])
 
 
 static func portal_count(floor_num: int) -> int:
+	if not portals_on(floor_num):
+		return 0
 	for p in PORTALS:
 		if floor_num <= int(p["to"]):
 			return int(p["count"])
@@ -722,7 +732,7 @@ static func portal_count(floor_num: int) -> int:
 
 ## [{pos, room}] for the floor's portals.
 static func _portals(infos: Array, doors: Array, links: Array, monsters: Array, floor_num: int) -> Array:
-	if floor_num < 2 or infos.size() < 3:
+	if not portals_on(floor_num) or infos.size() < 3:
 		return []
 	# Rooms reached from the start through doors that aren't locked or barred.
 	var blocked := {}

@@ -46,8 +46,9 @@ static var TEXT := {
 	"reread": "Stand by the ? to read the rule again.",
 	"shortcut": "Your bond: %s",
 }
-## Essence in the reward: this, plus this much per floor.
-const REWARD := Vector2(6.5, 2.6)
+## Essence in the reward: this, plus this much per floor. (87% of 6.5 and
+## 2.6, as a stair's crystal share went to 8%: essence_flow.gd SPLIT.)
+const REWARD := Vector2(5.655, 2.262)
 ## A failure's ambush: this many monsters, plus one per this many floors.
 const AMBUSH := Vector2i(2, 4)
 ## After a failure the puzzle resets once its ambush is dead, or after this long.

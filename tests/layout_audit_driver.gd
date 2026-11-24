@@ -18,6 +18,11 @@ extends RefCounted
 ##   off      text partly off the screen, with nothing to scroll it back
 ##   under    text under the rail, or under a touch button
 ##   press    two buttons on top of each other
+##   sliver   a button squeezed too small to show what it is: under 20 px
+##            tall or wide on the screen, too narrow for its longest word
+##            even at its smallest letters, or a plain button with no words,
+##            icon or drawing (the meta "layout_small" marks one small on
+##            purpose)
 ##
 ## Screens are opened by sweep(): every menu page and tab, every train car
 ## and store and bench view, every station stop; `light` keeps a
@@ -42,6 +47,10 @@ const LINE_INSET := 0.2
 const SLIVER := 4.5
 ## Two pieces of text overlap when they share more than this (view px) both ways.
 const OVER_MIN := 2.0
+## A button smaller than this on the screen (px) is a sliver: too short or
+## too narrow to show what it is (sliver()).
+const SLIVER_H := 20.0
+const SLIVER_W := 20.0
 ## Screen sizes: a computer, and three phones (touch on).
 const DESKTOP := Vector2i(1280, 720)
 const PHONES := [Vector2i(915, 412), Vector2i(800, 400), Vector2i(740, 360)]
@@ -133,7 +142,60 @@ static func scan(where: String, tops: Array, view: Rect2, opts := {}) -> Array:
 				continue
 			if _shared(press[i][1], press[j][1]):
 				_add(out, seen, "%s: press: %s and %s are on top of each other" % [where, _what(a), _what(b)])
+	# Buttons squeezed to a sliver.
+	for top in tops:
+		for c in _controls(top):
+			if c is Button and _showing(c):
+				var why := sliver(c)
+				if why != "" and _clip(c, _global(c, Rect2(Vector2.ZERO, c.size))).size.x > 1.0:
+					_add(out, seen, "%s: sliver: %s %s" % [where, _what(c), why])
 	return out
+
+
+## Why button `b` shows as a sliver that can't say what it is ("" if it
+## doesn't): shorter than SLIVER_H or narrower than SLIVER_W on the screen,
+## too narrow for its longest word even at the smallest size its letters
+## shrink to (ui.gd keep_text), or a plain button with no words, no icon and
+## nothing drawn on it. A button meant to be that small carries the meta
+## "layout_small".
+static func sliver(b: Button) -> String:
+	if _small_on_purpose(b):
+		return ""
+	var on_screen: Vector2 = _global(b, Rect2(Vector2.ZERO, b.size)).size
+	if on_screen.y < SLIVER_H:
+		return "is only %.0f px tall" % on_screen.y
+	if on_screen.x < SLIVER_W:
+		return "is only %.0f px wide" % on_screen.x
+	var words: bool = b.text.strip_edges() != "" and b.get_theme_color("font_color").a >= 0.05
+	if not words:
+		var face: StyleBox = b.get_theme_stylebox("normal")
+		var plain: bool = face != null and not (face is StyleBoxEmpty) and not b.flat  # (an invisible hit area over something drawn is fine)
+		if plain and b.icon == null and b.get_script() == null and b.get_child_count() == 0 and b.get_signal_connection_list("draw").is_empty():
+			return "shows nothing: no words, no icon, nothing drawn on it"
+		return ""
+	var f: Font = b.get_theme_font("font")
+	var floor_fs: int = mini(int(b.get_meta("keep_floor", 99)), b.get_theme_font_size("font_size"))
+	var sb: StyleBox = b.get_theme_stylebox("normal")
+	var room: float = b.size.x - (sb.get_minimum_size().x if sb != null else 0.0)
+	if b.icon != null:
+		room -= b.icon.get_width() + b.get_theme_constant("h_separation")
+	if b is CheckButton or b is CheckBox:
+		var ic: Texture2D = b.get_theme_icon("checked")
+		room -= (ic.get_width() if ic != null else 0.0) + b.get_theme_constant("h_separation")
+	var word := 0.0
+	for w in b.text.split(" ", false):
+		word = maxf(word, f.get_string_size(w.strip_edges(), HORIZONTAL_ALIGNMENT_LEFT, -1, floor_fs).x)
+	if room + 1.0 < word:
+		return "is too narrow for its words (%.0f px inside, its longest word needs %.0f)" % [room, word]
+	return ""
+
+
+static func _small_on_purpose(n: Node) -> bool:
+	while n != null:
+		if n.has_meta("layout_small"):
+			return true
+		n = n.get_parent()
+	return false
 
 
 static func _add(out: Array, seen: Dictionary, line: String) -> void:

@@ -23,6 +23,7 @@ static var LINES := {
 	"taken": ["\"Good. Bring me word when it's done.\"", "\"I'll know when it's done. I always do.\""],
 	"dropped": ["\"Another time, then.\"", "\"Pity. Someone else will take it.\""],
 	"empty": ["\"Nothing for you today. Climb, and come back.\""],
+	"vessel": ["\"Raw, and whole. The city's lamps will thank you.\"", "\"Crystals we have. This, we needed.\""],
 	"rumour": ["\"A word from the towers, since you climb them:\"", "\"My people bring me news of the guardians:\""],
 }
 ## How often the Noble's greeting carries a rumour of what the guardians

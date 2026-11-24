@@ -312,7 +312,11 @@ func _draw_pocket(vs: Vector2, a: float) -> void:
 
 ## What it says as it shows itself: its own speech, or its confrontation's.
 func _speech() -> Array:
-	return main.climb_shape.CONFRONT["speech"] if confront else Makers.MAKERS[maker]["speech"]
+	if confront:
+		var C: Dictionary = main.climb_shape.CONFRONT
+		var ub: bool = main.profile != null and load("res://scripts/unbound.gd").is_on(main.profile)
+		return C["speech_unbound"] if ub and C.has("speech_unbound") else C["speech"]
+	return Makers.MAKERS[maker]["speech"]
 
 
 func _draw_cards(vs: Vector2, font: Font, col: Color) -> void:

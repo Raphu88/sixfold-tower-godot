@@ -97,8 +97,12 @@ static var WAVES := {"count": [2, 3], "budget": 2.6, "per_floor": 0.35, "most": 
 ## How long a challenge may run before the room gives up (never trapped).
 const FAILSAFE := 240.0
 ## Rewards. Crystals hold base + per_floor * floor essence; a lesser prize
-## or a hidden one holds that fraction. The pedestal opens within reach.
-static var REWARD := {"crystal_base": 16.0, "crystal_per_floor": 4.0, "lesser": 0.5, "hidden": 0.75, "reach": 30.0,
+## or a hidden one holds that fraction, a camp's crystal card "camp" of it.
+## The pedestal opens within reach.
+## (Half what they were, 16 and 4, as a climb still left too many crystals:
+## the camp's crystal card, the Proving sentinel's crystal, a secret room's
+## and a pocket's, and a mirror image's prize are shares of it too.)
+static var REWARD := {"crystal_base": 8.0, "crystal_per_floor": 2.0, "camp": 0.6, "lesser": 0.5, "hidden": 0.75, "reach": 30.0,
 	"gear": 0.45, "scroll": 0.3, "item": 0.25}
 ## Secret rooms' hidden spots: lean this long; dust falls every few seconds
 ## within `dust_near`; Keen Eyes outlines the wall within `keen_near`. (What

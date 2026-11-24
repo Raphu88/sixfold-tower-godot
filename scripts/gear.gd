@@ -208,6 +208,28 @@ static var LASTING_RUNES := {
 		"desc": "you walk %s faster", "color": Color(0.58, 1.0, 0.58)},
 }
 
+## Core runes (vessel.gd: worked into a piece at the bench's Vessel counter,
+## each powered by a full vessel of core essence; it fades after vessel.gd
+## CORE "floors" floors worn). Kept on the piece as "core": {"id", "left"}.
+## Making's mend, grow and shield; Unmaking's rend, break and drain. "key"
+## adds "value" to the piece's numbers like a trait ("mend": health back a
+## second, player.gd; "guardbreak": blows go through shells and guards);
+## "desc" takes the value ("" for none). Three of each: by sixes.
+static var CORE_RUNES := {
+	"mending": {"core": "life", "name": "Core Rune of Mending", "short": "Mending", "key": "mend", "value": 0.4, "unit": "num",
+		"desc": "your wounds close, %s health a second", "color": Color(0.55, 0.95, 0.6)},
+	"growth": {"core": "life", "name": "Core Rune of Growth", "short": "Growth", "key": "health", "value": 12.0, "unit": "num",
+		"desc": "%s more health", "color": Color(0.7, 1.0, 0.5)},
+	"shielding": {"core": "life", "name": "Core Rune of Shielding", "short": "Shielding", "key": "reduce", "value": 0.1, "unit": "pct",
+		"desc": "%s protection from blows", "color": Color(0.5, 0.95, 0.8)},
+	"rending": {"core": "unmaking", "name": "Core Rune of Rending", "short": "Rending", "key": "strike", "value": 0.1, "unit": "pct",
+		"desc": "strikes hit %s harder", "color": Color(0.82, 0.55, 1.0)},
+	"breaking": {"core": "unmaking", "name": "Core Rune of Breaking", "short": "Breaking", "key": "guardbreak", "value": 1.0, "unit": "",
+		"desc": "your blows go through shells and guards", "color": Color(0.7, 0.45, 0.95)},
+	"draining": {"core": "unmaking", "name": "Core Rune of Draining", "short": "Draining", "key": "kill_heal", "value": 3.0, "unit": "num",
+		"desc": "each foe you slay gives you %s health", "color": Color(0.9, 0.5, 0.85)},
+}
+
 ## Of Embers: a burning foe takes this much every half second, this long.
 static var EMBER_BURN := {"dmg": 2.0, "time": 2.0}
 ## Thorns only answer blows from this close.
@@ -831,6 +853,9 @@ static func rec(g) -> Dictionary:
 			out["wear"] = clampf(float(g.get("wear", 1.0)), 0.0, 1.0)
 		if g.has("charge") and (PIECES.get(out["base"], {}).has("charge") or load(POOL).weapon_max(out) > 0):
 			out["charge"] = maxi(0, int(g["charge"]))  # (an essence item's uses left: a charm's charges, an enchanted weapon's pool; none noted is full)
+		var core = g.get("core")
+		if core is Dictionary and CORE_RUNES.has(String(core.get("id", ""))) and int(core.get("left", 0)) > 0:
+			out["core"] = {"id": String(core["id"]), "left": int(core["left"])}  # (a core rune: vessel.gd, until it fades)
 		return out
 	if g is String or g is StringName:
 		var s := String(g)
@@ -1279,7 +1304,33 @@ static func effects(g) -> Dictionary:
 		if not rn.is_empty():
 			var key := String(rn["key"])
 			out[key] = float(out.get(key, 0.0)) + float(rn["value"])
+		# A core rune (vessel.gd), while it lasts, likewise.
+		var cr: Dictionary = core_rune_of(g)
+		if not cr.is_empty():
+			var key := String(cr["key"])
+			out[key] = float(out.get(key, 0.0)) + float(cr["value"])
 	return out
+
+
+## A piece's core rune's data (CORE_RUNES), or {} if it carries none.
+static func core_rune_of(g) -> Dictionary:
+	var c = g.get("core") if g is Dictionary else null
+	if not (c is Dictionary) or int(c.get("left", 0)) <= 0:
+		return {}
+	return CORE_RUNES.get(String(c.get("id", "")), {})
+
+
+## A core rune's line for a card: "Core Rune of Mending: your wounds close,
+## 0.4 health a second". `left`: floors left (0: not said).
+static func core_text(rune: String, left := 0) -> String:
+	var d: Dictionary = CORE_RUNES.get(rune, {})
+	if d.is_empty():
+		return ""
+	var v := float(d["value"])
+	var amount := ("%d%%" % int(round(v * 100.0))) if String(d.get("unit", "")) == "pct" else (("%d" % int(round(v))) if absf(v - round(v)) < 0.05 else "%.1f" % v)
+	var desc := String(d["desc"])
+	var line := "%s: %s" % [d["name"], desc % amount if "%s" in desc else desc]
+	return line if left <= 0 else String(load("res://scripts/vessel.gd").TEXT["core_left"]) % [line, left]
 
 
 ## Ordinary or enchanted. A plain Common piece is ordinary: no traits, only
@@ -1616,6 +1667,8 @@ static func trait_lines(g) -> Array:
 			out.append([trait_text(t, r["rarity"], int(r.get("rank", 0))), Essence.color(TRAITS[t]["kind"])])
 	if r.has("rune"):
 		out.append([rune_text(r["rune"]), LASTING_RUNES[r["rune"]]["color"]])
+	if not core_rune_of(r).is_empty():
+		out.append([core_text(String(r["core"]["id"]), int(r["core"]["left"])), core_rune_of(r)["color"]])
 	if load(POOL).weapon_max(r) > 0:
 		out.append_array(load(POOL).weapon_lines(r))  # (an enchanted weapon's own essence pool: item_pool.gd)
 	elif slot_of(r) == "offhand":
@@ -1822,7 +1875,7 @@ static func icon_into(b, g, c: Vector2, s: float, col: Color) -> void:
 ## What changes how a piece looks: its base, name, rarity, rank, rune and wear.
 static func _look_key(g) -> String:
 	if g is Dictionary:
-		return "%s,%s,%s,%d,%s,%s" % [g.get("base", ""), g.get("named", ""), g.get("rarity", ""), int(g.get("rank", 0)), g.get("rune", ""), is_worn(g)]
+		return "%s,%s,%s,%d,%s,%s,%s" % [g.get("base", ""), g.get("named", ""), g.get("rarity", ""), int(g.get("rank", 0)), g.get("rune", ""), is_worn(g), String(core_rune_of(g).get("short", ""))]
 	var t := String(g) if (g is String or g is StringName) else ""
 	if ";" in t:
 		return _look_key(rec(t))
@@ -1850,6 +1903,9 @@ static func _icon_art(b, g, s: float, col: Color, shadow: bool) -> void:
 		Art.shape(b, lz, Art.GOLD, s, "gold", Art.THIN | Art.NO_RIM)
 	if LASTING_RUNES.has(String(g.get("rune", ""))):
 		rune_into(b, String(g["rune"]), c + Vector2(s * 0.7, s * 0.7), s * 0.34, LASTING_RUNES[g["rune"]]["color"])
+	var cr: Dictionary = core_rune_of(g)
+	if not cr.is_empty():
+		rune_into(b, "core_" + String(g["core"]["id"]), c + Vector2(s * 0.7, -s * 0.7), s * 0.3, cr["color"])  # (a core rune: top right, in its glow)
 
 
 ## A rune drawn in code: a few strokes joining dots of a 3 by 3 grid, picked

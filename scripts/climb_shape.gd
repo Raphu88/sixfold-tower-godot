@@ -68,7 +68,7 @@ static var BARRIER := {
 ## a strike must be (px past the climber's own reach); "spell_reach": a cast.
 static var STRIKE := {"blow": 1.0, "heavy": 2.0, "spell": 2.0, "ward_spell": 3.0, "ward_blow": 1.0, "ward_heavy": 2.0, "ward_item": 4.0,
 	"reach": 30.0, "spell_reach": 240.0}
-## Slips (slipped past or broken) that bring a Maker to a marked climber,
+## Slips (slipped past or broken) that bring a Maker to a climber (marked or Unbound),
 ## counted over every climb; which Maker comes.
 static var SLIPS := {"maker_every": 3, "maker": "towers"}
 ## The Maker's confrontation (makers.gd start_meeting, maker_view.gd):
@@ -76,6 +76,7 @@ static var SLIPS := {"maker_every": 3, "maker": "towers"}
 ## essence it takes if you defy it.
 static var CONFRONT := {
 	"speech": ["Three times now you have gone under my stairs instead of up them.", "I built the barriers to be earned, climber. Not avoided.", "Tell me why I should not close every stair to you."],
+	"speech_unbound": ["Three times now you have broken my stairs, and no guardian holds your leash.", "You take the wells raw, as we once did. I came to see what you are becoming.", "Tell me why I should not close every stair to you."],
 	"answers": [
 		{"id": "keep", "text": "I will keep the tower's rules.", "placeholder": false},
 		{"id": "defy", "text": "The stair is mine to take.", "placeholder": false},
@@ -160,6 +161,7 @@ var ending_view: Control = null
 var _ending_frame := -1
 var _light := -1
 var over: Node2D  # drawn over the darkness: the barrier and its timer
+var drawn := Rect2()  # where the barrier was last drawn (empty: nothing on screen; tests check it sits on the stair)
 
 
 func _ready() -> void:
@@ -394,6 +396,13 @@ func _clear() -> void:
 	if _light >= 0 and main.lighting != null:
 		main.lighting.remove_light(_light)
 	_light = -1
+	# Wipe the last floor's gate or ward off the screen at once. (It's only
+	# redrawn while a barrier stands, so on a floor with none, a camp, the
+	# practice room, the arena, the Proving or the summit, the old picture
+	# used to linger where the last floor's stair had been.)
+	queue_redraw()
+	if over != null:
+		over.queue_redraw()
 
 
 ## The barrier's colour: iron for a gate, the tower's essence for a ward.
@@ -596,7 +605,7 @@ func _breached(how: String) -> void:
 	if unmarked:
 		refuse_now()
 		return
-	if not Unbound.is_on(prof) and prof.count("slips") % int(SLIPS["maker_every"]) == 0:
+	if prof.count("slips") % int(SLIPS["maker_every"]) == 0:  # (marked and Unbound alike: the Makers watch rule-breakers)
 		maker_due = true
 		main.tip("barrier_maker_soon")
 	spawn_horde(n)
@@ -823,10 +832,12 @@ func _draw() -> void:
 
 ## Over the darkness: the gate or the ward as it forms, its timer, cracks.
 func _draw_over() -> void:
+	drawn = Rect2()
 	if bar.is_empty() or main == null:
 		return
 	var t := Time.get_ticks_msec() * 0.001
 	var r: Rect2 = bar["rect"]
+	drawn = r
 	var st: String = bar["state"]
 	var col := color()
 	var b := Draw.Batch.new()

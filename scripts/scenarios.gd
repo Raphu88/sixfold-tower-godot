@@ -59,11 +59,12 @@ static var SCENARIOS := {
 	"forge": {"from": 3, "towers": ["wyvern"], "module": "res://scripts/towers/wyvern_floor.gd", "seal": true, "weight": 3},
 	"sinking": {"from": 2, "towers": ["manticore"], "module": "res://scripts/towers/manticore_floor.gd", "weight": 3},
 }
-## What a grade pays: essence (base, per floor) and renown.
+## What a grade pays: essence (base, per floor: 87% of what it was, as a
+## stair's crystal share went to 8%, essence_flow.gd SPLIT) and renown.
 static var GRADES := {
-	"gold": {"essence": 9.25, "per_floor": 2.0, "renown": 8, "name": "Gold"},
-	"silver": {"essence": 6.0, "per_floor": 1.3, "renown": 4, "name": "Silver"},
-	"bronze": {"essence": 3.25, "per_floor": 0.65, "renown": 2, "name": "Bronze"},
+	"gold": {"essence": 8.0475, "per_floor": 1.74, "renown": 8, "name": "Gold"},
+	"silver": {"essence": 5.22, "per_floor": 1.131, "renown": 4, "name": "Silver"},
+	"bronze": {"essence": 2.8275, "per_floor": 0.5655, "renown": 2, "name": "Bronze"},
 	"none": {"essence": 0.0, "per_floor": 0.0, "renown": 0, "name": "No grade"},
 }
 static var TEXT := {

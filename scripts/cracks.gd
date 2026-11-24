@@ -32,8 +32,9 @@ static var TEXT := {
 	"gear": "Hidden away: %s",
 }
 ## dust_every: seconds between dust falls when near; dust_near: how near (px);
-## cache: essence (base, per floor); gear_chance: an alcove cache also holds gear.
-static var RULES := {"dust_every": [2.2, 4.5], "dust_near": 260.0, "cache_base": 6.5, "cache_per_floor": 2.0, "gear_chance": 0.4,
+## cache: essence (base, per floor: 87% of what it was, as a stair's crystal
+## share went to 8%, essence_flow.gd SPLIT); gear_chance: an alcove cache also holds gear.
+static var RULES := {"dust_every": [2.2, 4.5], "dust_near": 260.0, "cache_base": 5.655, "cache_per_floor": 1.74, "gear_chance": 0.4,
 	"stub": [2, 3], "reach": 30.0}
 
 var main

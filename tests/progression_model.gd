@@ -21,7 +21,9 @@ extends RefCounted
 ## beast's shadow, from the drop table); floors 7 to 11 keep the old table,
 ## as floor 7 still matches it; 12 is the beast.
 ## tests/parts/essence_pace.gd holds the drop tables to this. Measure again
-## after changing drops or finds.
+## after changing drops or finds. (Every amount is 87% of what was measured,
+## as the drops and finds went when a stair's crystal share went from 20% to
+## 8%: what flows into the climber, 92% of it, is about what 80% was.)
 
 ## A climb counts after the bondless first climb (which ends in the Regard):
 ## "climb 3" is the third climb with a mark.
@@ -30,13 +32,19 @@ const Profile := preload("res://scripts/profile.gd")
 const Flow := preload("res://scripts/essence_flow.gd")
 const Towers := preload("res://scripts/towers.gd")
 const Bonds := preload("res://scripts/bonds.gd")
+const Vessel := preload("res://scripts/vessel.gd")
 
 ## Essence banked at each floor's stair, floors 1 to 12 (12: the beast).
-const ESSENCE := [8.5, 52.5, 72.5, 80.5, 92.0, 62.0, 109.375, 119.875, 137.375, 168.875, 189.875, 56.0]
+const ESSENCE := [7.395, 45.675, 63.075, 70.035, 80.04, 53.94, 95.156, 104.291, 119.516, 146.921, 165.191, 48.72]
 ## Monsters slain per floor by a thorough player, the adds among them (each
 ## may leave a tincture: items.gd DROPS); floors 8 to 11 the plans' counts
 ## times floor 7's measured share. (It was about 6.5 a floor, from the plans.)
 const KILLS := [3.6, 8.2, 7.4, 10.3, 11.6, 4.0, 10.6, 11.4, 12.8, 12.8, 13.4, 1.0]
+## A light player's floor (the task, the monsters in the way, then the stair)
+## against a thorough one's: the floor bot's plain run (tests/essence_measure.gd
+## without "thorough", floors 2-5, 7 and 9 of the Chimera's tower) gathered
+## 260 where the model counts 544.
+const LIGHT := 0.48
 ## Each tower's essence by kind (its monsters are not all of its kind).
 const MIX := {
 	"gryphon": {"air": 0.91, "water": 0.05, "iron": 0.04},
@@ -89,13 +97,20 @@ const FORCE_LIMIT := {"careful": Forcing.BURNED, "reckless": Forcing.BROKEN}
 ## climb], "second": the climb the second mark came on (0: none),
 ## "marks_at": [the climb each new mark came on], "xp": [first mark's growth
 ## after each climb], "per_climb": growth a climb, "forced": essence forced
-## past full (`force`: FORCE_LIMIT key, or "" never)}.
-static func run(pattern: String, climbs: int, earned := false, bought := BOUGHT_TINCTURES, use := 1.0, force := "") -> Dictionary:
+## past full (`force`: FORCE_LIMIT key, or "" never), "inflow": what reached
+## body and marks after each climb (the split's rest, less what the marks
+## couldn't take)}. `amount`: the floors' essence times this (LIGHT: a light
+## player's floors). `vessel`: a raw vessel on the belt (VESSEL_WAYS).
+static func run(pattern: String, climbs: int, earned := false, bought := BOUGHT_TINCTURES, use := 1.0, force := "", amount := 1.0, vessel := "") -> Dictionary:
 	var prof = Profile.new()
+	var vs := {}  # (a raw vessel on the belt: `vessel`, VESSEL_WAYS)
+	var made := 0
 	var cs: float = Flow.default_crystal_share()
+	var inflow := 0.0
+	var inflows: Array = []
 	# The first climb: bondless, three floors of the mark's tower, then the Regard.
 	for f in range(1, Profile.FIRST_CLIMB_FLOORS + 1):
-		prof.pour(_essence(OWN_TOWER, f), STYLE, cs)
+		prof.pour(_essence(OWN_TOWER, f, amount), STYLE, cs)
 	prof.regarded = true
 	prof.add_bond(FIRST_PART, FIRST_BOND, false)
 	var steps: Array = []
@@ -118,10 +133,14 @@ static func run(pattern: String, climbs: int, earned := false, bought := BOUGHT_
 		var last := top if top >= Towers.SUMMIT else top - 1
 		var marked := false
 		var tinctures := {}
+		vs = _vessel_up(prof, vs, vessel)
 		for f in range(1, last + 1):
 			for part in prof.bonds:
 				MarkUse.note_use(prof, part, (MARK_USE if part == FIRST_PART else OTHER_MARK_USE) * use)
-			prof.pour(_essence(tower, f), STYLE, cs)
+			var fl := _essence(tower, f, amount)
+			Vessel.take_raw(vs, fl)  # (a vessel's share isn't banked)
+			var poured: Dictionary = prof.pour(fl, STYLE, cs)
+			inflow += float(poured["body"]) + float(poured["marks"]) - float(poured["over"])
 			Forcing.stair(prof)
 			if force != "":
 				forced += force_marks(prof, force)
@@ -146,10 +165,20 @@ static func run(pattern: String, climbs: int, earned := false, bought := BOUGHT_
 			prof.drink(k, float(Flow.TINCTURE["essence"]) * float(tinctures[k]), FIRST_PART)
 		if bought > 0.0:
 			prof.drink(String(Towers.TOWERS[OWN_TOWER]["essence"]), float(Flow.TINCTURE["essence"]) * bought, FIRST_PART)
+		if not vs.is_empty():
+			if top >= Towers.SUMMIT:
+				var vk := String(vs["kind"])
+				for _i in vessel_tinctures(vs):
+					prof.drink(vk, float(Flow.TINCTURE["essence"]), FIRST_PART)  # (home whole: every tincture it makes, into the first mark)
+					made += 1
+				vs = _vessel_home(vs)
+			else:
+				vs = {}  # (a fall: lost with the belt)
 		xps.append(float(prof.bonds[FIRST_PART]["xp"]))
 		crystals.append(prof.crystals_held())
+		inflows.append(inflow)
 		steps.append(Profile.step_for_xp(float(prof.bonds[FIRST_PART]["xp"])))
-	return {"steps": steps, "second": second, "marks_at": marks_at, "xp": xps, "crystals": crystals, "forced": forced}
+	return {"steps": steps, "second": second, "marks_at": marks_at, "xp": xps, "crystals": crystals, "forced": forced, "inflow": inflows, "tinctures": made}
 
 
 ## Force-eats crystals into the first mark (its own kind first), a crystal
@@ -179,6 +208,54 @@ static func force_marks(prof, how: String) -> float:
 	return done
 
 
+## A climber with a raw vessel (vessel.gd): "always" carries one every climb
+## for nothing (the most it could give), "brewed" brews one with their own
+## crystals (materials and the Rune Artist's premium, short kinds through
+## the Exchange at its loss) whenever they have none and can pay, and loses
+## it on a fall. "" never carries one. What's left in a vessel brought home
+## goes up again. Returns the vessel for this climb ({} for none).
+static func _vessel_up(prof, vs: Dictionary, way: String) -> Dictionary:
+	if way == "" or not vs.is_empty():
+		return vs
+	if way == "always" or _brew_vessel(prof):
+		return Vessel.make("", 0.0, "raw")
+	return {}
+
+
+## Pays for a vessel from the model's crystals (Exchange: 3 for 2). False if it can't.
+static func _brew_vessel(prof) -> bool:
+	var cost: Dictionary = Vessel.brew_cost(prof)
+	var direct := 0.0
+	var short := 0.0
+	for k in cost:
+		direct += minf(float(cost[k]), prof.crystal_total(k))
+		short += maxf(0.0, float(cost[k]) - prof.crystal_total(k))
+	var x: float = float(load("res://scripts/bench.gd").EXCHANGE["give"]) / maxf(1.0, float(load("res://scripts/bench.gd").EXCHANGE["get"]))
+	if prof.crystals_held() - direct < short * x:
+		return false
+	for k in cost:
+		var take := minf(float(cost[k]), prof.crystal_total(k))
+		if take >= 1.0:
+			prof.take_crystal(k, take)
+	if short >= 1.0:
+		prof.spend_any(short * x)
+	return true
+
+
+## A vessel brought home: its tinctures made, what's left kept.
+static func _vessel_home(vs: Dictionary) -> Dictionary:
+	var per := maxf(1.0, float(Vessel.RAW["per_tincture"]))
+	var left := float(vs.get("amount", 0.0)) - per * vessel_tinctures(vs)
+	return Vessel.make(String(vs.get("kind", "")), left, "raw") if left >= 0.01 else Vessel.make("", 0.0, "raw")
+
+
+## How many tinctures a vessel's raw essence makes at the bench (vessel.gd RAW).
+static func vessel_tinctures(v: Dictionary) -> int:
+	if v.is_empty() or not Vessel.is_raw(v):
+		return 0
+	return int(floor((float(v.get("amount", 0.0)) + 0.001) / maxf(1.0, float(Vessel.RAW["per_tincture"]))))
+
+
 ## The chance a slain monster leaves a tincture (items.gd DROPS).
 static func Profile_drops_tincture() -> float:
 	return float(load("res://scripts/items.gd").DROPS.get("tincture_chance", 0.0))
@@ -200,11 +277,12 @@ static func _new_mark(prof) -> void:
 	prof.add_bond(part, id, false)
 
 
-## A floor's essence in a tower, by kind.
-static func _essence(tower: String, f: int) -> Dictionary:
+## A floor's essence in a tower, by kind (times `amount`: LIGHT for a light
+## player's floor).
+static func _essence(tower: String, f: int, amount := 1.0) -> Dictionary:
 	var out := {}
 	for k in MIX[tower]:
-		out[k] = ESSENCE[f - 1] * float(MIX[tower][k])
+		out[k] = ESSENCE[f - 1] * float(MIX[tower][k]) * amount
 	return out
 
 
@@ -257,14 +335,16 @@ const UB_SPAM := 10.0
 ## kept), as in the game; false shows the pace without it. Returns {"sizes": [after each climb, part -> size], "awake": part
 ## -> the climb it woke (0: never), "top": part -> the climb it reached level
 ## 12 (0: never), "crystals": the crystals held after each climb}.
-static func run_unbound(pattern: String, climbs: int, use := "typical", routing := "natural", sealed := [], drain := true, force := "") -> Dictionary:
+## `amount`: the floors' essence times this (LIGHT: a light player's floors).
+static func run_unbound(pattern: String, climbs: int, use := "typical", routing := "natural", sealed := [], drain := true, force := "", amount := 1.0, vessel := "") -> Dictionary:
+	var vs := {}  # (a raw vessel on the belt: `vessel`, as run's)
 	var U = load("res://scripts/unbound.gd")
 	var Tech = load("res://scripts/technique.gd")
 	var prof = Profile.new()
 	prof.saving = false
 	var cs: float = Flow.default_crystal_share()
 	for f in range(1, Profile.FIRST_CLIMB_FLOORS):
-		prof.pour(_essence(OWN_TOWER, f), STYLE, cs)
+		prof.pour(_essence(OWN_TOWER, f, amount), STYLE, cs)
 	prof.regarded = true
 	U.become(prof)
 	for part in sealed:
@@ -292,6 +372,7 @@ static func run_unbound(pattern: String, climbs: int, use := "typical", routing 
 		Forcing.new_climb(prof)
 		if routing == "spread":
 			_ub_spread(prof, U, String(Towers.TOWERS[tower]["essence"]))
+		vs = _vessel_up(prof, vs, vessel)
 		for f in range(1, last + 1):
 			if k > 0.0:
 				for part in U.PARTS:
@@ -300,7 +381,9 @@ static func run_unbound(pattern: String, climbs: int, use := "typical", routing 
 						U.note_use(prof, part, UB_CASTS * boost * k, "boost")
 					else:
 						U.note_use(prof, part, UB_ACTION * k, "action")
-			prof.pour(_essence(tower, f), {}, cs)
+			var fl := _essence(tower, f, amount)
+			Vessel.take_raw(vs, fl)  # (a vessel's share isn't banked)
+			prof.pour(fl, {}, cs)
 			Forcing.stair(prof)
 			if force != "":
 				force_nodes(prof, force)
@@ -313,6 +396,14 @@ static func run_unbound(pattern: String, climbs: int, use := "typical", routing 
 				U.condense(prof, best, String(Towers.TOWERS[tower]["essence"]))
 		elif drain:
 			U.drain(prof)  # (a fall: what the Nodes hold goes back to the well; sizes kept)
+		if not vs.is_empty():
+			if last >= Towers.SUMMIT:
+				var vk := String(vs.get("kind", ""))
+				for _i in vessel_tinctures(vs):
+					prof.drink(vk, float(Flow.TINCTURE["essence"]), U.part_for(prof, vk))  # (home whole: every tincture into its kind's Node)
+				vs = _vessel_home(vs)
+			else:
+				vs = {}  # (a fall: lost with the belt)
 		var now := {}
 		for part in U.PARTS:
 			now[part] = U.size(prof, part)
