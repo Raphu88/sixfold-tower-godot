@@ -123,8 +123,10 @@ static var ANY_PRICE := {"scroll": 60}
 ## ignored: condense_share.)
 ## The outfitter's pay for a climb, however it ends (a fall too): crystals of
 ## the tower's kind, PER_FLOOR for every floor reached and PER_BEST more for
-## every floor past your best in that tower before the climb.
-static var CLIMB_PAY := {"per_floor": 2, "per_best": 3}
+## every floor past your best in that tower before the climb. (PER_FLOOR was
+## 2, until a climb still left too many crystals: slow growth. PER_BEST, paid
+## once a floor, stays 3, so a first fall on floor 3 still buys something.)
+static var CLIMB_PAY := {"per_floor": 1, "per_best": 3}
 ## The essence a piece is priced in and sells for, when it has no trait (or
 ## name) to say: by its slot.
 const SLOT_KIND := {

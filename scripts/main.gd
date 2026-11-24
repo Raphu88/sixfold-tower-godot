@@ -1944,7 +1944,7 @@ func _enter_camp(lines: Array) -> void:
 	# of gear, one rarity row higher (the floor 6 camp's is Fine at least,
 	# the floor 9 camp's Rare).
 	var camp_kind := String(tower_data().get("essence", "air"))
-	var camp_amount: int = roundi(wings.crystal_amount() * 0.6) if wings != null else 10
+	var camp_amount: int = roundi(wings.crystal_amount() * float(WingsScript.REWARD.get("camp", 0.6))) if wings != null else 5
 	choices.append("crystal:%s:%d" % [camp_kind, camp_amount])
 	choices.append("gear:" + Gear.code(find_gear("", 1, "rare" if floor_num >= 9 else ("fine" if floor_num >= 6 else "common"))))
 	camp = {"stage": "item", "choices": choices, "lines": said}
@@ -2749,7 +2749,8 @@ func _take_belt_pick(pick: String) -> void:
 
 
 ## The end of a survived climb (or a recall scroll): unused belt items
-## break into essence crystals at half their worth, one crystal per kind.
+## break into essence crystals at a share of their worth (items.gd
+## BREAK_SHARE: a quarter), one crystal per kind.
 ## Returns the line to show ("" if nothing was carried). `skip` leaves out
 ## items (the recall scroll being read).
 func break_belt(skip: Array = []) -> String:

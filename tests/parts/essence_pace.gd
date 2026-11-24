@@ -11,10 +11,17 @@ extends RefCounted
 ## cheap and steady. It also holds the drop tables and the finds to the
 ## model: a thorough player's real floor (the owner's way) gives what the
 ## model counts (the owner's next report: a fresh Unbound, "Ash", still got
-## a lot of essence, as the model's floors were a light player's).
+## a lot of essence, as the model's floors were a light player's). And it
+## holds a whole climb's crystals, every source counted (the owner's third
+## report: "I seem to walk out of a climb with 150 to 300 crystals", so the
+## stair's share went from 20% to 8% with the finds at 87%, what flows into
+## you no more than before, and the vaults', the camp's, the pay's, the
+## belt's and a rival's crystals were halved).
 ## Run by smoke_test.gd (_part_tests); `t` is the smoke test.
 
 const Model := preload("res://tests/progression_model.gd")
+const Wings := preload("res://scripts/wings.gd")
+const Proving := preload("res://scripts/proving.gd")
 const Flow := preload("res://scripts/essence_flow.gd")
 const PS := preload("res://scripts/profile.gd")
 const U := preload("res://scripts/unbound.gd")
@@ -33,14 +40,16 @@ const Mimic := preload("res://scripts/mimic.gd")
 ## Crystals from the stairs of a fresh climber's first climb in the
 ## Manticore's tower (floors 1 to 5, then the Regard refused: Unbound), one
 ## more run (floors 1 to 6 banked, a fall on 7: the Nodes drained) and two
-## floors of the next: [least, most]. About 720 essence gathered on those
-## thirteen floors; a fifth of it is about 150, and the overflow of a Node
-## never used adds at most a fifth of the rest. (It was about 440 before.)
-const EARLY_UNBOUND := [100, 200]
-## A typical marked climber's crystals after ten climbs (the model's typical
-## pattern: half in their own tower, a summit every other climb): about a
-## fifth of what they banked. (It was about 2490 at the old 30% split.)
-const MARKED_TEN := [1000, 1800]
+## floors of the next: [least, most]. About 630 essence gathered on those
+## thirteen floors; 8% of it is about 50, and the overflow of a Node never
+## used adds at most a tenth of the rest. (It was about 440 at first, then
+## 100 to 200 at a 20% share and a fifth of the overflow.)
+const EARLY_UNBOUND := [30, 75]
+## A typical marked climber's crystals from the stairs after ten climbs (the
+## model's typical pattern: half in their own tower, a summit every other
+## climb): about 8% of what they banked. (It was about 2490 at the old 30%
+## split, about 1400 at 20%.)
+const MARKED_TEN := [320, 600]
 ## A thorough floor (the owner's way: the task, every monster in reach,
 ## every chest, cache and cracked wall), measured by the floor bot
 ## (tests/essence_measure.gd "thorough", floors 2 to 7 of the Chimera's, the
@@ -59,12 +68,33 @@ const THOROUGH_BAND := [0.85, 1.15]
 ## first climb in the Chimera's tower to the Regard (floors 1 to 5 banked),
 ## the mark refused, floor 6 banked and a fall on 7 (the Nodes drained);
 ## then a short climb (floors 1 and 2 banked, a fall on 3). A thorough
-## player's floors (the model's essence): about 70 of some 420 gathered.
+## player's floors (the model's essence): about 20 of some 370 gathered.
 ## (About 130 of some 640 at the old drops, a thorough floor giving about
-## 1.6 times the model's then. The rest of a real climber's crystals come
-## from elsewhere: a camp's card, the sentinel, the outfitter's pay, a
-## start's crystals, vaults.)
-const ASH_PATH := [50, 100]
+## 1.6 times the model's then; about 70 at a 20% share. The rest of a real
+## climber's crystals come from elsewhere: a camp's card, the sentinel, the
+## outfitter's pay, a start's crystals, vaults: CLIMB counts them.)
+const ASH_PATH := [12, 40]
+## The model's thorough summit (floors 1 to 12) before a stair's crystal
+## share went from OLD_SHARE (20%) to 8% and every find to 87%: what flowed
+## into the climber then, (1 - OLD_SHARE) of it, through the game's split
+## (a stair rounds its crystals down, kind by kind, so a little more goes in
+## than the share says), against what flows in now: INFLOW_BAND of it, never
+## more (growth no faster).
+const OLD_SUMMIT := 1149.125
+const OLD_SHARE := 0.2
+const INFLOW_BAND := [0.96, 1.0]
+## A whole climb's crystals, every source counted: [least, most]. A summit
+## (floors 1 to 12) or a fall on floor 8 (1 to 7 banked); a thorough
+## player's floors (the model's) or a light one's (Model.LIGHT). A thorough
+## climber takes one camp's crystal card (floor 6's: the others an item or
+## gear), a sealed wing's vault crystal (floor 5) and the Proving sentinel's
+## crystal, and brings home the staples and a Fire Flask on a survived
+## climb; a light one takes floor 3's camp card and the sentinel's crystal,
+## and brings home the staples. The stairs' crystals are the model's (the
+## game's own bookkeeping, a typical climber's use). (Before: about 340 a
+## thorough summit, 105 a thorough fall on 8, 150 a light summit, 50 a
+## light fall: the owner found 150 to 300 a climb too many.)
+const CLIMB := {"thorough summit": [100, 140], "thorough fall": [40, 75], "light summit": [40, 80], "light fall": [15, 40]}
 ## A typical floor's actions (tests/parts/part_soak.gd's typical climber).
 const TYPICAL_FLOOR := {"strike": 22, "shot": 10, "cleave": 4, "multi_cast": 1, "backstab": 3, "finisher": 6, "hit_taken": 7, "parry": 3, "perfect_parry": 1, "roll_through": 1.5, "roll_clear": 5, "jump_clear": 0.5}
 
@@ -74,14 +104,16 @@ var t
 func run(smoke) -> void:
 	t = smoke
 	print("the pace of crystals: a fixed share, and what can't go in mostly back to the well")
-	_check(is_equal_approx(Train.condense_share(), float(Flow.SPLIT["crystals"]) / 100.0) and is_equal_approx(Train.condense_share(), 0.2), "a stair's crystal share is fixed at 20% (no setting)")
+	_check(is_equal_approx(Train.condense_share(), float(Flow.SPLIT["crystals"]) / 100.0) and is_equal_approx(Train.condense_share(), 0.08), "a stair's crystal share is fixed at 8% (no setting; it was 20%)")
+	_inflow()
+	_climbs()
 	var most: float = Train.condense_share() + float(Flow.OVERFLOW["crystals"]) * (1.0 - Train.condense_share())
 	for style in ["idle", "actions"]:
 		var r := _early_unbound(style)
 		var since: float = float(r["since"])
 		var got: float = float(r["crystals"])
-		_check(since <= most * float(r["gathered_since"]) + 6.0, "an early Unbound (%s) condenses at most the share and a fifth of the overflow: %d of %d gathered (%d%%, at most %d%%)" % [style, int(since), int(r["gathered_since"]), roundi(100.0 * since / maxf(1.0, float(r["gathered_since"]))), roundi(most * 100.0)])
-		_check(got >= EARLY_UNBOUND[0] and got <= EARLY_UNBOUND[1], "...crystals after one Manticore run and two floors: %d (%d to %d; about 440 before)" % [int(got), EARLY_UNBOUND[0], EARLY_UNBOUND[1]])
+		_check(since <= most * float(r["gathered_since"]) + 6.0, "an early Unbound (%s) condenses at most the share and a tenth of the overflow: %d of %d gathered (%d%%, at most %d%%)" % [style, int(since), int(r["gathered_since"]), roundi(100.0 * since / maxf(1.0, float(r["gathered_since"]))), roundi(most * 100.0)])
+		_check(got >= EARLY_UNBOUND[0] and got <= EARLY_UNBOUND[1], "...crystals after one Manticore run and two floors: %d (%d to %d; 100 to 200 at a 20%% share)" % [int(got), EARLY_UNBOUND[0], EARLY_UNBOUND[1]])
 	_thorough()
 	for style in ["idle", "actions"]:
 		var ash := _path(style, "chimera", 5, [[6, 6], [1, 2]])
@@ -89,7 +121,7 @@ func run(smoke) -> void:
 			"a path like the owner's Unbound (%s: the Chimera's first climb, the mark refused, a fall on 7, then two floors): %d crystals from the stairs, of %d gathered (%d to %d)" % [style, int(ash["crystals"]), int(ash["gathered"]), ASH_PATH[0], ASH_PATH[1]])
 	var typ: Dictionary = Model.run("typical", 10)
 	var ten := float(typ["crystals"][9])
-	_check(ten >= MARKED_TEN[0] and ten <= MARKED_TEN[1], "a typical marked climber's crystals after ten climbs: %d (%d to %d; about 2490 at the old 30%%)" % [int(ten), MARKED_TEN[0], MARKED_TEN[1]])
+	_check(ten >= MARKED_TEN[0] and ten <= MARKED_TEN[1], "a typical marked climber's crystals from the stairs after ten climbs: %d (%d to %d; about 1400 at a 20%% share)" % [int(ten), MARKED_TEN[0], MARKED_TEN[1]])
 	var ub: Dictionary = Model.run_unbound("typical", 10)
 	var uten := float(ub["crystals"][9])
 	_check(uten <= ten * 1.1, "...and a typical Unbound's no more than theirs: %d" % int(uten))
@@ -106,14 +138,105 @@ func run(smoke) -> void:
 	_check(is_equal_approx(U.size(prof, "back"), size0) and prof.crystal_total("stone") == 10.0, "eating a crystal into a full Node it hasn't used grows nothing, and it stays a crystal")
 	# Forcing (forcing.gd) is the only way past full: it spends crystals and
 	# never makes any. A typical climber who force-eats every crystal holds
-	# fewer after ten climbs; the strain, not the crystals, is the brake.
+	# fewer after ten climbs. (With a stair's share at 8% a careful forcer can
+	# eat them all before the strain stops them: the crystals are a brake now
+	# too; tests/parts/progression.gd holds the forcer's pace.)
 	var forcer: Dictionary = Model.run("typical", 10, false, Model.BOUGHT_TINCTURES, 1.0, "careful")
 	var fc := float(forcer["crystals"][9])
-	_check(fc < ten and fc >= ten - float(forcer["forced"]) - ten * 0.05 and fc > 0.0, "a climber who force-eats every crystal holds %d after ten climbs (%d forced; %d without), crystals left over: the strain holds them back" % [int(fc), int(forcer["forced"]), int(ten)])
+	_check(fc < ten and float(forcer["forced"]) <= ten + 1.0 and fc >= ten - float(forcer["forced"]) - ten * 0.05, "a climber who force-eats every crystal holds %d after ten climbs (%d forced; %d without): forcing only spends crystals" % [int(fc), int(forcer["forced"]), int(ten)])
 
 
 func _check(cond: bool, what: String) -> void:
 	t._check(cond, what)
+
+
+## What flows into the climber (body and marks, before what they can't take)
+## from the model's summit (a thorough player's floors and a light one's),
+## through the game's own split, against what flowed in before the share
+## went to 8%: never more growth.
+func _inflow() -> void:
+	var banked := 0.0
+	for f in range(1, Towers.SUMMIT + 1):
+		banked += _sum(Model._essence(Model.OWN_TOWER, f))
+	for play in ["thorough", "light"]:
+		var amount: float = 1.0 if play == "thorough" else Model.LIGHT
+		var inflow := _summit_inflow(amount, Train.condense_share())
+		var old := _summit_inflow(amount * OLD_SUMMIT / banked, OLD_SHARE)
+		var r := inflow / old
+		_check(r >= INFLOW_BAND[0] and r <= INFLOW_BAND[1],
+			"what flows into you from a %s summit is about what it was, never more: %d of %d banked (%d before, of %d: %d%%, %d%% to %d%%), so growth is no faster" % [
+			play, roundi(inflow), roundi(banked * amount), roundi(old), roundi(OLD_SUMMIT * amount), roundi(r * 100.0), roundi(INFLOW_BAND[0] * 100.0), roundi(INFLOW_BAND[1] * 100.0)])
+	var typ: Dictionary = Model.run("summits", 2)
+	var ub: Dictionary = Model.run_unbound("summits", 2)
+	print("    (a marked climber's summit: %d into body and marks, %d crystals from the stairs; an Unbound's: %d crystals)" % [
+		roundi(float(typ["inflow"][1]) - float(typ["inflow"][0])), roundi(float(typ["crystals"][1]) - float(typ["crystals"][0])), roundi(float(ub["crystals"][1]) - float(ub["crystals"][0]))])
+
+
+## What reaches body and marks (before what they can't take) from the
+## model's summit in the first mark's tower, its floors times `amount`,
+## through the game's split at crystal share `share`.
+func _summit_inflow(amount: float, share: float) -> float:
+	var prof = PS.new()
+	prof.saving = false
+	prof.regarded = true
+	prof.add_bond(Model.FIRST_PART, Model.FIRST_BOND, false)
+	var inflow := 0.0
+	for f in range(1, Towers.SUMMIT + 1):
+		var out: Dictionary = prof.pour(Model._essence(Model.OWN_TOWER, f, amount), Model.STYLE, share)
+		inflow += _sum(out["keep"])
+	return inflow
+
+
+## A whole climb's crystals by source (CLIMB): marked and Unbound, thorough
+## and light, a summit and a fall on 8.
+func _climbs() -> void:
+	var totals := {}
+	for play in ["thorough", "light"]:
+		for top in [Towers.SUMMIT, 8]:
+			var name: String = play + (" summit" if top >= Towers.SUMMIT else " fall")
+			for who in ["marked", "Unbound"]:
+				var c := _climb(who, play, top)
+				var sum := 0.0
+				var bits := []
+				for k in c:
+					sum += float(c[k])
+					bits.append("%s %d" % [k, roundi(float(c[k]))])
+				totals[name + " " + who] = sum
+				var band: Array = CLIMB[name]
+				_check(sum >= float(band[0]) and sum <= float(band[1]), "a %s climber's %s%s: %d crystals in all (%d to %d)  [%s]" % [
+					who, play, " summit" if top >= Towers.SUMMIT else " climb that falls on 8", roundi(sum), int(band[0]), int(band[1]), ", ".join(bits)])
+	for who in ["marked", "Unbound"]:
+		_check(float(totals["light summit " + who]) < float(totals["thorough summit " + who]) and float(totals["light fall " + who]) < float(totals["thorough fall " + who]),
+			"...a light %s climber walks out with less than a thorough one" % who)
+
+
+## One climb's crystals by source: "stairs" (the split's share and what the
+## marks or Nodes couldn't take, through the model: its second climb, after
+## the first climb's Regard), "camp" (one camp's crystal card), "vault",
+## "sentinel", "pay" (the outfitter's, not a new best) and "belt" (a survived
+## climb's leftovers).
+func _climb(who: String, play: String, top: int) -> Dictionary:
+	var thorough := play == "thorough"
+	var amount: float = 1.0 if thorough else Model.LIGHT
+	var pattern := "summits" if top >= Towers.SUMMIT else "falls"  # (falls: a fall on 5, then one on 8)
+	var r: Dictionary
+	if who == "marked":
+		r = Model.run(pattern, 2, false, Model.BOUGHT_TINCTURES, 1.0, "", amount)
+	else:
+		r = Model.run_unbound(pattern, 2, "typical", "natural", [], true, "", amount)
+	var vault := func(f: int) -> float: return float(Wings.REWARD["crystal_base"]) + float(Wings.REWARD["crystal_per_floor"]) * f
+	var out := {"stairs": float(r["crystals"][1]) - float(r["crystals"][0])}
+	out["camp"] = float(roundi(float(vault.call(6 if thorough else 3)) * float(Wings.REWARD["camp"])))
+	if thorough:
+		out["vault"] = float(roundi(float(vault.call(5))))
+	out["sentinel"] = roundf(float(vault.call(6)) * float(Proving.TIERS[0]["crystal"]))
+	out["pay"] = float(Train.climb_pay(top, top))
+	if top >= Towers.SUMMIT:
+		var belt: Dictionary = Items.START.duplicate()
+		if thorough:
+			belt["fire_flask"] = 1
+		out["belt"] = _sum(Items.break_value(belt))
+	return out
 
 
 ## The owner's path, through the game's own bookkeeping: `style` "idle"

@@ -8681,7 +8681,7 @@ func _economy_tests() -> void:
 	main.grant_test_bonds()
 	# Condensing at a stair: the fixed share, per kind; only the rest is banked.
 	var share: float = T.condense_share()
-	_check(is_equal_approx(share, 0.2), "condensing is a fixed 20% (the split's crystals: essence_flow.gd SPLIT)")
+	_check(is_equal_approx(share, 0.08), "condensing is a fixed 8% (the split's crystals: essence_flow.gd SPLIT)")
 	prof.crystals = []
 	var twin = PS.new()
 	twin.saving = false
@@ -9292,7 +9292,7 @@ func _lost_tests() -> void:
 	_check(prof.lost.all(func(e): return e["tower"] == "kraken" and int(e["floor"]) == 5), "...remembered with the tower and floor where they fell")
 	_check(G.named_id(prof.lost[3]["rec"]) == "coral_trident", "...the weapon among them")
 	var fall_pay: int = main.Train.climb_pay(5, 3)
-	_check(fall_pay == 2 * 5 + 3 * 2 or main.Train.CLIMB_PAY != {"per_floor": 2, "per_best": 3}, "(the pay: %d for floor 5, 2 floors past a best of 3)" % fall_pay)
+	_check(fall_pay == 1 * 5 + 3 * 2 or main.Train.CLIMB_PAY != {"per_floor": 1, "per_best": 3}, "(the pay: %d for floor 5, 2 floors past a best of 3)" % fall_pay)
 	_check(is_equal_approx(_purse(prof), crystals0 + fall_pay) and is_equal_approx(prof.crystal_total("water"), float(fall_pay)), "the belt is lost, not broken into crystals; the outfitter pays %d Water for the climb" % fall_pay)
 	_check(main.pay_line == main.Train.TEXT["pay"] % main.Train.price_text("water", fall_pay) and prof.last_pay.get("amount", 0.0) == float(fall_pay), "...said on the fall screen: %s" % main.pay_line)
 	var note: String = main.fall_note[0] if not main.fall_note.is_empty() else ""
@@ -14417,7 +14417,7 @@ func _data_editor_tests() -> void:
 	_check(Train.CLIMB_PAY["per_floor"] == 7 and is_equal_approx(Items.ITEMS["draught"]["heal"], 55.0), "...without them, the project's own")
 	DirAccess.remove_absolute(ProjectSettings.globalize_path(Reg.project_path))
 	Reg.startup()
-	_check(Reg.applied.is_empty() and Train.CLIMB_PAY["per_floor"] == 2 and is_equal_approx(Items.ITEMS["draught"]["heal"], heal), "...and without either, the scripts' own values")
+	_check(Reg.applied.is_empty() and Train.CLIMB_PAY["per_floor"] == 1 and is_equal_approx(Items.ITEMS["draught"]["heal"], heal), "...and without either, the scripts' own values")
 	var bad := FileAccess.open(Reg.project_path, FileAccess.WRITE)
 	bad.store_string('{"format": 1, "changes": {"items/ITEMS/draught/heal": "lots", "train/CLIMB_PAY/per_best": 4}}')
 	bad.close()

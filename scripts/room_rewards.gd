@@ -37,9 +37,11 @@ static var TEXT := {
 ## one with no item holds "no_item" times the essence) and gear chance;
 ## rest: health a second; trader: what an item costs (base, per floor).
 ## (The essence is about three fifths of what it was: real, thorough play
-## gave far more than the pace model holds; essence.gd DROPS.)
-static var RULES := {"chest_base": 2.1, "chest_per_floor": 0.8, "chest_rich": 1.6, "item_chance": 0.04, "no_item": 1.25, "gear_chance": 0.12, "gear_rich": 0.25,
-	"rest_heal": 3.0, "trade_base": 10.0, "trade_per_floor": 2.0, "reach": 28.0, "check": 0.3}
+## gave far more than the pace model holds; essence.gd DROPS. Then 87% of
+## that, the trader's prices too, as a stair's crystal share went to 8%:
+## essence_flow.gd SPLIT.)
+static var RULES := {"chest_base": 1.827, "chest_per_floor": 0.696, "chest_rich": 1.6, "item_chance": 0.04, "no_item": 1.25, "gear_chance": 0.12, "gear_rich": 0.25,
+	"rest_heal": 3.0, "trade_base": 8.7, "trade_per_floor": 1.74, "reach": 28.0, "check": 0.3}
 
 var main
 var chests: Array = []  # {pos, room, rich, open, taken}

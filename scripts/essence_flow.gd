@@ -41,17 +41,23 @@ const Essence := preload("res://scripts/essence.gd")
 const OutfitterName := preload("res://scripts/outfitter_name.gd")
 
 ## The split at a stair, in percent: "crystals" condenses into crystals, and
-## body and marks share the rest in their proportions. (The owner's fixed
-## share, 20%, since the "To crystals" setting went: chosen with the drops at
-## seven eighths of what they were, so what flows into you is what it was at
-## 30% and the pace holds, while crystals come about 40% slower.)
-static var SPLIT := {"body": 30.0, "marks": 40.0, "crystals": 20.0}
+## body and marks share the rest in their proportions. (A fixed share since
+## the "To crystals" setting went. It was 20% until the owner still walked
+## out of a climb with 150 to 300 crystals: now 8%, with every essence find
+## (monsters' drops, the tower's bonus a kill, chests, caches, cracked
+## walls, puzzles, the task, scenario grades, a rival's hoard) at 87% of
+## what it was, so what flows into you (92% of 87%, and a stair rounds its
+## crystals down kind by kind) is about what it was at 20%, never more, and
+## the pace holds, while a stair's crystals come at about a third.
+## tests/parts/essence_pace.gd holds a climb's crystals and the inflow.)
+static var SPLIT := {"body": 30.0, "marks": 40.0, "crystals": 8.0}
 ## What the marks or an Unbound's Nodes can't take at a stair (use already
 ## refilled, a Node full): this share of it condenses into crystals, and the
 ## rest goes back to the well. (It all condensed once: a climber who seldom
-## cast turned nearly everything banked into crystals, far past the split.)
-## Eating a crystal is never lost: what can't go in stays a crystal.
-static var OVERFLOW := {"crystals": 0.2}
+## cast turned nearly everything banked into crystals, far past the split;
+## then a fifth; now a tenth.) Eating a crystal is never lost: what can't go
+## in stays a crystal.
+static var OVERFLOW := {"crystals": 0.1}
 
 ## Tinctures: the essence each holds; how much of it soaks into an unmarked
 ## part (the body share soaks at profile.gd SOAK_RATE); what crafting one
