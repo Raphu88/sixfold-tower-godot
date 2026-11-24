@@ -145,10 +145,10 @@ static var DIALOGUE: Dictionary = OutfitterName.named({
 		"choices": ["how_climb", "how_ward", "how", "bye"]},
 	# Training and tournaments (training.gd, tournaments.gd).
 	"how_grace": {"ask": "The Noble's Grace and my first tournament?", "fact": "training",
-		"lines": ["Every climber needs the Noble's Grace before a tower will have them. A new climber earns it at home: the {lessons} lessons of basic training at the gym, then one tournament of {rounds} rounds, monsters and then a champion fighter. The Grace comes win or lose. Each round won adds a reward: a Healing Vial, a recall scroll, then a Fine piece of the kind you fought with most; no damage at all, and a tincture of each essence too. {grace_line}"],
+		"lines": ["Every climber needs the Noble's Grace before a tower will have them. A new climber earns it at home: basic training at the gym, one session of {steps} short steps, then one tournament of {rounds} rounds, monsters and then a champion fighter. The Grace comes win or lose. Each round won adds a reward: a Healing Vial, a recall scroll, then a Fine piece of the kind you fought with most; no damage at all, and a tincture of each essence too. {grace_line}"],
 		"choices": ["how_training", "how_manager", "how", "bye"]},
 	"how_training": {"ask": "Basic, advanced and mark training?", "fact": "training",
-		"lines": ["Basic training: {lessons} lessons on moving, attacking and parrying, any time, free. Its essence, and your first tournament's, goes into your body only, {quarter} of the usual: it shows which part you use most, so where your first mark will be. Advanced training opens in {tiers} tiers with the titles the Noble grants you; mark training with your first mark, against dummies, summoned creatures and human rivals. Each try costs a few crystals of the essence that fits it, and pays {half} of the usual essence."],
+		"lines": ["Basic training: one session of {steps} steps, every move in a row: walking, jumping, rolling, striking and the finisher, swapping to the bow and its full draw, the off-hand and its power, parrying on the glint, blocking, the belt and its wheel. Each step waits for you; I hint if you're stuck, and if you leave, your place is kept. Any time, free. Its essence, and your first tournament's, goes into your body only, {quarter} of the usual: it shows which part you use most, so where your first mark will be. Advanced training opens in {tiers} tiers with the titles the Noble grants you; mark training with your first mark, against dummies, summoned creatures and human rivals. Each try costs a few crystals of the essence that fits it, and pays {half} of the usual essence."],
 		"choices": ["how_grace", "how_manager", "how", "bye"]},
 	"how_manager": {"ask": "Who is the Tournament Manager?", "fact": "training",
 		"lines": ["After your first, tournaments belong to {manager}, who moves round the six stations, a stop after each of your climbs. Each place has its own arena: pillars, hazards, the creatures of the first round, and rivals whose marks lean to its tower. Entry costs a fee. A win pays renown, crystals, essence ({half} of the usual), a Healing Vial anywhere, and the first win of a higher bracket at each place, a prize found only there. {manager_line}"],
@@ -348,7 +348,7 @@ static var HINTS: Dictionary = OutfitterName.named({
 	"afford_rack": "You can afford {piece} on {outfitter}'s rack, and it beats yours.",
 	"stash_full": "Your stash is full. Sell to {outfitter}, or break pieces down at the Workshop.",
 	"title_ready": "The Noble at a station would grant you a title: {title}. Read what it gives.",
-	"lessons": "A station's Training has {n} short lessons you haven't done. Each is a minute, and I talk you through it.",
+	"lessons": "A station's Training has basic training, one session you haven't finished: {n} short steps left, and I talk you through each.",
 	"mark_close": "{mark} feels nearly deep enough for step {step}. Cast it, and bank at a stair.",
 	"climb": "Choose a tower at the Engine and pull the lever. Your best: floor {best}, in {tower}.",
 	"climb_play": "Up. The stair is somewhere on this floor.",
@@ -1012,9 +1012,9 @@ static func hints(main) -> Array:
 		var offer: Array = R.on_offer(prof)
 		if not offer.is_empty():
 			out.append(fill(String(HINTS["title_ready"]), {"title": R.title_name(String(offer[0]))}))
-		var left: Array = load("res://scripts/stations.gd").lessons_left(prof)
-		if not left.is_empty() and int(prof.climbs) >= 1:
-			out.append(fill(String(HINTS["lessons"]), {"n": left.size()}))
+		var left: int = load("res://scripts/tutorial.gd").steps_left(prof)  # (basic training, one session)
+		if left > 0 and int(prof.climbs) >= 1:
+			out.append(fill(String(HINTS["lessons"]), {"n": left}))
 	# The mark nearest its next step.
 	var close := {}
 	for part in prof.bonds:

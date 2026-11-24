@@ -318,6 +318,8 @@ static func block(p, dmg: float, source) -> float:
 	p.off_flash = 0.2
 	_wear(p, float(RULES["wear_block"]))
 	load("res://scripts/deeds.gd").note(m, "blocks")
+	if "blocked" in p:
+		p.blocked += 1  # (basic training watches for it: tutorial.gd)
 	# The Tide Ward: a blocked blow sends a wave out, from its pool.
 	var mult := _use(p) if Charms.charge_id(g) == "tide_block" else 0.0
 	if mult > 0.0:

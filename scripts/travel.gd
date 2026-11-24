@@ -89,7 +89,7 @@ static var TEXT := {
 static var TOURS: Dictionary = OutfitterName.named({
 	"station": [
 		{"stop": "gym", "point": ["rail", "gym"], "point_say": "The gym: Training.",
-			"say": "This is a station. Start at the gym: short lessons with me, then medal drills. Nothing here can fell you."},
+			"say": "This is a station. Start at the gym: basic training, one session with me, then medal drills. Nothing here can fell you."},
 		{"stop": "arena", "point": ["rail", "arena"], "point_say": "The tournament grounds.",
 			"say": "The tournament grounds: brackets against other climbers. Nobody dies; the loser yields. Winning pays renown, crystals and titles."},
 		{"stop": "noble", "point": ["rail", "noble"], "point_say": "The Noble's estate.",

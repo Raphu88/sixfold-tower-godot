@@ -4,10 +4,10 @@ extends RefCounted
 ## The engine's map (engine_page.gd) has "Step off" for the station you're
 ## at; a station is a page beside the rail (station_page.gd, drawn by
 ## station_view.gd in the station's own colours) with these stops:
-##   gym     TRAINING: basic training hands on (LESSONS: moving, rolling,
-##           jumping, striking, shooting, parrying on the glint), each short
-##           and remembered, with the Entity guiding (required for the Noble's
-##           Grace, and not skippable before it: training.gd); advanced and
+##   gym     TRAINING: basic training hands on, ONE SESSION that flows step
+##           to step through every way to move, attack and parry, with the
+##           Entity guiding (tutorial.gd; required for the Noble's Grace:
+##           training.gd); advanced and
 ##           mark training (training.gd); and MEDAL DRILLS (DRILLS: a goal, a
 ##           medal and a small fee)
 ##   arena   the TOURNAMENT: a new climber's first tournament (training.gd),
@@ -33,6 +33,7 @@ const Essence := preload("res://scripts/essence.gd")
 const Towers := preload("res://scripts/towers.gd")
 const Titles := preload("res://scripts/titles.gd")
 const Training := preload("res://scripts/training.gd")
+const Tutorial := preload("res://scripts/tutorial.gd")
 
 ## The stations: six, each in a major city near its tower (travel.gd: they
 ## sit on a loop in tower order, and the train rides between them). Each has
@@ -77,10 +78,12 @@ static var STOPS := {
 	"board": {"name": "Renown Board", "short": "Renown", "line": "Rank, next rank, deeds", "sub": "Your rank, what the next one opens, and what the climbers say about you."},
 }
 
-## BASIC TRAINING: six short hands-on lessons, in order, covering every way
-## to move, attack and parry. A climber made with the new start must finish
-## them (and then the first tournament) for the Noble's Grace (training.gd);
-## before the Grace they can't be skipped. Each:
+## BASIC TRAINING's six parts. Since basic training became ONE SESSION
+## (tutorial.gd: the gym's only basic tile, every step in one sitting), these
+## are the parts it covers, kept as a record: the session done marks every
+## one done (an old save that did them separately counts as done), the
+## finished set pays LESSON_REWARD once and readies the Trainee's title. The
+## arena can still run one as a "lesson" event. Each:
 ##   name, goal  its title and what to do (%d: its number)
 ##   say         the Entity's word as it begins ({move}, {roll}... become
 ##               your keys or buttons)
@@ -558,6 +561,11 @@ static func event(type: String, id: String, station_id := "") -> Dictionary:
 			ev.merge(LESSONS.get(id, {}), true)
 			ev["stop"] = "gym"
 			ev["tower"] = String(LESSONS.get(id, {}).get("tower", "kraken"))
+		"basics":
+			# Basic training, one session (tutorial.gd); "from": the step to start at.
+			ev["name"] = String(Tutorial.TEXT["name"])
+			ev["stop"] = "gym"
+			ev["from"] = 0
 		"drill":
 			ev.merge(DRILLS.get(id, {}), true)
 			ev["stop"] = "gym"
@@ -646,6 +654,8 @@ static func apply_result(profile, res: Dictionary) -> Dictionary:
 	var gain := 0
 	var why := ""
 	match type:
+		"basics":
+			lines.append_array(Tutorial.apply(profile, res))
 		"lesson":
 			var name := String(LESSONS.get(id, {}).get("name", id))
 			if bool(res.get("done", false)):

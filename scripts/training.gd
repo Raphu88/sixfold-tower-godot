@@ -7,9 +7,13 @@ extends RefCounted
 ## Begin: `require`) arrives at their home station, not in a tower. The
 ## towers stay closed (`closed`: the engine's lever is locked, main.gd
 ## depart refuses) until the Noble grants them THE GRACE. To earn it:
-##   basic training  the gym's six lessons (stations.gd LESSONS): moving,
-##                   rolling, jumping, striking, shooting and parrying. They
-##                   can't be skipped before the Grace.
+##   basic training  ONE SESSION at the gym (tutorial.gd): twelve steps in
+##                   one sitting, every way to move, attack and parry
+##                   (walking, jumping, rolling, striking, the finisher,
+##                   swapping, the bow's full draw, the off-hand and its
+##                   power, parrying, blocking, the belt). Left part way, it
+##                   resumes where you stopped. Skippable only after the Grace,
+##                   or by a player who made a climber before on this device.
 ##   the first       FIRST: one tournament of three rounds at the home
 ##   tournament      station: low-level monsters (the home station's
 ##                   "starter" creatures, tournaments.gd LOCATIONS), then a
@@ -20,7 +24,8 @@ extends RefCounted
 ##   the tournament (into your stash); flawless (no damage taken all
 ##   tournament) + one essence tincture of each kind, from the Noble.
 ##
-## TRAINING'S ESSENCE (RATES). Basic training, medal drills and the first
+## TRAINING'S ESSENCE (RATES). Basic training (a share for each step done),
+## medal drills and the first
 ## tournament give a quarter of the usual essence, into the body only (no
 ## marks, no crystals), and before the first mark what each body part did
 ## is kept (`state.soak`, at SOAK_SHARE): main.gd seeds the first climb's
@@ -28,7 +33,7 @@ extends RefCounted
 ## Advanced and mark training and later tournaments give half, flowing the
 ## natural way (body and marks).
 ##
-## LATER. Basic training can be refreshed any time. ADVANCED training opens
+## LATER. Basic training can be gone through again any time. ADVANCED training opens
 ## in TIERS by the titles the Noble has granted you; MARK training (partners:
 ## dummies, summoned creatures, human rivals) opens with the first mark (or
 ## once Unbound). Each lesson costs a small fee of the essence that fits it
@@ -57,6 +62,7 @@ static var GRACE := {"name": "the Noble's Grace", "short": "The Grace"}
 ## tower). SOAK_SHARE: of what each body part did, the share kept toward the
 ## first mark.
 static var RATES := {
+	"basics": {"rate": 0.25, "body": true},
 	"lesson": {"rate": 0.25, "body": true},
 	"drill": {"rate": 0.25, "body": true},
 	"first": {"rate": 0.25, "body": true},
@@ -157,19 +163,20 @@ static var TEXT := {
 	"grace_short": "Grace",
 	"grace_have": "Granted: the towers are open to you.",
 	"grace_not": "Not yet: the towers are closed to you.",
-	"grace_how": "Finish basic training at the gym, then compete in your first tournament. The Grace comes win or lose.",
+	"grace_how": "Finish basic training at the gym (one session), then compete in your first tournament. The Grace comes win or lose.",
 	"grace_what": "The Noble's leave to enter the towers and take a mark. Every climber needs it.",
-	"grace_step_lessons": "Basic training: %d of %d lessons",
+	"grace_step_lessons": "Basic training: %d of %d steps",
 	"grace_step_first": "Your first tournament",
 	"grace_granted": "The Noble grants you the Grace. The towers are open to you.",
 	"grace_banner": "The Noble's Grace is yours",
 	"closed": "The towers are closed until the Noble grants you the Grace.",
 	"closed_short": "Needs the Grace",
-	"closed_how": "Finish basic training at the gym, then your first tournament at the tournament grounds.",
+	"closed_how": "Finish basic training at the gym (one session), then your first tournament at the tournament grounds.",
 	"basic": "Basic training",
-	"basic_note": "Six lessons: every way to move, attack and parry. Required for the Noble's Grace.",
-	"basic_note_done": "Refresh any lesson, any time.",
+	"basic_note": "One session: every way to move, attack and parry. Required for the Noble's Grace.",
+	"basic_note_done": "Go through it again any time.",
 	"no_skip": "Required for the Grace: it can't be skipped.",
+	"start_basics": "Training",
 	"advanced": "Advanced training",
 	"advanced_note": "Opens in tiers by the titles the Noble has granted you. Each try costs a small fee of the essence that fits it.",
 	"mark_training": "Mark training",
@@ -221,12 +228,12 @@ static var TEXT := {
 	"start_advanced": "Training",
 	"start_first": "First tournament",
 	# The Entity's "What should I do next?" (entity_talk.gd hints).
-	"hint_lessons": "The towers are closed until the Noble grants you the Grace. Start at the gym: {n} lessons of basic training left.",
+	"hint_lessons": "The towers are closed until the Noble grants you the Grace. Start at the gym: basic training, one session ({n} steps left).",
 	"hint_first": "Basic training is done. Now your first tournament, at the tournament grounds: the Grace comes win or lose.",
 	# The Entity's talk ("How does it work?": training_facts).
 	"talk_grace_have": "You have it.",
 	"talk_grace_not": "You don't have it yet: {left}.",
-	"talk_left_lessons": "{n} lessons of basic training left",
+	"talk_left_lessons": "{n} steps of basic training left",
 	"talk_left_first": "your first tournament is next",
 }
 
@@ -270,23 +277,15 @@ static func lives_on_train(profile) -> bool:
 	return required(profile) and not bool(profile.regarded)
 
 
-## Basic training done (every lesson; skipped ones count only after the Grace).
+## Basic training done: its one session done or skipped (tutorial.gd; old
+## saves: the six separate lessons it replaced, every one done).
 static func basic_done(profile) -> bool:
-	var S = load("res://scripts/stations.gd")
-	for id in S.LESSON_ORDER:
-		var st: int = S.lesson_state(profile, id)
-		if st == 0 or (st == 2 and closed(profile)):
-			return false
-	return true
+	return load("res://scripts/tutorial.gd").passed(profile)
 
 
+## Steps of basic training still to do.
 static func basic_left(profile) -> int:
-	var S = load("res://scripts/stations.gd")
-	var n := 0
-	for id in S.LESSON_ORDER:
-		if S.lesson_state(profile, id) != 1 and not (S.lesson_state(profile, id) == 2 and not closed(profile)):
-			n += 1
-	return n
+	return load("res://scripts/tutorial.gd").steps_left(profile)
 
 
 ## Lessons may be skipped: never before the Grace.
@@ -644,7 +643,7 @@ static func hint(profile) -> String:
 static func talk_facts(profile) -> Dictionary:
 	var T = load("res://scripts/tournaments.gd")
 	var S = load("res://scripts/stations.gd")
-	var f := {"lessons": str(S.LESSON_ORDER.size()), "rounds": str((FIRST["rounds"] as Array).size()),
+	var f := {"lessons": str(S.LESSON_ORDER.size()), "steps": str(load("res://scripts/tutorial.gd").count()), "rounds": str((FIRST["rounds"] as Array).size()),
 		"quarter": "%d%%" % int(round(float(RATES["first"]["rate"]) * 100.0)), "half": "%d%%" % int(round(float(RATES["tourney"]["rate"]) * 100.0)),
 		"tiers": str(TIERS.size()), "manager": String(T.MANAGER["name"]), "grace_line": "", "manager_line": ""}
 	if profile == null:

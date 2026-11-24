@@ -4,7 +4,8 @@ extends RefCounted
 ## the train"; the stop you're at fills the rest, over the station drawn
 ## behind it (station_view.gd). Each stop is a list on the left and a card
 ## on the right (the card goes under the list on a narrow screen):
-##   gym     Training: the basics (lessons with the Entity: Begin, Skip) and
+##   gym     Training: the basics (one session with the Entity: Begin,
+##           Resume, Start over, Skip when allowed: tutorial.gd) and
 ##           the medal drills (goal, medals, fee, Begin)
 ##   arena   the Tournament: its master's word and the brackets (rounds,
 ##           fee, prize, Enter)
@@ -34,6 +35,7 @@ const TrainPage := preload("res://scripts/train_page.gd")
 const Rivals := preload("res://scripts/rivals.gd")
 const Travel := preload("res://scripts/travel.gd")
 const Training := preload("res://scripts/training.gd")
+const Tutorial := preload("res://scripts/tutorial.gd")  # (basic training, one session)
 const Tournaments := preload("res://scripts/tournaments.gd")
 const Lore := preload("res://scripts/city_lore.gd")  # (an Unbound passing as marked; the Noble's persuasion)
 
@@ -45,7 +47,7 @@ static var N := Noble.TEXT
 var m  # the menu
 var station := ""  # the station you're at ("" when not at one)
 var stop := "gym"
-var picks := {}  # stop -> the key whose card shows ("lesson:move", "bracket:novice", "title:x"...)
+var picks := {}  # stop -> the key whose card shows ("basics:basics", "bracket:novice", "title:x"...)
 var lines: Array = []  # the last result or answer, shown on its card
 var lines_for := ""  # ...the key it belongs to
 var card: VBoxContainer
@@ -180,15 +182,14 @@ func build() -> void:
 	_card()
 
 
-## The tile a stop opens on: the next lesson, the first open bracket, a
+## The tile a stop opens on: basic training until it's done, the first open bracket, a
 ## title ready to grant (else the one worn), the next rank.
 func _default_pick(keys: Array) -> String:
 	var prof = _prof()
 	var want := ""
 	match stop:
 		"gym":
-			var left := Stations.lessons_left(prof)
-			want = "lesson:" + String(left[0]) if not left.is_empty() else ""
+			want = "basics:basics" if not Tutorial.passed(prof) else ""  # (basic training's one session: tutorial.gd)
 		"arena":
 			if Training.closed(prof) or (Training.required(prof) and not Training.first_done(prof)):
 				want = "first:first"
@@ -396,20 +397,16 @@ func back() -> void:
 func _gym(left: Node) -> void:
 	var prof = _prof()
 	var r := Renown.state(prof)
-	var done_n := Stations.LESSON_ORDER.size() - Stations.lessons_left(prof).size()
-	_section(left, "%s  ·  %s" % [TT["basic"], T["lessons_count"] % [done_n, Stations.LESSON_ORDER.size()]])
+	# Basic training: one session, every step in one sitting (tutorial.gd).
+	var passed := Tutorial.passed(prof)
+	_section(left, TT["basic"])
 	if Training.closed(prof):
 		_line(left, TT["basic_note"], UI.GILT_HI)  # (required for the Noble's Grace: training.gd)
 	elif not _small():
-		_line(left, TT["basic_note_done"] if Stations.lessons_done(prof) else T["lessons_note"] % Stations.LESSON_REWARD, UI.DIM)
-	for id in Stations.LESSON_ORDER:
-		if not Stations.LESSONS.has(id):
-			continue
-		var st := Stations.lesson_state(prof, id)
-		var line: String = T["lesson_done"] if st == 1 else (T["lesson_skipped"] if st == 2 else Stations.lesson_goal(id))
-		var tl = _tile(left, "lesson:" + id, String(Stations.LESSONS[id]["name"]), line, "lesson", UI.GILT if st > 0 else Color(0.62, 0.78, 1.0))
-		tl.lit = st == 1
-		tl.medal = 3 if st == 1 else -1
+		_line(left, TT["basic_note_done"] if passed else String(Tutorial.TEXT["line"]), UI.DIM)
+	var bt = _tile(left, "basics:basics", String(Tutorial.TEXT["name"]), Tutorial.tile_line(prof), "lesson", UI.GILT if passed else Color(0.62, 0.78, 1.0))
+	bt.lit = passed
+	bt.medal = 3 if passed else -1
 	if Training.closed(prof):
 		return  # (the rest opens with the Grace)
 	_training_list(left, TT["advanced"], TT["advanced_note"], Training.ADVANCED_ORDER, false)
@@ -645,8 +642,8 @@ func _card() -> void:
 	var kind := key.get_slice(":", 0)
 	var id := key.get_slice(":", 1)
 	match kind:
-		"lesson":
-			_lesson_card(id)
+		"basics":
+			_basics_card()
 		"drill":
 			_drill_card(id)
 		"bracket":
@@ -762,24 +759,37 @@ func _fee(type: String, id: String, base: int, cut: float) -> void:
 		_text(T["fee_cut"] % int(round(minf(cut, 1.0) * 100.0)), UI.GOOD)
 
 
-func _lesson_card(id: String) -> void:
+## Basic training, one session (tutorial.gd): every step in a line, where
+## you stopped, Begin / Resume / Start over / Go through it again, and Skip
+## when it's allowed.
+func _basics_card() -> void:
 	var prof = _prof()
-	var d: Dictionary = Stations.LESSONS.get(id, {})
-	if d.is_empty():
-		return
-	var st := Stations.lesson_state(prof, id)
-	_head(String(d["name"]), "lesson", Color(0.62, 0.78, 1.0) if st == 0 else UI.GILT, TT["basic"])
-	_text(Stations.lesson_goal(id), UI.TEXT)
-	var mode := "touch" if m.main.touch_active else ("pad" if m.main.pad_active else "keys")
-	_text(Entity.fill_keys(String(d.get("say", "")), mode, m.main.pad_ps), Color(0.78, 0.82, 1.0))
-	_text(T["lesson_done"] if st == 1 else (T["lesson_skipped"] if st == 2 else T["lesson_todo"]), UI.GILT if st == 1 else UI.DIM)
-	_button(T["lesson_again"] if st == 1 else T["lesson_begin"], _begin.bind("lesson", id), "begin")
-	if st == 0 and Training.can_skip(prof):
-		_button(T["lesson_skip"], _skip.bind(id), "skip")
-	elif st == 0:
+	var st := Tutorial.state(prof)
+	var passed := Tutorial.passed(prof)
+	var at := Tutorial.resume_step(prof)
+	var X: Dictionary = Tutorial.TEXT
+	_head(String(X["name"]), "lesson", UI.GILT if passed else Color(0.62, 0.78, 1.0), TT["basic"])
+	var names: Array = Tutorial.STEPS.map(func(d): return String(d["name"]).to_lower())
+	_text(String(X["card_what"]) % ", ".join(names), UI.TEXT)
+	if bool(st["skipped"]) and not bool(st["done"]):
+		_text(X["card_skipped"], UI.DIM)
+	elif passed and at <= 0:
+		_text(X["card_done"], UI.GILT)
+	elif at > 0:
+		_text(String(X["card_at"]) % [at + 1, Tutorial.count(), String(Tutorial.STEPS[at]["name"])], Color(0.78, 0.82, 1.0))
+	else:
+		_text(X["card_new"], UI.DIM)
+	if at > 0:
+		_button(String(X["resume"]) % (at + 1), _begin_basics.bind(at), "begin")
+		_button(X["restart"], _begin_basics.bind(0), "restart")
+	else:
+		_button(X["again"] if passed else X["begin"], _begin_basics.bind(0), "begin")
+	if not passed and Tutorial.can_skip(prof):
+		_button(X["skip"], _skip_basics, "skip")
+	elif not passed:
 		_text(TT["no_skip"], UI.DIM, 13)  # (basic training is required for the Noble's Grace)
 	if not _small():
-		_text(T["lessons_note"] % Stations.LESSON_REWARD, UI.FAINT, 13)
+		_text(X["card_note"], UI.FAINT, 13)
 
 
 ## Advanced or mark training: its goal, the Entity's word, its tier and
@@ -842,7 +852,7 @@ func _grace_card() -> void:
 	if not have:
 		_text(TT["grace_how"], UI.DIM)
 		var left := Training.basic_left(prof)
-		var n := Stations.LESSON_ORDER.size()
+		var n := Tutorial.count()
 		_text("%s  ·  %s" % [TT["grace_step_lessons"] % [n - left, n], N["done"] if left == 0 else N["not_done"]], UI.GOOD if left == 0 else UI.DIM)
 		_text("%s  ·  %s" % [TT["grace_step_first"], N["not_done"]], UI.DIM)
 
@@ -1113,11 +1123,17 @@ func _begin(type: String, id: String) -> void:
 		_again("%s:%s" % ["bracket" if type == "tourney" else type, id], [T["cant"] % why], "ui_back", type if type in ["advanced", "first"] else "begin")
 
 
-func _skip(id: String) -> void:
-	var words: Array = [T["lesson_skipped"] + ": " + String(Stations.LESSONS.get(id, {}).get("name", id))]
-	words.append_array(Stations.skip_lesson(_prof(), id))
-	var left := Stations.lessons_left(_prof())
-	_again("lesson:" + (String(left[0]) if not left.is_empty() else id), words, "ui_confirm", "begin")
+## Basic training's one session, from step `from` (0: the start).
+func _begin_basics(from: int) -> void:
+	var ev := Stations.event("basics", "basics", station)
+	ev["from"] = from
+	var why: String = m.main.arena.start(ev) if m.main != null and m.main.arena != null else "?"
+	if why != "":
+		_again("basics:basics", [T["cant"] % why], "ui_back", "begin")
+
+
+func _skip_basics() -> void:
+	_again("basics:basics", Tutorial.skip(_prof()), "ui_confirm", "begin")
 
 
 func _redraw_rail() -> void:

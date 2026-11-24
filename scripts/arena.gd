@@ -8,7 +8,10 @@ extends Node2D
 ## (stations.gd apply_result) before the scene starts afresh on the train,
 ## with the station's page open on the stop it was begun from.
 ##
-##   lessons   the basics, hands on, with the Entity's word as each begins:
+##   basics    basic training, ONE SESSION (tutorial.gd runs it): every way
+##             to move, attack and parry, step by step in one sitting, each
+##             step waiting until it's done; left part way, the place is kept
+##   lessons   one lesson, hands on, with the Entity's word as it begins:
 ##             posts to walk to, rolls, parries on the glint, an item used
 ##             from the belt, a spell on a dummy, a state cured, a cracked
 ##             wall broken, the floor's task (braziers) done
@@ -54,6 +57,7 @@ const Tournaments := preload("res://scripts/tournaments.gd")
 const Gear := preload("res://scripts/gear.gd")
 const Essence := preload("res://scripts/essence.gd")
 const Weapons := preload("res://scripts/weapons.gd")
+const Tutorial := preload("res://scripts/tutorial.gd")
 
 ## How long the result shows before going back (real seconds), and the gap
 ## between rounds.
@@ -130,6 +134,7 @@ var hp_last := 0.0
 var _soak0 := {}
 var _csoak0 := {}
 var _worn0 := {}
+var tut = null  # basic training's one session (tutorial.gd), while it runs
 
 
 ## Begins an event (stations.gd event): the fee is paid first (kept even if
@@ -187,6 +192,7 @@ func start(e: Dictionary) -> String:
 	gathered = {}
 	weapons_used = {}
 	hurt = false
+	tut = null
 	_soak0 = main.run_soak.duplicate()  # (what each body part does in here is the result's: training.gd)
 	_csoak0 = main.climb_soak.duplicate()
 	main.run_soak = {}
@@ -247,6 +253,10 @@ func start(e: Dictionary) -> String:
 			_setup_lesson()
 			line = Training.lesson_goal(String(ev["id"]))
 			main.GuideScript.say_text(String(ev.get("say", "")), true)
+		"basics":
+			tut = Tutorial.new()
+			tut.begin(self, int(ev.get("from", 0)))  # (the Entity says each step as it begins)
+			line = String(Tutorial.TEXT["line"])
 		"drill":
 			_setup_drill()
 			line = Stations.drill_goal(String(ev["id"]))
@@ -454,6 +464,9 @@ func _physics_process(delta: float) -> void:
 	match String(ev.get("type", "")):
 		"lesson", "advanced":
 			_lesson(delta, p)
+		"basics":
+			if tut != null:
+				tut.tick(delta, p)
 		"drill":
 			_drill(delta, p)
 		"tourney", "first":
@@ -842,6 +855,9 @@ func on_enemy_killed(e) -> void:
 func spare() -> bool:
 	if not on:
 		return false
+	if String(ev.get("type", "")) == "basics" and main.player != null:
+		main.player.hp = main.player.max_health()  # (basic training: a soft blow never ends it)
+		return true
 	if not done:
 		hurt = true
 		match String(ev.get("type", "")):
@@ -874,6 +890,8 @@ func finish(res: Dictionary) -> void:
 		_gain(lk, float(Training.USUAL["lesson"]))
 	result["essence"] = gathered.duplicate()
 	result["soak"] = main.run_soak.duplicate()  # (what each body part did in here)
+	if String(ev["type"]) == "basics":
+		result["step"] = tut.reached() if tut != null else 0
 	if String(ev["type"]) == "first":
 		result["flawless"] = not hurt and p != null and p.hits_taken <= hits0
 		result["used"] = weapons_used.duplicate()
@@ -894,6 +912,13 @@ func finish(res: Dictionary) -> void:
 				for tid in ev.get("tips", []):
 					main.GuideScript.also_told(String(tid))  # (the lesson taught it: the Entity won't repeat it as a first-time tip)
 			main.sfx("clear" if ok else "ui_back", 1.0, -2.0, 0.0)
+		"basics":
+			title = String(Tutorial.TEXT["done_title"])
+			line = String(Tutorial.TEXT["done_line"])
+			for tid in Tutorial.TIPS:
+				main.GuideScript.also_told(String(tid))  # (it taught them: the Entity won't repeat them as first-time tips)
+			main.GuideScript.say_text(String(Tutorial.TEXT["end_say_closed" if Training.closed(main.profile) else "end_say"]), true)
+			main.sfx("clear", 1.0, -2.0, 0.0)
 		"drill":
 			var score := float(result.get("score", -1.0))
 			var medal := Stations.medal_for(String(ev["id"]), score)
@@ -930,6 +955,12 @@ func give_up() -> void:
 	if not done:
 		done = true
 		result = {"type": ev["type"], "id": ev["id"], "won": false, "done": false, "rounds": rounds_won, "score": -1.0, "why": Stations.TEXT["result_quit"], "mirrors": 0}
+		if String(ev["type"]) == "basics":
+			# Basic training left part way: the place is kept, and what the
+			# steps done gave (their essence, what each body part did).
+			result["step"] = tut.reached() if tut != null else int(ev.get("from", 0))
+			result["essence"] = gathered.duplicate()
+			result["soak"] = main.run_soak.duplicate()
 	leave()
 
 
@@ -946,6 +977,8 @@ func leave() -> void:
 	match String(ev["type"]):
 		"tourney":
 			pick = "bracket:%s" % ev["id"]
+		"basics":
+			pick = "basics:basics"
 		"first":
 			pick = "manager:here"  # (the first tournament's tile gives way to the Manager's: its card says what you won)
 	var station_id := String(ev.get("station", ""))
@@ -972,6 +1005,9 @@ func leave() -> void:
 		var shown := Stations.apply_result(prof, res)
 		reopen = {"station": station_id, "stop": stop, "pick": pick, "lines": shown["lines"]}
 	on = false
+	if tut != null:
+		tut.restore()  # (what basic training lent: the off-hand, the belt, the essence carried)
+	tut = null
 	main.run_soak = _soak0  # (what the body did in here went with the result)
 	main.climb_soak = _csoak0
 	main.soak_worn = _worn0
@@ -1073,6 +1109,8 @@ func hud_text() -> String:
 	if ev.get("type", "") == "duel":
 		var dl: String = String(Dining.TEXT["duel_hud"]) % [String(ev.get("rival", {}).get("name", "")), String(ev.get("stake", {}).get("label", ""))]
 		return dl + "  ·  " + T["hud_time"] % maxi(0, ceili(float(Dining.RULES["duel_time"]) - t))
+	if ev.get("type", "") == "basics" and tut != null:
+		return tut.hud_text()  # (basic training: the step and what to do, in your own keys)
 	var parts: Array = [String(ev.get("name", ""))]
 	var need := int(ev.get("need", 1))
 	var TT: Dictionary = Training.TEXT
