@@ -2,9 +2,9 @@ extends RefCounted
 ## Training and tournaments (training.gd, tournaments.gd, stations.gd,
 ## arena.gd, station_page.gd, engine_page.gd): the required start (a new
 ## climber arrives at their home station, the towers closed until the Noble's
-## Grace: the engine's lever locked, depart refused); the six lessons of
-## basic training (every way to move, attack and parry; no skipping before
-## the Grace); the first tournament of three rounds (two of the home
+## Grace: the engine's lever locked, depart refused); basic training as one
+## session (every way to move, attack and parry; no skipping before the
+## Grace for a first-timer; its steps in detail: tutorial.gd); the first tournament of three rounds (two of the home
 ## station's starter monsters, then a human champion with no marks), the
 ## Grace win or lose and every reward row (0 to 3 rounds, flawless); training's
 ## essence (a quarter of the usual, into the body only, what each part did kept
@@ -31,6 +31,7 @@ const Help := preload("res://scripts/entity_help.gd")
 const Registry := preload("res://scripts/data_registry.gd")
 const ProfileScript := preload("res://scripts/profile.gd")
 const Towers := preload("res://scripts/towers.gd")
+const Tutorial := preload("res://scripts/tutorial.gd")
 
 const BANNED := ["attunement", "spire", "trial", "judgment", "mana"]
 
@@ -93,11 +94,12 @@ func _gate(main) -> void:
 	menu.go_station(Travel.home(prof))
 	await t._frames(3)
 	t._check(menu.page == "station" and menu.station_page.station == "kraken" and menu.station_page.stop == "gym", "...at their home station, at the gym")
-	var lessons: Array = _station_buttons(menu, "pick", "lesson:move")
+	var lessons: Array = _station_buttons(menu, "pick", "basics:basics")
 	t._check(lessons.size() == 1 and _station_buttons(menu, "pick", "advanced:belt").is_empty(), "the gym shows basic training; the rest opens with the Grace")
-	t._check(_station_buttons(menu, "station_do", "skip").is_empty() and t._all_labels(menu.box).any(func(l): return l.text == Training.TEXT["no_skip"]), "...and its lessons can't be skipped before the Grace")
-	var words: Array = Stations.skip_lesson(prof, "move")
-	t._check(Stations.lesson_state(prof, "move") == 0 and words == [Training.TEXT["no_skip"]], "...not even by asking (stations.gd skip_lesson)")
+	if not Tutorial.experienced():
+		t._check(_station_buttons(menu, "station_do", "skip").is_empty() and t._all_labels(menu.box).any(func(l): return l.text == Training.TEXT["no_skip"]), "...and it can't be skipped before the Grace")
+		var words: Array = Tutorial.skip(prof)
+		t._check(not Training.basic_done(prof) and words == [Training.TEXT["no_skip"]], "...not even by asking (tutorial.gd skip)")
 	menu.leave_station()
 	await t._frames(2)
 	menu.train_car = "engine"
@@ -118,71 +120,31 @@ func _gate(main) -> void:
 
 # --- basic training ----------------------------------------------------------------------------
 
-## The six lessons cover every way to move, attack and parry; each run gives
-## a quarter of the usual essence, into the body, and notes the body parts.
+## Basic training, one session (each step is played in tutorial.gd's test):
+## run here step after step to the end, it gives a quarter of the usual
+## essence into the body and notes the body parts.
 func _lessons(main) -> void:
 	var prof = main.profile
-	var menu = main.menu
 	var arena = main.arena
 	var station := "kraken"
-	t._check(Stations.LESSON_ORDER.size() == 6, "basic training is six lessons (%d)" % Stations.LESSON_ORDER.size())
-	var kinds: Array = Stations.LESSON_ORDER.map(func(id): return String(Stations.LESSONS[id]["kind"]))
-	t._check(kinds == ["run", "roll", "jump", "strike", "shoot", "parry"], "...moving, rolling, jumping, striking, shooting and parrying (%s)" % [kinds])
+	t._check(Stations.LESSON_ORDER.size() == 6, "basic training's old six parts are kept as a record (%d)" % Stations.LESSON_ORDER.size())
 	var dens0 := _density(prof)
-	for id in Stations.LESSON_ORDER:
-		var d: Dictionary = Stations.LESSONS[id]
-		var why: String = arena.start(Stations.event("lesson", id, station))
-		await t._frames(3)
-		var p = main.player
-		t._check(why == "" and arena.on, "%s: the lesson begins" % id)
-		p.iframes = 999.0
-		match String(d["kind"]):
-			"run":
-				for at in arena.posts.duplicate():
-					p.global_position = at
-					await t.physics_frame
-					await t.physics_frame
-			"roll":
-				for i in int(d["need"]):
-					p.roll_t = 0.3
-					await t.physics_frame
-					await t.physics_frame
-					p.roll_t = 0.0
-					await t.physics_frame
-					await t.physics_frame
-			"jump":
-				for i in int(d["need"]):
-					p.jump_t = 0.3
-					await t.physics_frame
-					await t.physics_frame
-					p.jump_t = 0.0
-					await t.physics_frame
-					await t.physics_frame
-			"strike", "shoot":
-				var was: String = p.weapon
-				# A blow with the wrong weapon doesn't count: a sword on the far dummies, a bow on the near ones.
-				p.weapon = "sword" if String(d["kind"]) == "shoot" else "shortbow"
-				arena.dummies[0].take_hit(1.0, Vector2.ZERO)
-				for i in 3:
-					await t.physics_frame
-				t._check(arena.struck == 0, "%s: a blow with the wrong weapon doesn't count" % id)
-				p.weapon = "shortbow" if String(d["kind"]) == "shoot" else "sword"
-				for i in int(d["need"]):
-					arena.dummies[i % arena.dummies.size()].take_hit(1.0, Vector2.ZERO)
-				for i in 3:
-					await t.physics_frame
-				p.weapon = was
-			"parry":
-				for i in int(d["need"]):
-					p.on_parry.emit(null, false)
-		main.add_soak("legs", 3.0)  # (what the body did in here goes with the result)
-		await _wait_done(main)
-		p.iframes = 0.0
-		t._check(Stations.lesson_state(prof, id) == 1, "%s: done, and remembered" % id)
+	var why: String = arena.start(Stations.event("basics", "basics", station))
+	await t._frames(3)
+	t._check(why == "" and arena.on and arena.tut != null, "basic training begins: one session in the arena")
+	main.player.iframes = 999.0
+	main.add_soak("legs", 3.0)  # (what the body did in here goes with the result)
+	for k in Tutorial.count():
+		if arena.tut != null and arena.on and not arena.done:
+			arena.tut._step_done(main.player)
+			await t.physics_frame
+	await _wait_done(main)
+	main.player.iframes = 0.0
+	t._check(Stations.LESSON_ORDER.all(func(id): return Stations.lesson_state(prof, id) == 1), "done: every part marked done, and remembered")
 	t._check(Training.basic_done(prof) and Stations.why_not(prof, "first", "first", station) == "", "basic training done: the first tournament opens")
 	var gained := _density(prof) - dens0
-	var want := float(Training.USUAL["lesson"]) * float(Training.RATES["lesson"]["rate"]) * 6.0
-	t._check(absf(gained - want) < 0.5 and prof.bonds.is_empty(), "each lesson gave a quarter of the usual essence, into the body (%.1f of %.1f)" % [gained, want])
+	var want := Tutorial.STEP_ESSENCE * float(Tutorial.count()) * float(Training.RATES["basics"]["rate"])
+	t._check(absf(gained - want) < 0.5 and prof.bonds.is_empty(), "its steps gave a quarter of the usual essence, into the body (%.1f of %.1f)" % [gained, want])
 	t._check(float(Training.state(prof)["soak"].get("legs", 0.0)) > 0.0 and float(prof.soak.get("legs", 0.0)) > 0.0, "...and what each body part did is kept toward the first mark")
 	t._check(Training.closed(prof), "the towers stay closed until the first tournament")
 
@@ -450,7 +412,7 @@ func _entity(main) -> void:
 		t._check(said.length() > 60 and not said.contains("{"), "%s reads whole" % id)
 	var p = _fresh_profile()
 	Training.require(p)
-	t._check(Training.hint(p).contains(str(Stations.LESSON_ORDER.size())), "'What should I do next?' points a new climber at basic training")
+	t._check(Training.hint(p).contains(str(Tutorial.count())), "'What should I do next?' points a new climber at basic training (its steps left)")
 	for k in ["pick:advanced", "pick:first", "pick:grace", "pick:manager", "station_do:first", "station_do:advanced", "furnish:grace_lock"]:
 		t._check(Help.HELP.has(k), "button help: %s" % k)
 	var ids: Array = Registry.SECTIONS.map(func(s): return String(s["id"]))

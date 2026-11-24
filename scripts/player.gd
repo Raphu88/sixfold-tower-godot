@@ -127,6 +127,9 @@ var drawing := false
 var draw_t := 0.0
 var draw_release := false
 var draw_ready := false
+var last_draw_full := false  # the last arrow loosed was a full draw (basic training: tutorial.gd)
+var powered_uses := 0  # powered item uses, this climb (tutorial.gd)
+var blocked := 0  # blows blocked with a shield, this climb (tutorial.gd)
 var parry_t := 0.0
 var parry_cd := 0.0
 var parry_flash := 0.0
@@ -1824,6 +1827,7 @@ func release_draw() -> void:
 	var w := wdata()
 	var k: float = clampf(draw_t / w["draw_time"], 0.0, 1.0)
 	var full := k >= 1.0
+	last_draw_full = full
 	drawing = false
 	attack_cd = w["recover"]
 	spend_sta(w["sta"], true)

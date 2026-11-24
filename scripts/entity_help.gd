@@ -299,7 +299,9 @@ static var HELP: Dictionary = OutfitterName.named({
 	"pick:rank": "{name}: {desc}",
 	"pick:rival": "{name}, a climber you met: {desc}",
 	"station_do:begin": "Begins it in the station's arena. A fall here costs nothing but the try.",
-	"station_do:skip": "Marks this lesson as known without playing it. It still counts toward the set.",
+	"station_do:skip": "Marks basic training as known without playing it. Open once the Grace is yours, or if you've made a climber before.",
+	"station_do:restart": "Starts basic training again from its first step.",
+	"pick:basics": "Basic training: one session of {n} steps, every way to move, attack and parry. {desc}",
 	"station_do:grant": "Asks the Noble to grant this title. You'll wear it at once; its benefits apply while you do.",
 	"station_do:wear": "Wears this title (or takes it off). Only the worn title gives its benefits.",
 	"station_do:take": "Takes this contract. It's tracked at the top of the screen while you climb.",
@@ -858,6 +860,10 @@ static func _pick_facts(m, pick: String, f: Dictionary) -> void:
 		"lesson":
 			f["name"] = String(Stations.LESSONS.get(id, {}).get("name", id))
 			f["desc"] = Stations.lesson_goal(id)
+		"basics":
+			var Tu = load("res://scripts/tutorial.gd")
+			f["n"] = str(Tu.count())
+			f["desc"] = Tu.tile_line(m.main.profile if m != null and m.main != null else null) + "."
 		"bracket":
 			f["name"] = String(Stations.bracket(id).get("name", id))
 		"title":
