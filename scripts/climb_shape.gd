@@ -614,6 +614,7 @@ func spawn_horde(n: int) -> void:
 		var ring := 70.0 + 30.0 * float(i / 6)
 		var at := centre + Vector2.from_angle(-PI * 0.5 + TAU * float(i) / float(maxi(n, 1)) + 0.3 * float(i / 6)) * ring
 		var e = main.spawn_enemy(kind, at)
+		e.set_meta("add", "horde")  # (the tower's answer, not its spoils: a share of the essence, essence.gd ADDS)
 		e.wake()
 		horde.append(e)
 		main.fx_burst(e.global_position, Vector2.UP, Color(0.75, 0.3, 0.3), 10, 140.0)

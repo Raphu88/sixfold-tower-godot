@@ -193,6 +193,7 @@ var run_essence := {}  # gathered since the last stair (lost if you fall)
 var run_soak := {}  # body-part soak since the last stair
 var climb_essence := {}  # everything gathered this climb
 var climb_soak := {}  # everything soaked this climb
+var essence_sources := {}  # source -> essence gathered (kill, kill_bonus, chest, task...: gather_essence; for measuring the pace)
 var soak_worn := {}  # fade group -> units soaked since the last stair (part_soak.gd: each further one soaks less)
 ## The secret essences (secret.gd): the path's essence gathered since the
 ## last stair (the flow, unbanked: lost if you fall), and what rose before
@@ -1459,7 +1460,7 @@ func _open_cache() -> void:
 	cache["taken"] = true
 	var pos: Vector2 = cache["pos"]
 	var amount: float = float(cache["amount"]) * WildTowersScript.reward(self, "cache")  # (a wild tower's cache holds a little more)
-	gather_essence(cache["kind"], amount, pos)
+	gather_essence(cache["kind"], amount, pos, "cache")
 	var col: Color = Essence.color(cache["kind"])
 	notices.feed("%s: +%d essence" % [Floors.CACHE["name"], int(amount)], col, "essence")  # (the log has it with the essence)
 	if cache.has("gear"):
@@ -3262,9 +3263,10 @@ func predicted_bond() -> String:
 	return profile.choose_bond(essence, climb_soak)
 
 
-func gather_essence(kind: String, amount: float, from: Vector2) -> void:
+func gather_essence(kind: String, amount: float, from: Vector2, source := "other") -> void:
 	if rivals != null:
 		amount *= rivals.share()  # (teamed up with a rival: what you gather is shared)
+	essence_sources[source] = float(essence_sources.get(source, 0.0)) + amount
 	run_essence[kind] = float(run_essence.get(kind, 0.0)) + amount
 	climb_essence[kind] = float(climb_essence.get(kind, 0.0)) + amount
 	notices.note_essence(kind, amount)
@@ -4644,6 +4646,8 @@ func on_enemy_killed(e) -> void:
 		BondScript.graft_drop(self, e.global_position, e.kind)
 	# Rarely a slain monster leaves a piece of gear, likelier one that suits it.
 	var share: float = rivals.drop_mult() if rivals != null else 1.0  # (teamed up with a rival: finds are shared)
+	var pay := Essence.add_pay(e)  # (an add pays a share, a summoned one nothing: essence.gd ADDS)
+	share *= minf(pay, 1.0)  # (finds aren't doubled: only the essence)
 	var wild_gear := WildTowersScript.reward(self, "gear")  # (a wild tower's finds are a little richer: wild_towers.gd REWARD)
 	var wild_items := WildTowersScript.reward(self, "items")
 	if not e.is_boss() and randf() < gear_drop_chance * share * wild_gear:
@@ -4654,14 +4658,14 @@ func on_enemy_killed(e) -> void:
 	# Now and then a slain monster leaves an item, or
 	# a little more essence instead, or rarely a tincture of its essence
 	# (items.gd DROPS; tinctures only once you're marked or Unbound).
-	if not e.is_boss():
+	if not e.is_boss() and pay > 0.0:
 		var left: Dictionary = Items.kill_drop(floor_num, player != null and not player.bonds.is_empty(), tower, item_drop_chance * share * wild_items, 0.0 if first_climb else tincture_drop_chance * share)
 		if left.has("item"):
 			item_drops.append({"pos": e.global_position, "id": left["item"], "t": Items.DROP_LIFE})
 		elif left.has("tincture"):
 			item_drops.append({"pos": e.global_position, "id": Flow.tincture_id(String(Essence.drop_for(e.kind, floor_num)[0])), "t": Items.DROP_LIFE})
 		elif left.has("essence") and tower_data().has("essence"):
-			gather_essence(tower_data()["essence"], float(left["essence"]), e.global_position + Vector2(0, 8))
+			gather_essence(tower_data()["essence"], float(left["essence"]) * pay, e.global_position + Vector2(0, 8), "kill_extra")
 	if wings != null:
 		wings.on_enemy_killed(e)
 	if proving != null:
@@ -4670,10 +4674,11 @@ func on_enemy_killed(e) -> void:
 		door_view.on_enemy_killed(e)
 	if objective != null:
 		objective.on_enemy_killed(e)  # (the Keeper drops the stair's key)
-	var drop: Array = Essence.drop_for(e.kind, floor_num)
-	gather_essence(drop[0], drop[1] * WildTowersScript.reward(self, "essence"), e.global_position)  # (a wild tower: a little more)
-	# Every kill also yields a little of the tower's own essence.
-	gather_essence(tower_data()["essence"], Towers.ESSENCE_BONUS, e.global_position)
+	if pay > 0.0:
+		var drop: Array = Essence.drop_for(e.kind, floor_num)
+		gather_essence(drop[0], drop[1] * pay * WildTowersScript.reward(self, "essence"), e.global_position, "kill" if pay >= 1.0 else "add")  # (a wild tower: a little more)
+		# Every kill also yields a little of the tower's own essence.
+		gather_essence(tower_data()["essence"], Towers.ESSENCE_BONUS * pay, e.global_position, "kill_bonus" if pay >= 1.0 else "add")
 	if player != null:
 		player.on_flow_kill(e)  # Life mends; Unmaking's slain foe comes apart
 	secret_drop(e)  # a great foe: its secret essence rises

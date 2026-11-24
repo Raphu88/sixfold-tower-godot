@@ -36,7 +36,9 @@ static var TEXT := {
 ## chest: essence (base, per floor, a dead end's times); item chance (seldom:
 ## one with no item holds "no_item" times the essence) and gear chance;
 ## rest: health a second; trader: what an item costs (base, per floor).
-static var RULES := {"chest_base": 3.5, "chest_per_floor": 1.3125, "chest_rich": 1.6, "item_chance": 0.04, "no_item": 1.25, "gear_chance": 0.12, "gear_rich": 0.25,
+## (The essence is about three fifths of what it was: real, thorough play
+## gave far more than the pace model holds; essence.gd DROPS.)
+static var RULES := {"chest_base": 2.1, "chest_per_floor": 0.8, "chest_rich": 1.6, "item_chance": 0.04, "no_item": 1.25, "gear_chance": 0.12, "gear_rich": 0.25,
 	"rest_heal": 3.0, "trade_base": 10.0, "trade_per_floor": 2.0, "reach": 28.0, "check": 0.3}
 
 var main
@@ -140,7 +142,7 @@ func _take_chest(c: Dictionary) -> void:
 	var with_item := randf() < float(RULES["item_chance"])
 	if not with_item:
 		amount *= float(RULES["no_item"])
-	main.gather_essence(kind, amount, c["pos"])
+	main.gather_essence(kind, amount, c["pos"], "chest")
 	main.notices.feed(TEXT["chest"] % int(amount), Essence.color(kind), "essence")  # (the log has it with the essence)
 	if with_item:
 		var id := Items.random_item(not main.player.bonds.is_empty(), [], false, String(main.tower))

@@ -449,6 +449,7 @@ func _tick(delta: float, p, hurt: bool) -> void:
 				if mobs.size() < most:
 					var e = _spawn_near(st["pos"], 200.0)
 					if e != null:
+						e.set_meta("add", "summoned")  # (waves while it charges: they pay no essence, essence.gd ADDS)
 						e.goal = st["pos"]
 						mobs.append(e)
 			if charge >= 1.0:
@@ -606,6 +607,7 @@ func _wrong_rune() -> void:
 	for k in int(_k().get("wrong_guards", 2)):
 		var e = _spawn_near(main.player.global_position, 160.0)
 		if e != null:
+			e.set_meta("add", "punished")  # (a wrong answer's guards pay no essence: essence.gd ADDS)
 			e.wake()
 
 
@@ -799,7 +801,7 @@ func reward() -> void:
 		stair_light = main.lighting.add_light(main.stair_pos + Vector2(0, -6), float(Objectives.REWARD["light"]), GOLD, 0.55, 0.18)
 	var kind_e: String = main.tower_data().get("essence", "air")
 	var amount: float = float(Objectives.REWARD["essence"]) + float(Objectives.REWARD["per_floor"]) * main.floor_num
-	main.gather_essence(kind_e, amount, main.stair_pos)
+	main.gather_essence(kind_e, amount, main.stair_pos, "task")
 	var at: Vector2 = main.clear_spot(main.stair_pos + Vector2(70.0, 60.0), 16.0)
 	if main.is_solid(at) or not main.clear_line(main.stair_pos + Vector2(0, 30), at):
 		at = main.clear_spot(main.stair_pos + Vector2(-70.0, 60.0), 16.0)

@@ -1074,7 +1074,8 @@ func _call_flock() -> void:
 	main.fx_text(global_position + Vector2(0, -radius - 30.0), "%s calls for help" % main.beast_name().capitalize(), color)
 	main.sfx("warn_gryphon", 1.15)
 	for i in 2:
-		main.spawn_enemy(FLOCK.get(kind, "slime"), global_position + Vector2.from_angle(randf() * TAU) * (radius + 40.0))
+		var e = main.spawn_enemy(FLOCK.get(kind, "slime"), global_position + Vector2.from_angle(randf() * TAU) * (radius + 40.0))
+		e.set_meta("add", "summoned")  # (called help pays no essence: essence.gd ADDS)
 
 
 # --- the Kraken's tower ------------------------------------------------------------

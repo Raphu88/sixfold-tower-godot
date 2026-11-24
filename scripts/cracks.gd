@@ -33,7 +33,7 @@ static var TEXT := {
 }
 ## dust_every: seconds between dust falls when near; dust_near: how near (px);
 ## cache: essence (base, per floor); gear_chance: an alcove cache also holds gear.
-static var RULES := {"dust_every": [2.2, 4.5], "dust_near": 260.0, "cache_base": 8.75, "cache_per_floor": 2.625, "gear_chance": 0.4,
+static var RULES := {"dust_every": [2.2, 4.5], "dust_near": 260.0, "cache_base": 6.5, "cache_per_floor": 2.0, "gear_chance": 0.4,
 	"stub": [2, 3], "reach": 30.0}
 
 var main
@@ -404,7 +404,7 @@ func _take(c: Dictionary) -> void:
 	else:
 		var kind: String = main.tower_data().get("essence", "air")
 		var amount: float = float(RULES["cache_base"]) + float(RULES["cache_per_floor"]) * main.floor_num
-		main.gather_essence(kind, amount, at)
+		main.gather_essence(kind, amount, at, "crack")
 		main.notices.feed(TEXT["cache"] % int(amount), Essence.color(kind), "essence")  # (the log has it with the essence)
 		if randf() < float(RULES["gear_chance"]):
 			var g = main.find_gear("", 1)

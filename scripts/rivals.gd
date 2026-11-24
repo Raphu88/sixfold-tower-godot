@@ -1331,7 +1331,7 @@ func greed(enc: Dictionary) -> void:
 	var at: Vector2 = enc["hoard"]
 	var kind := color_kind(String(main.tower))
 	var amt: float = float(RULES["greed_essence"]) + float(RULES["greed_per_floor"]) * main.floor_num
-	main.gather_essence(kind, amt, at)
+	main.gather_essence(kind, amt, at, "rival")
 	var g = main.find_gear("", int(RULES["greed_row"]))
 	if not g.is_empty():
 		main.drop_gear(at + Vector2(0, 16), g, true)
