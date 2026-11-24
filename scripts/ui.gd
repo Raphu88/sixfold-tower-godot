@@ -998,6 +998,20 @@ static func keep_text(c: Control, floor_size := 10) -> void:
 		c.ready.connect(_keep_text.bind(c), CONNECT_ONE_SHOT)
 
 
+## True when what `c` sits in gives it more width than it asks for: filled
+## across a column (a VBox, a grid cell, a panel) or expanding in a row.
+## False in a flow or a row it doesn't expand in, or with a shrink flag:
+## there it gets only its own minimum width.
+static func _stretched(c: Control) -> bool:
+	var flags: int = c.size_flags_horizontal
+	var p := c.get_parent()
+	if p is FlowContainer or p is HBoxContainer:
+		return flags & Control.SIZE_EXPAND != 0
+	if p is Container:
+		return flags & Control.SIZE_FILL != 0
+	return true  # (placed by hand: its size is its own)
+
+
 static func _keep_text(c: Control) -> void:
 	if not is_instance_valid(c) or c.size.x < 1.0:
 		return
@@ -1033,6 +1047,26 @@ static func _keep_text(c: Control) -> void:
 	if c.autowrap_mode != mode:
 		c.autowrap_mode = mode
 	if c is Button:
+		# Never a sliver: clip_text drops the button's own minimum width to
+		# its padding, so in a row or flow that only gives it that minimum it
+		# would close to an empty sliver with no words. Where it isn't
+		# stretched (a flow, a row it doesn't expand in, a shrink flag) keep
+		# room for all its words, as a plain button would; where it is, for
+		# its longest word at the smallest size its letters shrink to (so a
+		# crowded row on a phone can still squeeze it). More if it asked.
+		var base_w := float(c.get_meta("keep_w", -1.0))
+		if base_w < 0.0:
+			base_w = c.custom_minimum_size.x
+			c.set_meta("keep_w", base_w)
+		var word := 0.0
+		if not _stretched(c):
+			word = f.get_multiline_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, -1, base).x
+		else:
+			for w in text.split(" ", false):
+				word = maxf(word, f.get_string_size(w, HORIZONTAL_ALIGNMENT_LEFT, -1, mini(floor_size, base)).x)
+		var want_w := maxf(base_w, ceilf(word + c.size.x - room + 2.0)) if word > 0.0 else base_w
+		if not is_equal_approx(c.custom_minimum_size.x, want_w):
+			c.custom_minimum_size.x = want_w
 		# (a button doesn't always grow for its wrapped lines by itself: make room)
 		var base_h := float(c.get_meta("keep_h", -1.0))
 		if base_h < 0.0:

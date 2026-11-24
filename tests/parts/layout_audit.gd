@@ -26,6 +26,7 @@ func run(smoke) -> void:
 		e.set_physics_process(false)
 	Audit.dress(m)
 	await _sees_trouble()
+	await _sees_slivers()
 	_words_keep_whole()
 	var menu = m.menu
 	var was_size: Vector2i = t.root.size
@@ -41,6 +42,7 @@ func run(smoke) -> void:
 	t._check(found.is_empty(), "no text is on other text, cut short, cut off, off screen or under the rail on them (%d problems): %s" % [found.size(), found.slice(0, 6)])
 	for p in found.slice(0, 80):
 		print("    ", p)
+	await _no_slivers(m)
 	t.root.size = was_size
 	menu._set_setting("ui_size", keep_ui)
 	m.touch._set_active(false)
@@ -137,3 +139,86 @@ class Drawn extends Control:
 
 	func _draw() -> void:
 		UI.draw_text(self, UI.font("body"), Vector2(0, 20), "Drawn words too long for it", HORIZONTAL_ALIGNMENT_LEFT, room, 16, Color.WHITE)
+
+
+## Buttons squeezed to a sliver (the owner saw them on the Crystals and
+## tinctures page: Eat and Force it closed to slivers with no words): the
+## audit flags one too narrow for its words, one too short, and a plain one
+## showing nothing; and a button whose words keep whole (ui.gd keep_text)
+## never closes to a sliver, even in a row that gives it only its smallest
+## width (a flow, or a row that doesn't stretch it).
+func _sees_slivers() -> void:
+	var root := VBoxContainer.new()
+	root.position = Vector2(10, 10)
+	root.size = Vector2(500, 300)
+	t.root.add_child(root)
+	var flow := HFlowContainer.new()
+	root.add_child(flow)
+	var squeezed := Button.new()
+	squeezed.text = "Force it: Stormcaller"
+	squeezed.clip_text = true  # (no room kept for its words: a sliver)
+	flow.add_child(squeezed)
+	var holder := Control.new()  # (a container would undo the scale: held in a plain control)
+	holder.custom_minimum_size = Vector2(120, 44)
+	root.add_child(holder)
+	var squash := Control.new()  # (drawn at a third of its height: a button 12 px tall on the screen)
+	squash.scale = Vector2(1.0, 0.3)
+	holder.add_child(squash)
+	var short := Button.new()
+	short.text = "Go"
+	short.size = Vector2(80, 40)
+	squash.add_child(short)
+	var blank := Button.new()
+	blank.custom_minimum_size = Vector2(60, 30)
+	blank.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
+	root.add_child(blank)
+	await t._frames(3)
+	var out: Array = Audit.scan("slivers", [root], Rect2(0, 0, 1280, 720))
+	var flagged := func(b: Button) -> bool: return out.any(func(l): return String(l).contains("sliver: " + Audit._what(b)))
+	t._check(flagged.call(squeezed) and flagged.call(short) and flagged.call(blank), "the audit flags a button squeezed to a sliver: too narrow for its words, too short, or showing nothing (%s)" % [out.filter(func(l): return String(l).contains("sliver"))])
+	# Put right: the words kept whole (keep_text), the short one taller, the blank one named.
+	var row := HBoxContainer.new()
+	root.add_child(row)
+	var kept: Array = []
+	for text in ["Force it: Stormcaller", "Eat 10"]:
+		for parent in [flow, row]:
+			var b := Button.new()
+			b.text = text
+			parent.add_child(b)
+			UI.keep_text(b)
+			kept.append(b)
+	squeezed.queue_free()
+	squash.scale = Vector2.ONE
+	blank.text = "Close"
+	await t._frames(4)
+	out = Audit.scan("slivers put right", [root], Rect2(0, 0, 1280, 720)).filter(func(l): return String(l).contains(": sliver: "))
+	t._check(out.is_empty() and kept.all(func(b): return b.size.x > 40.0), "...a button whose words keep whole never closes to a sliver, in a flow or a row that doesn't stretch it (%s)" % [out.slice(0, 4)])
+	root.queue_free()
+	await t._frames(1)
+
+
+## No button squeezed to a sliver on a phone (800x400, touch on), a computer
+## (1280x720) and a big screen (1920x1080), at the Normal Interface size:
+## the representative screens, then every climber tab, the Crystals and
+## tinctures page, the Exchange's counter, the Data editor's tabs, the
+## controls and every station stop.
+func _no_slivers(m) -> void:
+	var menu = m.menu
+	var slivers: Array = []
+	var seen := [0]
+	var keep := func(_name: String, problems: Array) -> void:
+		seen[0] += 1
+		slivers.append_array(problems.filter(func(l): return String(l).contains(": sliver: ")))
+	for sz in [Audit.PHONES[1], Audit.DESKTOP, Vector2i(1920, 1080)]:
+		t.root.size = sz
+		menu._set_setting("ui_size", "normal")
+		m.touch._set_active(sz.y < 600)
+		m.apply_view_scale()
+		await t._frames(3)
+		var tag := "%dx%d normal" % [sz.x, sz.y]
+		await Audit.sweep(t, m, tag, keep, true)
+		await Audit.sweep(t, m, tag, keep, false, Callable(), "climber,pour,exchange,data,settings controls,station")
+	t._check(seen[0] >= 120, "the sliver check opened its screens at 800x400, 1280x720 and 1920x1080 (%d)" % seen[0])
+	t._check(slivers.is_empty(), "no button is squeezed to a sliver on them (%d): %s" % [slivers.size(), slivers.slice(0, 6)])
+	for p in slivers.slice(0, 40):
+		print("    ", p)
