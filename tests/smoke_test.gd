@@ -6337,7 +6337,7 @@ func _belt_tests() -> void:
 	var line: String = main.break_belt()
 	var want_stone: float = 2.0 * float(main.Items.ITEMS["draught"]["value"]["stone"]) * main.Items.BREAK_SHARE
 	var want_fire: float = float(main.Items.ITEMS["fire_flask"]["value"]["fire"]) * main.Items.BREAK_SHARE
-	_check(absf(main.profile.crystal_total("stone") - stone0 - want_stone) < 0.01 and absf(main.profile.crystal_total("fire") - fire0 - want_fire) < 0.01, "unused belt items break into crystals at half their worth: %s" % line)
+	_check(absf(main.profile.crystal_total("stone") - stone0 - want_stone) < 0.01 and absf(main.profile.crystal_total("fire") - fire0 - want_fire) < 0.01, "unused belt items break into crystals at their break share: %s" % line)
 	_check(p.items.is_empty() and main.break_belt() == "", "...once (the belt is empty after)")
 	# Leaving at the first climb's Regard breaks it too; falling doesn't.
 	await _fresh_main()
@@ -6348,7 +6348,7 @@ func _belt_tests() -> void:
 	main._begin_regard(false)
 	_check(absf(main.profile.crystal_total("water") - water0) < 0.01, "reaching the Regard alive: nothing breaks yet (the guardian offers the exit first)")
 	main.climb_shape.leave_at_regard()
-	_check(absf(main.profile.crystal_total("water") - water0 - float(main.Items.ITEMS["tonic"]["value"]["water"]) - rpay) < 0.01, "leaving with the mark breaks the belt into crystals")
+	_check(absf(main.profile.crystal_total("water") - water0 - 2.0 * float(main.Items.ITEMS["tonic"]["value"]["water"]) * main.Items.BREAK_SHARE - rpay) < 0.01, "leaving with the mark breaks the belt into crystals (at its break share)")
 	main.camp_choosing = false
 	main.camp = {}
 	await _fresh_main()
