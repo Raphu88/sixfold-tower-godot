@@ -20,6 +20,7 @@ const Entity := preload("res://scripts/entity.gd")
 const Talk := preload("res://scripts/entity_talk.gd")
 const Help := preload("res://scripts/entity_help.gd")
 const Gear := preload("res://scripts/gear.gd")
+const Proving := preload("res://scripts/proving.gd")
 
 var t
 var main
@@ -39,6 +40,7 @@ func run(smoke) -> void:
 	await _vault()
 	await _guards()
 	await _maker_portal()
+	await _none_on_six()
 	_words()
 	await t._fresh_main()
 
@@ -534,3 +536,57 @@ func _words() -> void:
 				if (" " + w + " ").contains(" " + word) and not w.contains("manag"):
 					bad.append(k)
 	_check(bad.is_empty(), "none of the forbidden words (%s)" % [bad])
+
+
+# --- none on floor 6 ----------------------------------------------------------------------------
+
+## Floor 6 (the Proving's, where the first climb's Regard opens too) is a set
+## piece walked in order: no portals, planned or in play, whether it's the
+## Proving's own layout or an ordinary floor of rooms (the Proving already won
+## this climb). Floor 1, a camp and the summit have none either; floors 5 and
+## 7 still do.
+func _none_on_six() -> void:
+	print("portals: none on floor 6, the Proving's and the Regard's floor")
+	var six := int(Towers.PROVING["floor"])
+	_check(Floors.portal_count(six) == 0 and Floors.portal_count(1) == 0 and Floors.portal_count(5) == 3 and Floors.portal_count(7) == 3,
+		"the count: none on floor 6 or floor 1, three on floors 5 and 7")
+	var planned := 0
+	var near := 0
+	for tid in Towers.ORDER:
+		for i in 3:
+			seed(7700 + i * 13 + tid.length())
+			var plan: Dictionary = Floors.rooms_floor(six, Towers.TOWERS[tid])
+			planned += plan.get("portals", []).size()
+			planned += Proving.build_plan(Towers.TOWERS[tid]).get("portals", []).size()
+			seed(7700 + i * 13 + tid.length())
+			near += Floors.rooms_floor(7, Towers.TOWERS[tid]).get("portals", []).size()
+	seed(Time.get_ticks_usec())
+	_check(planned == 0 and near > 0, "no floor 6 plan holds a portal, the Proving's nor an ordinary one (%d), while floor 7's do (%d)" % [planned, near])
+	await t._fresh_main()
+	main = t.main
+	main.grant_test_bonds()
+	main.player.iframes = 9999.0
+	var P = main.portals
+	main.proving.enabled = true
+	main._start_floor(six)
+	await t._frames(2)
+	_check(main.floor_plan.get("proving", false) and P.list.is_empty(), "the Proving's floor in play: no portals")
+	P.wake("dev")
+	_check(not P.awake, "...and nothing there to wake")
+	main.proving.enabled = false
+	main._start_floor(six)
+	await t._frames(2)
+	_check(main.layout_on and not main.floor_plan.get("proving", false) and P.list.is_empty(), "floor 6 as an ordinary floor of rooms: no portals either")
+	main.floor_num = 3
+	main._enter_camp([])
+	await t._frames(2)
+	_check(main.in_camp and P.list.is_empty(), "a camp: none")
+	main.camp_choosing = false
+	main.in_camp = false
+	main.player.set_physics_process(true)
+	main._start_floor(1)
+	await t._frames(2)
+	_check(P.list.is_empty(), "floor 1: none")
+	main.dev_beast(main.tower)
+	await t._frames(2)
+	_check(main.floor_plan.get("summit", false) and P.list.is_empty(), "the summit: none")

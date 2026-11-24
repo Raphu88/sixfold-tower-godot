@@ -187,9 +187,11 @@ func _crystal_card(k: String) -> void:
 		m._detail_text(Flow.TEXT["crystal_flow_body"] % step, UI.DIM)
 	else:
 		m._detail_text(Flow.TEXT["crystal_flow"] % [step, int(round(float(sh["body"]) * 100.0)), int(round(float(sh["marks"]) * 100.0))], UI.DIM)
-	var row := HFlowContainer.new()
-	row.add_theme_constant_override("h_separation", 6)
-	row.add_theme_constant_override("v_separation", 4)
+	# Eat, then each Force it under it, each the card's full width: a row
+	# that wraps would give each only its smallest width (with keep_text,
+	# its padding: an empty sliver), and a mark's name needs the room.
+	var row := VBoxContainer.new()
+	row.add_theme_constant_override("separation", 4)
 	m.details.add_child(row)
 	var b: Button = m._button(Flow.TEXT["eat"] % step, _eat.bind(k), row)
 	b.set_meta("help", "pour:eat")
@@ -243,6 +245,8 @@ func _tincture_card(id: String) -> void:
 			fb.set_meta("help", "pour:force")
 			fb.set_meta("force_part", part)
 			fb.custom_minimum_size.y = b.custom_minimum_size.y
+			fb.size_flags_horizontal = Control.SIZE_EXPAND_FILL  # (it shares the row with the part's button: not squeezed to a sliver)
+			fb.size_flags_stretch_ratio = 0.7
 			UI.keep_text(fb)
 
 
