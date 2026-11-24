@@ -1675,6 +1675,13 @@ func _arrive() -> void:
 	# Bank the essence gathered on this floor, split three ways
 	# (essence_flow.gd): your body, your marks, and crystals (a fixed share:
 	# essence_flow.gd SPLIT). The stair's line says how much went where.
+	# A vessel on the belt catching raw essence takes its share first: kept
+	# raw, it isn't banked (vessel.gd stair_raw).
+	for l in Vessel.stair_raw(self):
+		lines.append(l)
+		kinds[l] = "banked"
+	for l in Vessel.wear_core_runes(self):  # (a worn core rune counts a floor down: vessel.gd)
+		lines.append(l)
 	var poured: Dictionary = profile.pour(run_essence, run_soak, Train.condense_share())
 	var keep: Dictionary = poured["keep"]
 	var banked := float(poured["body"]) + float(poured["marks"]) - float(poured.get("over", 0.0))  # (what went into you: not what your marks or Nodes couldn't take)

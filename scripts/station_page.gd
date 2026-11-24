@@ -538,6 +538,19 @@ func _noble(left: Node) -> void:
 	_line(left, N["on_offer"] if not offers.is_empty() else N["none_offered"], UI.GILT if not offers.is_empty() else UI.DIM)
 	for o in offers:
 		_tile(left, "contract:" + String(o["id"]), Contracts.name_of(o), Contracts.reward_text(o), "contract", Color(0.78, 0.7, 0.86))
+	# The city's ask: a full vessel for the city (contracts.gd ASK).
+	var ask: Dictionary = Contracts.ask(prof)
+	if not ask.is_empty():
+		_line(left, Contracts.ASK_TEXT["head"], UI.GILT)
+		var ready: bool = Contracts.deliver_why(prof) == ""
+		var at = _tile(left, "ask:vessel", Contracts.ask_name(ask), Contracts.ASK_TEXT["have"] if ready else Contracts.ask_reward(ask), "contract", Contracts.KINDS_COLOR)
+		at.lit = ready
+		if not said.has("vessel_ask") and m.main != null:
+			said["vessel_ask"] = m.main.tip_now("vessel_contract")  # (the first time a Noble asks for a vessel: the Entity explains)
+		if String(said.get("vessel_ask", "")) != "":
+			var vb := Entity.says(String(said["vessel_ask"]), 28.0 if _small() else 34.0)
+			vb.set_meta("entity", "vessel_contract")
+			left.add_child(vb)
 	_section(left, N["titles"])
 	if not _small():
 		_line(left, N["titles_note"], UI.DIM)
@@ -642,6 +655,8 @@ func _card() -> void:
 			_title_card(id)
 		"contract":
 			_contract_card(id)
+		"ask":
+			_ask_card()
 		"rank":
 			_rank_card(int(id))
 		"rival":
@@ -993,6 +1008,54 @@ func _contract_card(id: String) -> void:
 			_text(Contracts.TEXT["full"] % Contracts.most(prof), UI.BAD)
 	if not _small():
 		_text(N["contracts_note"] % Contracts.most(prof), UI.FAINT, 13)
+
+
+## The city's ask (contracts.gd ASK): what it wants, whether you have one
+## full, what it pays; Deliver (it asks first) or Decline.
+func _ask_card() -> void:
+	var prof = _prof()
+	var a: Dictionary = Contracts.ask(prof)
+	var AT: Dictionary = Contracts.ASK_TEXT
+	if a.is_empty():
+		if lines_for == "ask:vessel" and not lines.is_empty():
+			_head(AT["head"], "contract", Contracts.KINDS_COLOR)  # (just delivered or declined: what came of it)
+		return
+	_head(Contracts.ask_name(a), "contract", Contracts.KINDS_COLOR, AT["head"])
+	_text(Contracts.ask_goal(a), UI.TEXT)
+	var why: String = Contracts.deliver_why(prof)
+	_text(AT["have"] if why == "" else AT["need"], UI.GILT if why == "" else UI.DIM)
+	_text(Contracts.ask_reward(a), UI.GOOD)
+	var b := _button(AT["deliver"], _ask_deliver, "deliver")
+	b.disabled = why != ""
+	b.set_meta("asks", true)  # (it opens the pop-up)
+	if why != "":
+		_text(T["cant"] % why, UI.BAD)
+	_button(AT["decline"], _ask_decline, "decline")
+
+
+func _ask_deliver() -> void:
+	if Lore.found_out(_prof(), station):
+		_again("ask:vessel", [Lore.TEXT["refused"]], "ui_back", "deliver")  # (found out: no contracts this visit)
+		return
+	var a: Dictionary = Contracts.ask(_prof())
+	if a.is_empty():
+		return
+	var V = load("res://scripts/vessel.gd")
+	m.ask(Contracts.ASK_TEXT["deliver_ask"] % V.kind_name(String(a["want"])), Contracts.ASK_TEXT["deliver"], _ask_delivered)
+
+
+func _ask_delivered() -> void:
+	var got: Array = Contracts.deliver(_prof())
+	if got.is_empty():
+		_again("ask:vessel", [T["cant"] % Contracts.deliver_why(_prof())], "ui_back", "deliver")
+		return
+	_redraw_rail()
+	_again("ask:vessel", got + [Noble.line("vessel")], "clear")
+
+
+func _ask_decline() -> void:
+	Contracts.decline(_prof())
+	_again("ask:vessel", [Contracts.ASK_TEXT["declined"]], "ui_back")
 
 
 func _rank_card(i: int) -> void:

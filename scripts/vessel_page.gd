@@ -1,11 +1,14 @@
 extends RefCounted
 ## The vessel on the train's pages (vessel.gd holds its rules and words):
 ##   your car     vessels sit in your storage chest, after its pieces; a
-##                vessel's card packs it for your next climb (or leaves it)
-##   store car    Sell to the outfitter lists them too: a full vessel trades
-##                for a crystal of one kind you choose, or some of every kind
+##                vessel's card packs it for your next climb (or leaves it),
+##                and an empty one's sets what it catches (raw or core)
+##   store car    Sell lists them too, but the outfitter doesn't buy them:
+##                the cities do (a Noble's contract, contracts.gd ASK)
 ##   workshop     the bench's Vessel counter (a Rune Artist): brew one, or
-##                work a full one into a piece (+4, or a deep rune)
+##                work a full vessel of core essence into a piece (a core
+##                rune, +4, or a deep rune); raw essence becomes tinctures
+##                on the Tinctures counter (train_page.gd _tincture_card)
 ## and a row in the dev tools. `tp` is the train page (train_page.gd), whose
 ## building blocks and card helpers these use.
 
@@ -42,7 +45,8 @@ static func chest_slots(tp, grid: Node) -> Array:
 	return keys
 
 
-## A vessel's card: in your car, pack it or leave it; at the store, trade it.
+## A vessel's card: in your car, pack it or leave it, and (empty) set what it
+## catches; at the store, a word that the cities buy them, not the outfitter.
 static func card(tp, i: int) -> void:
 	var prof = tp._prof()
 	var m = tp.m
@@ -53,14 +57,29 @@ static func card(tp, i: int) -> void:
 	tp._head("vessel", Vessel.code(v), Vessel.title(), Vessel.color(v).lightened(0.25) if Vessel.fill(v) > 0.0 else UI.GOLD)
 	m._detail_text(V["desc_state"] % Vessel.state_text(v), Vessel.color(v).lightened(0.3) if Vessel.fill(v) > 0.0 else UI.TEXT)
 	if m.train_car == "store":
-		_trade(tp, i, v)
+		m._detail_text(V["no_trade"], UI.DIM)
 		return
+	m._detail_text(Vessel.catch_line(v), UI.TEXT)
+	if Vessel.fill(v) <= 0.0:
+		var other := "core" if Vessel.is_raw(v) else "raw"
+		var cb: Button = m._button(V["catch_" + other], _catch.bind(tp, i, other), m.details)
+		cb.custom_minimum_size.y = 38
+		cb.set_meta("help", "vessel_catch")
 	var packed: bool = bool(v.get("packed", false))
 	m._detail_text(V["packed"] if packed else V["in_chest"], UI.DIM)
 	var b: Button = m._button(V["leave"] if packed else V["take"], _toggle.bind(tp, i), m.details)
 	b.custom_minimum_size.y = 40
 	b.set_meta("vessel_pack", i)
-	m._detail_text(V["uses"], UI.FAINT)
+	m._detail_text(V["uses_raw"] % int(Vessel.RAW["per_tincture"]) if Vessel.is_raw(v) else V["uses_core"], UI.FAINT)
+	m._detail_text(V["lore"], UI.FAINT)
+
+
+## Sets what an empty vessel in the chest catches.
+static func _catch(tp, i: int, c: String) -> void:
+	if Vessel.set_chest_catch(tp._prof(), i, c):
+		if tp.m.main != null:
+			tp.m.main.tip("vessel_raw" if c == "raw" else "vessel")
+		tp._done(V["switched"] % (V["raw_word"] if c == "raw" else V["core_word"]), "", "ui_confirm")
 
 
 static func _toggle(tp, i: int) -> void:
@@ -76,50 +95,6 @@ static func _toggle(tp, i: int) -> void:
 		tp._done(V["took"], "", "ui_confirm")
 	else:
 		tp._done(Train.TEXT["cant"] % why, "", "ui_back")
-
-
-## The outfitter's offer for a full vessel: a crystal of one kind, or some of
-## every kind. Each asks first (the confirmation pop-up).
-static func _trade(tp, i: int, v: Dictionary) -> void:
-	var m = tp.m
-	if not Vessel.is_full(v):
-		m._detail_text(V["trade_full_only"], UI.DIM)
-		return
-	m._detail_text(V["trade_title"], UI.GOLD)
-	var grid := GridContainer.new()
-	grid.columns = 2
-	grid.add_theme_constant_override("h_separation", 6)
-	grid.add_theme_constant_override("v_separation", 4)
-	m.details.add_child(grid)
-	for k in Essence.KINDS:
-		var text: String = V["trade_one"] % [int(Vessel.TRADE["one"]), Essence.display(k)]
-		var b := _trade_button(tp, grid, i, k, text)
-		b.add_theme_color_override("font_color", Essence.color(k).lightened(0.2))
-	var mixed: String = V["trade_mixed"] % [int(Vessel.TRADE["each"]), int(Vessel.TRADE["each"]) * Essence.KINDS.size()]
-	_trade_button(tp, m.details, i, "mixed", mixed)
-
-
-static func _trade_button(tp, parent: Node, i: int, choice: String, text: String) -> Button:
-	var m = tp.m
-	var b: Button = m._button(text, _ask_trade.bind(tp, i, choice, text), parent)
-	b.custom_minimum_size.y = 38
-	UI.keep_text(b)  # (its words whole: smaller, then wrapped, never cut)
-	b.set_meta("vessel_trade", choice)
-	b.set_meta("asks", true)  # (it opens the pop-up)
-	return b
-
-
-## A trade asks first (the confirmation pop-up: menu.gd ask).
-static func _ask_trade(tp, i: int, choice: String, text: String) -> void:
-	tp.m.ask(V["trade_ask"] % text, text, _do_trade.bind(tp, i, choice))
-
-
-static func _do_trade(tp, i: int, choice: String) -> void:
-	var m = tp.m
-	var got := Vessel.trade(tp._prof(), i, choice)
-	if got != "":
-		m.inv_sel = ""
-		tp._done(V["traded"] % got, Train.line("sold"), "sell")
 
 
 # --- the bench's Vessel counter --------------------------------------------------------------
@@ -171,6 +146,21 @@ static func bench_card(tp, arg: String) -> void:
 	var full: int = Vessel.full_list(prof).size()
 	tp._crafter_line({}, Vessel.work_fee(prof, arg))
 	m._detail_text(V["full_count"] % full, UI.GOLD if full > 0 else UI.DIM)
+	# A core rune: Making's or Unmaking's, from a full vessel of it.
+	for kind in Secret.KINDS:
+		var runes: Array = Vessel.core_runes(String(kind))
+		if runes.is_empty():
+			continue
+		m._detail_text(V["core_head"] % [Secret.display(String(kind)), int(Vessel.CORE["floors"])], Secret.color(String(kind)).lightened(0.2) if Vessel.full_of_kind(prof, String(kind)) >= 0 else UI.DIM)
+		for rune in runes:
+			var d: Dictionary = Gear.CORE_RUNES[rune]
+			var cwhy := Vessel.core_rune_why(prof, arg, rune)
+			var ctext: String = V["core_rune"] % [d["short"], Gear.core_text(rune).get_slice(": ", 1)]
+			var cb: Button = tp._ask_button(m.details, ctext, V["core_rune_ask"] % [d["name"], Secret.display(String(kind)), int(Vessel.CORE["floors"])], "vcore:" + rune, cwhy, "bench_do", "vcore:" + rune)
+			cb.add_theme_color_override("font_color", Color(d["color"]))
+			cb.set_meta("help", "core_rune")
+	if g.has("core"):
+		m._detail_text(V["core_replaces"], UI.DIM)
 	# One rank past the limit.
 	var k := int(g["rank"])
 	var why := Vessel.deep_temper_why(prof, arg)
@@ -213,6 +203,10 @@ static func bench_do(prof, thing: String, ask: String, before: String) -> Array:
 	if ask == "vtemper":
 		var why := Vessel.deep_temper(prof, thing)
 		return [why, V["deep_tempered"] % Gear.display(Bench.piece(prof, thing))]
+	if ask.begins_with("vcore:"):
+		var crune := ask.get_slice(":", 1)
+		var cwhy := Vessel.core_rune(prof, thing, crune)
+		return [cwhy, V["core_inscribed"] % [Gear.CORE_RUNES.get(crune, {}).get("name", ""), before]]
 	var rune := ask.get_slice(":", 1)
 	var why := Vessel.deep_rune(prof, thing, rune)
 	return [why, V["deep_inscribed"] % [Gear.LASTING_RUNES.get(Vessel.deep_id(rune), {}).get("name", ""), before]]
@@ -225,16 +219,20 @@ static func dev_row(menu) -> void:
 	row.add_child(menu._label(V["dev"], 120.0, UI.DIM))
 	menu._button(V["dev_empty"], _dev_give.bind(menu, false), row)
 	menu._button(V["dev_full"], _dev_give.bind(menu, true), row)
+	menu._button(V["dev_raw"], _dev_give.bind(menu, true, true), row)
 
 
 ## Dev: a vessel on your belt (or, with no room or on the train, in your chest).
-## A full one holds the essence that isn't your path (Unmaking without one).
-static func _dev_give(menu, full: bool) -> void:
+## A full one holds the core essence that isn't your path (Unmaking without
+## one), or (`raw`) the tower's own raw essence.
+static func _dev_give(menu, full: bool, raw := false) -> void:
 	var main = menu.main
 	var kind: String = "unmaking"
 	if main.profile.path == "unmaking":
 		kind = "life"
-	var v := Vessel.make(kind, Vessel.CAPACITY) if full else Vessel.make()
+	if raw:
+		kind = String(main.tower_data().get("essence", "fire")) if main.has_method("tower_data") else "fire"
+	var v := Vessel.make(kind, Vessel.CAPACITY) if full else Vessel.make("", 0.0, Vessel.default_catch(main.profile))
 	if main.on_train or not Vessel.give(main, v):
 		main.profile.vessels.append(v)
 		main.profile.save()

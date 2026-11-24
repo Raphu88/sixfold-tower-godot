@@ -322,7 +322,7 @@ static var ITEMS := {
 	"vessel": {
 		"name": "Vessel",
 		"short": "Vessel",
-		"desc": "a sealed glass vessel bound in brass: it holds the secret essence that isn't your path instead of letting it pass (30 at most)",
+		"desc": "a sealed glass vessel bound in brass: it keeps essence raw, tower essence at the stairs or the core essence that isn't your path (30 at most)",
 		"color": Color(0.86, 0.64, 0.3),
 		"drop_weight": 0, "drop": false,
 		"max": 1,

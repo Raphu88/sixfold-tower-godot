@@ -10,9 +10,11 @@ extends RefCounted
 ##   inscribe  a lasting rune on a piece, at half the Inscribe spell's
 ##             strength (crafted; gear.gd LASTING_RUNES)
 ##   recall    bind a recall scroll (crafted; carry 1)
-##   vessel    brew a vessel, or work a full one into a piece (crafted;
-##             vessel.gd, vessel_page.gd)
-##   tincture  craft a tincture from crystals of its kind (anyone; a Rune
+##   vessel    brew a vessel, or work a full vessel of core essence into a
+##             piece: a core rune, +4, a deep rune (crafted; vessel.gd,
+##             vessel_page.gd)
+##   tincture  craft a tincture from crystals of its kind, or make one from
+##             raw essence in a vessel (vessel.gd RAW) (anyone; a Rune
 ##             Artist for less), packed for your next climb, or drink one
 ##             (essence_flow.gd; its own section below)
 ##   charm     refill a charm's spent charge with crystals of its kind
@@ -119,7 +121,7 @@ static var TEXT := {
 		"break": "A piece from your pack or stash, or a packed item, becomes a crystal of its kind at 40% of its price.",
 		"inscribe": "A lasting rune on one piece: it stays on it, at half the strength of the Inscribe spell.",
 		"recall": "Bind a recall scroll for your next climb: read it in the tower to leave safely, keeping everything. You carry one.",
-		"vessel": "Brew a vessel that catches the secret essence that isn't your path, or work a full one into a piece: one rank past +3, or a deep rune.",
+		"vessel": "Brew a vessel that keeps essence raw, or work a full vessel of core essence into a piece: a core rune, one rank past +3, or a deep rune.",
 		"tincture": "Craft a tincture from crystals of its kind. Drink it to send its essence where you choose: one mark, or an unmarked body part.",
 		"exchange": "Trade crystals of one kind for another. The Rune Artist recasts them, and some is lost in the working.",
 		"charm": "Refill a charm's spent charge, an off-hand piece's pool or an enchanted weapon's (every essence item's own pool), with crystals of its kind (anyone). New charms are crafted here too: by you with the Rune Artist's mark, else by the workshop's Rune Artist."

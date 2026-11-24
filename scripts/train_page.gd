@@ -2122,6 +2122,21 @@ func _tincture_card(id: String) -> void:
 	b.disabled = why != ""
 	b.set_meta("help", "tincture_craft")
 	_why_line(why)
+	# From raw essence in a vessel (vessel.gd RAW): far cheaper than crystals.
+	var kind := Flow.tincture_kind(id)
+	var raw: int = int(floor(VesselPage.Vessel.raw_total(prof, kind)))
+	if raw > 0 or not prof.vessels.is_empty():
+		var V: Dictionary = VesselPage.V
+		m._detail_text(V["tinct_have"] % [Essence.display(kind), raw, VesselPage.Vessel.tinctures_in(prof, kind)], Essence.color(kind).lightened(0.2) if raw > 0 else UI.DIM)
+		var rwhy: String = VesselPage.Vessel.tincture_why(prof, p, id)
+		var rb: Button = m._button(V["tinct_from"] % [int(VesselPage.Vessel.RAW["per_tincture"]), Essence.display(kind)], _raw_tincture.bind(id), m.details)
+		rb.custom_minimum_size.y = 40
+		rb.disabled = rwhy != ""
+		rb.set_meta("help", "vessel_tincture")
+		UI.keep_text(rb)
+		_why_line(rwhy)
+		if not m.compact():
+			m._detail_text(V["tinct_note"] % [int(VesselPage.Vessel.RAW["per_tincture"]), int(Bench.tincture_cost(prof, id).values()[0])], UI.FAINT)
 	if packed > 0:
 		var drink: Button = m._button(Flow.TEXT["drink_from_bench"], m.open_pour.bind(id), m.details)
 		drink.custom_minimum_size.y = 40
@@ -2129,6 +2144,17 @@ func _tincture_card(id: String) -> void:
 		var back: Button = m._button(B["put_back"], _unbrew.bind(id), m.details)
 		back.custom_minimum_size.y = 40
 		back.set_meta("put_back", id)
+
+
+## Makes a tincture from raw essence in a vessel (vessel.gd make_tincture).
+func _raw_tincture(id: String) -> void:
+	var why: String = VesselPage.Vessel.make_tincture(_prof(), _player(), id)
+	if why == "":
+		if m.main != null:
+			m.main.tip("vessel_tincture")  # (the first tincture made from raw essence: the Entity explains)
+		_done(VesselPage.V["tinct_made"] % Items.ITEMS[id]["name"], "", "brew")
+	else:
+		_done(B["cant"] % why, "", "ui_back")
 
 
 func _craft_tincture(id: String) -> void:
@@ -2196,8 +2222,8 @@ func _bench_do(thing: String, ask: String) -> void:
 			var rune := ask.get_slice(":", 1)
 			why = Bench.inscribe(prof, thing, rune)
 			said = B["inscribed"] % [Gear.LASTING_RUNES[rune]["name"], before]
-		"vtemper", "vrune":
-			var r: Array = VesselPage.bench_do(prof, thing, ask, before)  # (a full vessel worked into a piece)
+		"vtemper", "vrune", "vcore":
+			var r: Array = VesselPage.bench_do(prof, thing, ask, before)  # (a full vessel of core essence worked into a piece)
 			why = r[0]
 			said = r[1]
 		"break":
@@ -2207,7 +2233,9 @@ func _bench_do(thing: String, ask: String) -> void:
 				return
 			said = B["broke"] % [name, got]
 	if why == "":
-		_done(said, "", "craft_break" if what == "break" else ("craft_rune" if what in ["retrait", "inscribe", "vrune"] else "craft"))
+		if what == "vcore" and m.main != null:
+			m.main.tip("core_rune")  # (the first core rune: the Entity explains)
+		_done(said, "", "craft_break" if what == "break" else ("craft_rune" if what in ["retrait", "inscribe", "vrune", "vcore"] else "craft"))
 	else:
 		_done(B["cant"] % why, "", "ui_back")
 
