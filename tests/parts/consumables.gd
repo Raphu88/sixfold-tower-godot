@@ -380,6 +380,7 @@ func _saves() -> void:
 	var cfg := ConfigFile.new()
 	cfg.set_value("train", "supplies", {"draught": 2, "antidote": 1, "salts": 1, "tonic@3": 1})
 	cfg.set_value("train", "store", {"sizes": {"draught": [3, 1], "antidote": [1]}, "shelf": ["draught", "draught@3", "stamina@1", "tonic", "net@3"], "outfit": []})
+	cfg.set_value("renown", "state", {"market": {"wares": [{"kind": "item", "id": "draught", "size": 3}]}})
 	cfg.save(path)
 	var prof = P.new()
 	prof.save_path = path
@@ -392,8 +393,7 @@ func _saves() -> void:
 	var dupes := shelf.size() != shelf.filter(func(k): return shelf.count(k) == 1).size()
 	_check(shelf.has("draught") and shelf.has("stamina") and shelf.has("net") and not dupes and not shelf.any(func(k): return String(k).contains("@")),
 		"an old shelf's sized keys show once, as the plain items (%s)" % [shelf])
-	var Shop = load("res://scripts/shop.gd")
-	_check(Shop.ware_name({"kind": "item", "id": "draught", "size": 3}) == "Healing Vial", "an old Pedlar's Greater ware is the plain item")
+	_check(not prof.renown.has("market"), "an old Pedlar's stall, sized wares and all, is dropped (the Pedlar is gone)")
 	DirAccess.remove_absolute(ProjectSettings.globalize_path(path))
 	var p = t.main.player
 	p.items = {"draught": 2, "antidote": 1}
