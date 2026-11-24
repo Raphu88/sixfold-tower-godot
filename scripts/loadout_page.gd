@@ -26,6 +26,7 @@ extends RefCounted
 ## TEXT (the Data editor: "The train and store").
 
 const Train := preload("res://scripts/train.gd")
+const RuneArtistName := preload("res://scripts/rune_artist_name.gd")
 const Gear := preload("res://scripts/gear.gd")
 const Items := preload("res://scripts/items.gd")
 const Essence := preload("res://scripts/essence.gd")
@@ -37,7 +38,7 @@ const VesselPage := preload("res://scripts/vessel_page.gd")
 const StorageView := preload("res://scripts/storage_view.gd")
 const BasicGift := preload("res://scripts/basic_gift.gd")
 
-static var TEXT := {
+static var TEXT: Dictionary = RuneArtistName.named({
 	"title": "Loadout",
 	"sub": "What you'll wear when you set off, and the pack that goes up the tower with you.",
 	"eyebrow": "Your car",
@@ -59,7 +60,7 @@ static var TEXT := {
 	"heir_waits": "Wear something else here and your heirloom waits on the train this climb (it stays yours).",
 	"heir_away": "Your heirloom, %s, waits on the train this climb (it stays yours).",
 	"empty_slot": "Nothing worn here. Choose a piece from your pack or stash to wear, or buy one in the Outfitter's Car.",
-	"empty_charm": "Your charm slot: one charm, never used up. Its passive stays on while you wear it, and some hold a charge you refill with essence at the workshop bench. The Outfitter's Car sells charms, and a Rune Artist crafts them.",
+	"empty_charm": "Your charm slot: one charm, never used up. Its passive stays on while you wear it, and some hold a charge you refill with essence at the workshop bench. The Outfitter's Car sells charms, and {rune_artist}, the Workshop's Rune Artist, crafts them.",
 	"empty_bag": "No bag: your pack holds 2 spare pieces. A bag here holds more (a Satchel 4, a Pack 6, a Great Pack 8); the Outfitter's Car always has one if you own none.",
 	"no_armor": "No armour",
 	"empty": "Empty",
@@ -91,7 +92,7 @@ static var TEXT := {
 	"tag_heir": "Heir",
 	"tag_pack": "Pack",
 	"tag_wear": "Set",
-}
+})
 
 var m  # the menu (menu.gd)
 

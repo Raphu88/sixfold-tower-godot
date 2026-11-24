@@ -38,6 +38,7 @@ const Charms := preload("res://scripts/charms.gd")
 const Shop := preload("res://scripts/shop.gd")
 const Outfitter := preload("res://scripts/outfitter.gd")
 const OutfitterName := preload("res://scripts/outfitter_name.gd")
+const RuneArtistName := preload("res://scripts/rune_artist_name.gd")
 const BasicGift := preload("res://scripts/basic_gift.gd")
 const VESSEL := "res://scripts/vessel.gd"  # (loaded when needed: vessel.gd preloads the bench, which preloads this)
 
@@ -268,7 +269,7 @@ static var TEXT: Dictionary = OutfitterName.named({
 ## The outfitter who keeps the store car: a retired climber who buys what
 ## climbers bring down and sells it to the next ones up. No name yet: change
 ## "name" and "tag" to give him one. One line is picked for each moment.
-static var OUTFITTER: Dictionary = OutfitterName.named({
+static var OUTFITTER: Dictionary = RuneArtistName.named(OutfitterName.named({
 	"name": "{outfitter}",
 	"tag": "{outfitter}, the Outfitter",
 	"greet": [
@@ -297,14 +298,14 @@ static var OUTFITTER: Dictionary = OutfitterName.named({
 	"any": [
 		"Any kind spends on my shelf. A vial's a vial, whatever tower paid for it.",
 		"Took it from your fullest crystals. Gear's another matter: that wants its own kind.",
-		"Crystals you can't use? Spend them on my shelf, or see the Rune Artist's Exchange in the Workshop.",
+		"Crystals you can't use? Spend them on my shelf, or see {rune_artist}'s Exchange in the Workshop.",
 	],
 	# His greeting while a climb's pay is fresh (%s is what he paid: "14 Water").
 	"paid": [
 		"Your pay for the climb: %s. A floor's a floor, even on the way down.",
 		"%s for your climb. I pay by the floor, not by how it ended.",
 	],
-})
+}))
 
 
 static func line(key: String, seed := -1) -> String:

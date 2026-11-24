@@ -14,7 +14,10 @@ extends Control
 ## frames, curtains, ceiling and the car's own fittings; the lamplight and
 ## firelight, added on so it warms what it falls on; what moves (the lamps
 ## swinging, the gauges, the firebox); and the sparks of light that move
-## with them (the lamps' glow, dust drifting in it).
+## with them (the lamps' glow, dust drifting in it); and each car's own
+## ambience over that (paint_ambience: candle flames, moonlight dust, a light
+## outside sweeping across the glass, the engine's embers, the workshop's
+## rune motes, the teapot's steam, the signal lamps), under the car's things.
 ##
 ## Kept light for phones: almost everything is drawn once (again only when
 ## the screen changes size). The view outside is clipped to each window's
@@ -32,6 +35,8 @@ const Essence := preload("res://scripts/essence.gd")
 const Gear := preload("res://scripts/gear.gd")
 const Train := preload("res://scripts/train.gd")
 const Reflow := preload("res://scripts/reflow.gd")
+const Shade := preload("res://scripts/shade.gd")
+const Particles := preload("res://scripts/particles.gd")  # (the Effects setting: how many specks the cars' ambience shows)
 ## The least a car's things shrink to fit its width; past that they wrap (Room.fit).
 const FIT_MIN := 0.9
 const PANE_TOP := 14.0  # (a car's pane that scrolls: room at its top, see Room.fit)
@@ -247,6 +252,7 @@ func _process(delta: float) -> void:
 		if live:
 			r.live.queue_redraw()
 			r.sparks.queue_redraw()
+			r.ambience.queue_redraw()
 
 
 ## Takes away every car's things and the chrome (train_page.gd builds them again).
@@ -371,6 +377,7 @@ class Room extends Control:
 	var glow: Control  # the lamplight and firelight (added on; drawn once, it brightens and dims)
 	var live: Control  # what moves: the lamps, the gauges, the firebox
 	var sparks: Control  # light that moves with them (added on)
+	var ambience: Control  # the car's own life and light: flames, dust, embers, steam (added on; paint_ambience)
 	var area: Control
 	var u := 1.0  # the room's scale (1 at 720 high)
 	var ceil_y := 0.0
@@ -398,10 +405,12 @@ class Room extends Control:
 		glow = _layer(view.paint_glow)
 		live = _layer(view.paint_live)
 		sparks = _layer(view.paint_sparks)
+		ambience = _layer(view.paint_ambience)
 		var add := CanvasItemMaterial.new()
 		add.blend_mode = CanvasItemMaterial.BLEND_MODE_ADD
 		glow.material = add
 		sparks.material = add
+		ambience.material = add
 		area = Control.new()
 		area.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		add_child(area)
@@ -414,7 +423,7 @@ class Room extends Control:
 		return c
 
 	func layers() -> Array:
-		return [outside, front, glow, live, sparks]
+		return [outside, front, glow, live, sparks, ambience]
 
 	func redraw() -> void:
 		queue_redraw()
@@ -470,6 +479,7 @@ func _geometry(r: Room) -> void:
 	r.gauges.clear()
 	r.fire = Rect2()
 	r.chain = 20.0 * u
+	r.steam = Vector2.ZERO
 	if r.car == "engine":
 		# Round spectacle glasses, high in the cab's front wall.
 		var rad := minf(58.0 * u, (bottom - r.top) * 0.42)
@@ -501,6 +511,10 @@ func _geometry(r: Room) -> void:
 			var bay1: float = (r.wins[1]["rect"].end.x + r.wins[2]["rect"].position.x) * 0.5
 			var rad := minf(26.0 * u, (r.wins[1]["rect"].position.x - r.wins[0]["rect"].end.x) * 0.3)
 			r.gauges = [[Vector2(bay0, r.top + 70.0 * u), rad], [Vector2(bay1, r.top + 92.0 * u), rad * 0.62]]
+		elif r.car == "dining":
+			# The teapot's spout on the sideboard (_dining), where its steam rises.
+			var sb_x := s.x - 130.0 * u - 24.0 * u
+			r.steam = Vector2(sb_x + 99.0 * u, r.floor_y - 67.0 * u - 6.5 * u) + Vector2(11.0, -7.0) * u
 
 
 ## An arched window's glass: a half circle over a rectangle.
@@ -1107,6 +1121,7 @@ func paint_front(r: Room) -> void:
 			_signal_room(b, r)
 		"dining":
 			_dining(b, r)
+	_ambience_fittings(b, r)
 	for h in r.lamps:
 		b.circle(h, 5.0 * r.u, Art.OUTLINE, 14)
 		b.circle(h, 4.0 * r.u, Art.GILT.darkened(0.3), 14)
@@ -1806,6 +1821,7 @@ func paint_glow(r: Room) -> void:
 		Art.light(b, Vector2(fc.x, r.floor_y + 22.0 * u), Vector2(320.0, 40.0) * u, Color(Art.FLAME, 0.26))
 		for g in r.gauges:
 			Art.light(b, g[0], Vector2(g[1], g[1]) * 1.6, Color(Art.LAMP, 0.08))
+	_ambience_glow(b, r)
 	b.flush(r.glow)
 
 
@@ -1819,7 +1835,7 @@ func paint_sparks(r: Room) -> void:
 		var k := 0.93 + 0.07 * sin(t * 2.3 + i * 1.9 + r.index)
 		Art.light(b, c, Vector2(50.0, 50.0) * u, Color(Art.LAMP, 0.34 * k))
 		var fall := r.floor_y - c.y - 24.0 * u
-		for m in 12:
+		for m in int(round(12.0 * fx_rate())):  # (the Effects setting: none on Low)
 			var seed := i * 31 + m * 7 + r.index * 97
 			var life := fposmod(t * 0.035 * (0.6 + Art.rnd(seed)) + Art.rnd(seed + 1), 1.0)
 			var y := c.y + 24.0 * u + life * fall
@@ -1832,6 +1848,242 @@ func paint_sparks(r: Room) -> void:
 		var f := 0.8 + 0.14 * sin(t * 9.0) * sin(t * 5.3 + 1.0) + 0.06 * sin(t * 17.0)
 		Art.light(b, r.fire.get_center(), Vector2(70.0, 46.0) * u, Color(1.0, 0.7, 0.35, 0.4 * f))
 	b.flush(r.sparks)
+
+
+# --- ambience: each car's own life and light ------------------------------------------
+
+## How many specks of each kind a car shows at once with Effects on Medium
+## (High shows more, Low none: particles.gd EFFECTS "rate"; the lights and
+## flames stay on every setting): dust in each window's moonlight, embers
+## from the firebox, rune motes over the workshop's floor, wisps of steam
+## from the Dining car's teapot, a puff from the workshop's pipe.
+static var AMBIENCE := {"shaft_motes": 6, "library_motes": 9, "embers": 12, "rune_motes": 8, "tea_wisps": 3, "pipe_puffs": 3}
+## Now and then a light outside (a signal lamp, a lit farmhouse) sweeps
+## across the windows: every this many seconds, for this long.
+const PASS_EVERY := 14.0
+const PASS_FOR := 1.8
+## The cars with a candle sconce on the wall between their windows (bays,
+## from the left: 0, 1).
+const SCONCES := {"store": [0, 1], "personal": [0, 1], "library": [0, 1], "dining": [1]}
+
+
+## How much of an effect the Effects setting allows (0 on Low).
+static func fx_rate() -> float:
+	return float(Particles.lv().get("rate", 1.0))
+
+
+## How many specks of `kind` (AMBIENCE) show at once now.
+static func specks(kind: String) -> int:
+	return int(round(float(AMBIENCE.get(kind, 0)) * fx_rate()))
+
+
+## How many specks the car's ambience draws at once (for the tests and the
+## Effects setting): its moonlight dust, embers, motes and steam.
+func ambient_count(r: Room) -> int:
+	var n := 0
+	if r.car != "engine":
+		n += specks("library_motes" if r.car == "library" else "shaft_motes") * r.wins.size()
+	match r.car:
+		"engine":
+			n += specks("embers")
+		"workshop":
+			n += specks("rune_motes") + specks("pipe_puffs")
+		"dining":
+			n += specks("tea_wisps")
+	return n
+
+
+## Where the car's candle sconces hang (SCONCES): in the bays between its windows.
+func _sconce_spots(r: Room) -> Array:
+	var out: Array = []
+	if r.wins.size() < 3:
+		return out
+	for i in SCONCES.get(r.car, []):
+		var a: Rect2 = r.wins[i]["rect"]
+		var c: Rect2 = r.wins[i + 1]["rect"]
+		out.append(Vector2((a.end.x + c.position.x) * 0.5, a.position.y + a.size.y * 0.58))
+	return out
+
+
+## A window's moonlight falling to the floor: its four corners (the sill's
+## two, then the floor's), slanting right as the moon is high on the left.
+func _shaft(r: Room, win: Dictionary) -> PackedVector2Array:
+	var u := r.u
+	var rect: Rect2 = win["rect"]
+	var dx := (r.floor_y - rect.end.y) * 0.32
+	return PackedVector2Array([Vector2(rect.position.x + 6.0 * u, rect.end.y), Vector2(rect.end.x - 6.0 * u, rect.end.y),
+		Vector2(rect.end.x + dx + 14.0 * u, r.floor_y + 16.0 * u), Vector2(rect.position.x + dx - 6.0 * u, r.floor_y + 16.0 * u)])
+
+
+## The signal room's two lamps by its doors (red by the front, green by the back).
+func _signal_lamps(r: Room) -> Array:
+	if r.car != "settings" or r.wins.size() < 3:
+		return []
+	var u := r.u
+	var y := r.top + 54.0 * u
+	return [[Vector2((18.0 * u + r.wins[0]["rect"].position.x) * 0.5, y), Color(1.0, 0.22, 0.14)],
+		[Vector2((r.wins[2]["rect"].end.x + r.size.x - 18.0 * u) * 0.5, y), Color(0.3, 1.0, 0.5)]]
+
+
+## Drawn once, in front of the wall (paint_front): the sconces' brass and
+## candles, the Dining car's teapot, the signal room's lamp housings.
+func _ambience_fittings(b, r: Room) -> void:
+	var u := r.u
+	for p in _sconce_spots(r):
+		# A brass backplate, a curled arm, a drip cup and a cream candle.
+		b.oval(p + Vector2(0, 10.0 * u), Vector2(5.0, 11.0) * u, 0.0, Art.GILT.darkened(0.25), Shade.METAL)
+		b.stroke(p + Vector2(0, 14.0 * u), p + Vector2(0, 4.0 * u), Art.GILT.darkened(0.1), 2.4 * u)
+		b.oval(p + Vector2(0, 4.0 * u), Vector2(7.0, 2.4) * u, 0.0, Art.GILT, Shade.METAL)
+		b.box(Rect2(p + Vector2(-2.6, -12.0) * u, Vector2(5.2, 15.0) * u), Color(0.93, 0.89, 0.78), Shade.TUBE)
+		b.line(p + Vector2(0, -12.0 * u), p + Vector2(0, -14.0 * u), Color(0.15, 0.1, 0.08), maxf(1.0, 0.8 * u))
+	if r.car == "dining" and r.steam != Vector2.ZERO:
+		# A silver teapot on the sideboard: its body, lid and knob, the spout and handle.
+		var c := r.steam + Vector2(-11.0, 7.0) * u
+		b.stroke(c + Vector2(6.0, -1.0) * u, r.steam, Color(0.72, 0.72, 0.76), 2.4 * u)
+		b.arc(c + Vector2(-9.0, -1.0) * u, 5.0 * u, PI * 0.5, PI * 1.5, 8, Art.OUTLINE, 3.4 * u)
+		b.arc(c + Vector2(-9.0, -1.0) * u, 5.0 * u, PI * 0.5, PI * 1.5, 8, Color(0.7, 0.7, 0.74), 2.0 * u)
+		b.oval(c, Vector2(9.0, 7.0) * u, 0.0, Color(0.74, 0.74, 0.78), Shade.METAL)
+		b.oval(c + Vector2(0, -6.5 * u), Vector2(5.0, 1.8) * u, 0.0, Color(0.8, 0.8, 0.84), Shade.METAL)
+		b.ball(c + Vector2(0, -9.0 * u), 1.6 * u, Art.GILT, false)
+	for lamp in _signal_lamps(r):
+		var p: Vector2 = lamp[0]
+		var col: Color = lamp[1]
+		# An iron lamp case on a bracket, a hood over its lens.
+		b.stroke(p + Vector2(0, 12.0 * u), p + Vector2(0, 22.0 * u), Art.IRON.lightened(0.2), 2.4 * u)
+		b.box(Rect2(p - Vector2(9.0, 10.0) * u, Vector2(18.0, 22.0) * u), Art.IRON.lightened(0.15), Shade.METAL)
+		b.poly(PackedVector2Array([p + Vector2(-11.0, -11.0) * u, p + Vector2(11.0, -11.0) * u, p + Vector2(8.0, -15.0) * u, p + Vector2(-8.0, -15.0) * u]), Art.IRON.lightened(0.1), 1.0 * u)
+		b.circle(p, 6.4 * u, Art.OUTLINE, 16)
+		b.circle(p, 5.4 * u, col.darkened(0.6), 16)
+
+
+## The car's light that stays put (drawn once into the glow layer, it
+## brightens and dims with the rest): each window's moonlight falling to the
+## floor, a warm pool round each sconce, the workshop's rune-light on the
+## floor, the signal lamps' glow on the wall.
+func _ambience_glow(b, r: Room) -> void:
+	var u := r.u
+	if r.car != "engine":
+		var cool := Art.COOL
+		for win in r.wins:
+			var q := _shaft(r, win)
+			Art.quad(b, q[0], q[1], q[2], q[3], Color(cool, 0.07), Color(cool, 0.07), Color(cool, 0.0), Color(cool, 0.0))
+			Art.light(b, Vector2((q[2].x + q[3].x) * 0.5, r.floor_y + 12.0 * u), Vector2((q[2].x - q[3].x) * 0.6, 16.0 * u), Color(cool, 0.08))
+	for p in _sconce_spots(r):
+		Art.light(b, p + Vector2(0, -8.0 * u), Vector2(70.0, 80.0) * u, Color(Art.LAMP, 0.16))
+	if r.car == "workshop":
+		Art.light(b, Vector2(r.size.x * 0.5, r.floor_y + 14.0 * u), Vector2(r.size.x * 0.4, 34.0 * u), Color(0.62, 0.66, 1.0, 0.12))
+	if r.car == "dining" and r.steam != Vector2.ZERO:
+		Art.light(b, r.steam + Vector2(-12.0, 0) * u, Vector2(46.0, 30.0) * u, Color(Art.LAMP, 0.1))
+	for lamp in _signal_lamps(r):
+		Art.light(b, lamp[0], Vector2(46.0, 46.0) * u, Color(lamp[1], 0.12))
+
+
+## What lives and flickers in each car (redrawn a few times a second, added
+## on, under the car's things so their words stay clear): the candle flames,
+## dust drifting in the moonlight from each window, a light outside sweeping
+## across the glass now and then, and the car's own: the engine's embers,
+## the workshop's rune motes and a puff of steam from its pipe, steam from
+## the Dining car's teapot, the signal room's lamps.
+func paint_ambience(r: Room) -> void:
+	var b := UI.Draw.Batch.new()
+	var u := r.u
+	var seed0 := r.index * 131
+	# Candle flames on the sconces, each flickering on its own.
+	var si := 0
+	for p in _sconce_spots(r):
+		var fl := 1.0 + 0.14 * sin(t * 11.0 + si * 2.3) * sin(t * 6.1 + si) + 0.05 * sin(t * 23.0 + si)
+		var tip: Vector2 = p + Vector2(sin(t * 3.1 + si) * 0.8 * u, -14.0 * u - 9.0 * fl * u)
+		Art.light(b, p + Vector2(0, -19.0 * u), Vector2(26.0, 30.0) * u * fl, Color(Art.LAMP, 0.32))
+		b.polygon(PackedVector2Array([p + Vector2(-2.6, -14.0) * u, p + Vector2(-2.0, -18.0) * u, tip, p + Vector2(2.0, -18.0) * u, p + Vector2(2.6, -14.0) * u, p + Vector2(0, -12.6) * u]), Color(1.0, 0.7, 0.3, 0.85))
+		b.polygon(Art.oval(p + Vector2(0, -16.5 * u), Vector2(1.2, 2.8) * u, 8), Color(1.0, 0.95, 0.8, 0.9))
+		si += 1
+	# Dust drifting down through each window's moonlight.
+	if r.car != "engine":
+		var per := specks("library_motes" if r.car == "library" else "shaft_motes")
+		for wi in r.wins.size():
+			var q := _shaft(r, r.wins[wi])
+			for m in per:
+				var sd := seed0 + wi * 37 + m * 11
+				var life := fposmod(t * 0.03 * (0.6 + Art.rnd(sd)) + Art.rnd(sd + 1), 1.0)
+				var left: Vector2 = q[0].lerp(q[3], life)
+				var right: Vector2 = q[1].lerp(q[2], life)
+				var at := left.lerp(right, Art.rnd(sd + 2)) + Vector2(sin(t * 0.4 + sd) * 6.0 * u, 0)
+				var a := 0.6 * sin(life * PI)
+				b.circle(at, (0.9 + Art.rnd(sd + 3) * 1.0) * u, Color(0.82, 0.88, 1.0, a), 6)
+	# A light outside sweeping across the glass, left to right.
+	var ph := fposmod(t + r.index * 3.7, PASS_EVERY)
+	for wi in r.wins.size():
+		var k := (ph - wi * 0.35) / PASS_FOR
+		if k > 0.0 and k < 1.0:
+			_pass_light(b, r, r.wins[wi], k)
+	match r.car:
+		"engine":
+			# Embers rising from the firebox door, cooling as they go.
+			var v := _vent(r)
+			for i in specks("embers"):
+				var sd := seed0 + i * 17
+				var life := fposmod(t * 0.55 * (0.7 + 0.6 * Art.rnd(sd)) + Art.rnd(sd + 1), 1.0)
+				var at := Vector2(v.position.x + v.size.x * Art.rnd(sd + 2) + sin(t * 2.0 + sd) * 6.0 * u * life, v.position.y - life * 90.0 * u)
+				var col := Color(1.0, 0.75 - 0.35 * life, 0.3 - 0.2 * life, 0.9 * (1.0 - life))
+				b.circle(at, (1.8 - 0.8 * life) * u, col, 6)
+		"workshop":
+			# Rune motes rising from the floor, and a puff of steam from the pipe's valve.
+			for i in specks("rune_motes"):
+				var sd := seed0 + i * 23
+				var life := fposmod(t * 0.07 * (0.6 + Art.rnd(sd)) + Art.rnd(sd + 1), 1.0)
+				var at := Vector2(r.size.x * (0.15 + 0.7 * Art.rnd(sd + 2)) + sin(t * 0.8 + sd) * 10.0 * u, r.floor_y + 10.0 * u - life * 170.0 * u)
+				b.circle(at, (1.2 + Art.rnd(sd + 3)) * u, Color(0.7, 0.74, 1.0, 0.75 * sin(life * PI)), 6)
+			var vp := Vector2(r.size.x * 0.9, r.ceil_y + 12.0 * u)
+			var puff := fposmod(t + r.index, 6.0) / 1.6
+			if puff < 1.0:
+				for i in specks("pipe_puffs"):
+					var pk := clampf(puff - i * 0.12, 0.0, 1.0)
+					b.circle(vp + Vector2(-pk * 26.0 - i * 4.0, 6.0 + pk * 10.0) * u, (2.0 + pk * 9.0) * u, Color(0.85, 0.82, 0.9, 0.22 * (1.0 - pk) * minf(1.0, pk * 8.0)), 14)
+		"dining":
+			# Steam curling up from the teapot's spout.
+			if r.steam != Vector2.ZERO:
+				for i in specks("tea_wisps"):
+					var life := fposmod(t * 0.28 + float(i) / 3.0, 1.0)
+					for j in 3:
+						var lj := clampf(life - j * 0.06, 0.0, 1.0)
+						var at := r.steam + Vector2(sin(lj * 6.0 + i * 2.0 + t * 0.9) * 5.0 * lj + 2.0 * lj, -lj * 46.0) * u
+						b.circle(at, (1.6 + lj * 5.0) * u, Color(0.9, 0.88, 0.85, 0.16 * (1.0 - lj) * minf(1.0, lj * 6.0)), 10)
+		"settings":
+			# The signal lamps: the red one blinking slowly, the green one steady.
+			var li := 0
+			for lamp in _signal_lamps(r):
+				var on: float = (0.6 + 0.4 * sin(t * 2.2)) if li == 0 else (0.85 + 0.08 * sin(t * 0.7))
+				var col: Color = lamp[1]
+				Art.light(b, lamp[0], Vector2(30.0, 30.0) * u, Color(col, 0.35 * on))
+				b.circle(lamp[0], 4.6 * u, Color(col.lightened(0.2), 0.8 * on), 14)
+				b.circle(lamp[0] + Vector2(-1.5, -1.5) * u, 1.6 * u, Color(1, 1, 1, 0.6 * on), 8)
+				li += 1
+	b.flush(r.ambience)
+
+
+## A soft band of light crossing a window's glass (`k` 0 to 1: left to
+## right), clipped to the glass's shape.
+func _pass_light(b, r: Room, win: Dictionary, k: float) -> void:
+	var rect: Rect2 = win["rect"]
+	var bw := rect.size.x * 0.32
+	var cx := lerpf(rect.position.x - bw, rect.end.x + bw, k)
+	var y0 := rect.position.y + 1.0
+	var y1 := rect.end.y - 1.0
+	var left := PackedVector2Array()
+	var right := PackedVector2Array()
+	for i in 9:
+		var y := lerpf(y0, y1, i / 8.0)
+		var sp := _span(win, y)
+		var x0 := maxf(cx - bw * 0.5 + (y - y0) * 0.12, sp.x)
+		var x1 := minf(cx + bw * 0.5 + (y - y0) * 0.12, sp.y)
+		if x1 > x0:
+			left.append(Vector2(x0, y))
+			right.append(Vector2(x1, y))
+	if left.size() < 2:
+		return
+	right.reverse()
+	left.append_array(right)
+	b.polygon(left, Color(1.0, 0.86, 0.62, 0.13 * sin(k * PI)))
 
 
 # --- furniture: drawn behind the cars' things -------------------------------------------
@@ -2344,7 +2596,8 @@ class Volume extends Button:
 ## code to the size he's given (the Outfitter's Car draws him big where the
 ## room allows: store_page.gd): an old climber in the lamplight, his goggles pushed up, bushy brows and a curled grey moustache,
 ## a tape measure round his neck over a waistcoat and brass-buttoned coat,
-## a watch chain, and his hands on the counter by a little brass bell. He
+## a watch chain, and his hands on the counter by a little brass bell. His
+## head sits on a neck (a shirt collar round it, the cravat at its foot). He
 ## blinks now and then.
 class Outfitter extends Control:
 	const UI := preload("res://scripts/ui.gd")
@@ -2369,24 +2622,45 @@ class Outfitter extends Control:
 	func head_radius() -> float:
 		return minf(size.x * 0.3, size.y * 0.26) * 0.62
 
+	## Where his head, neck and shoulders are, at his size now (for the
+	## tests): "head" (the head's centre), "neck" (the neck's rect, from under
+	## the chin to the collar) and "shoulders" (the coat's top in the middle).
+	func figure() -> Dictionary:
+		var r := minf(size.x * 0.3, size.y * 0.26)
+		var c := Vector2(size.x * 0.5, size.y * 0.33)
+		var top := c.y + r * 0.88
+		return {"head": c, "r": r, "neck": Rect2(c.x - r * 0.25, c.y + r * 0.3, r * 0.5, top + r * 0.12 - (c.y + r * 0.3)), "shoulders": top}
+
 	func _draw() -> void:
 		var w := size.x
 		var h := size.y
-		var r := minf(w * 0.3, h * 0.26)
-		var c := Vector2(w * 0.5, h * 0.36)
+		var fig := figure()
+		var r: float = fig["r"]
+		var c: Vector2 = fig["head"]
 		var b := UI.Draw.Batch.new()
 		Art.light(b, c + Vector2(-r * 0.3, -r * 0.2), Vector2(r * 3.4, r * 2.8), Color(Art.LAMP, 0.2))
 		# His coat, lit from the left, down to the counter.
-		var top := c.y + r * 0.7
+		var top: float = fig["shoulders"]
 		var foot := h * 0.86
 		var coat := PackedVector2Array([Vector2(c.x - r * 1.7, foot), Vector2(c.x - r * 1.45, top + r * 0.3), Vector2(c.x - r * 0.6, top),
 			Vector2(c.x + r * 0.6, top), Vector2(c.x + r * 1.45, top + r * 0.3), Vector2(c.x + r * 1.7, foot)])
 		b.poly(coat, COAT, 1.4)
 		b.polygon(PackedVector2Array([Vector2(c.x + r * 0.2, top), Vector2(c.x + r * 0.6, top), Vector2(c.x + r * 1.45, top + r * 0.3), Vector2(c.x + r * 1.7, foot), Vector2(c.x + r * 0.5, foot)]), COAT.darkened(0.25))
 		b.line(Vector2(c.x - r * 1.45, top + r * 0.32), Vector2(c.x - r * 0.62, top + r * 0.02), Color(1, 0.8, 0.6, 0.2), maxf(1.0, r * 0.06))
+		# His neck, from under his jaw down into his collar, shaded on its
+		# right and under the chin.
+		var nk: Rect2 = fig["neck"]
+		b.poly(PackedVector2Array([Vector2(nk.position.x + r * 0.02, nk.position.y), Vector2(nk.end.x - r * 0.02, nk.position.y),
+			Vector2(nk.end.x + r * 0.03, nk.end.y), Vector2(nk.position.x - r * 0.03, nk.end.y)]), OutfitterFace.SKIN.darkened(0.06), 1.2)
+		b.polygon(PackedVector2Array([Vector2(c.x + r * 0.04, nk.position.y), Vector2(nk.end.x - r * 0.02, nk.position.y), Vector2(nk.end.x + r * 0.03, nk.end.y), Vector2(c.x + r * 0.08, nk.end.y)]), Color(0.35, 0.18, 0.12, 0.28))
+		b.soft(Vector2(c.x + r * 0.03, nk.position.y + r * 0.08), Vector2(r * 0.26, r * 0.1), Color(0.25, 0.1, 0.06, 0.4))
 		# The waistcoat, the shirt and a cravat.
 		b.polygon(PackedVector2Array([Vector2(c.x - r * 0.62, top + r * 0.05), Vector2(c.x + r * 0.62, top + r * 0.05), Vector2(c.x + r * 0.55, foot), Vector2(c.x - r * 0.55, foot)]), VEST)
 		b.polygon(PackedVector2Array([Vector2(c.x - r * 0.36, top), Vector2(c.x + r * 0.36, top), Vector2(c.x, top + r * 0.95)]), Color(0.88, 0.84, 0.76))
+		# The shirt's collar round his neck: two starched points.
+		for side in [-1.0, 1.0]:
+			b.poly(PackedVector2Array([Vector2(c.x + side * r * 0.25, top - r * 0.1), Vector2(c.x + side * r * 0.04, top + r * 0.06), Vector2(c.x + side * r * 0.2, top + r * 0.24), Vector2(c.x + side * r * 0.34, top + r * 0.02)]),
+				Color(0.95, 0.92, 0.86) if side < 0.0 else Color(0.8, 0.76, 0.7), 0.9)
 		b.polygon(PackedVector2Array([Vector2(c.x - r * 0.16, top + r * 0.08), Vector2(c.x + r * 0.16, top + r * 0.08), Vector2(c.x + r * 0.1, top + r * 0.42), Vector2(c.x, top + r * 0.5), Vector2(c.x - r * 0.1, top + r * 0.42)]), Color(0.55, 0.12, 0.12))
 		b.dot(Vector2(c.x, top + r * 0.12), r * 0.08, Color(0.45, 0.08, 0.08))
 		for i in 3:
@@ -2431,22 +2705,38 @@ class Outfitter extends Control:
 		b.flush(self)
 
 
-## The Rune Artist who works the workshop's bench (bench.gd ARTIST): drawn
-## in code, standing behind the bench's edge in an indigo robe trimmed in
-## rune-light, a leather apron, round spectacles and a bun, a stylus raised
-## whose tip glows, a rune shining on the robe. A Button (no box of its own),
-## so the pointer, a held finger, the keys and a controller reach it: the
-## Entity explains it (entity_help.gd "rune_artist_npc"), and a press makes
-## it talk (train_page.gd).
+## Rayne, the Rune Artist who works the workshop's bench (bench.gd ARTIST;
+## her name is in rune_artist_name.gd): drawn in code, a full figure from
+## her bun to her hem, shaded with the toolkit and lit from the top-left:
+## her head on a neck, a dark bun with a pencil through it, round gilt
+## spectacles, an indigo robe trimmed in rune-light with a rune shining on
+## its skirt, a leather apron with a pocket of chalk, a belt of ink pots,
+## one arm across the apron and the other raised with a stylus whose tip
+## glows. She breathes, blinks now and then, and a few rune motes drift up
+## from the stylus (none with Effects on Low: particles.gd level). Drawn to
+## fit whatever box she's given (train_page.gd sizes her to the room the
+## Workshop has). A Button (no box of its own), so the pointer, a held
+## finger, the keys and a controller reach her: the Entity explains her
+## (entity_help.gd "rune_artist_npc"), and a press makes her talk
+## (train_page.gd).
 class RuneArtist extends Button:
 	const UI := preload("res://scripts/ui.gd")
 	const Art := preload("res://scripts/train_art.gd")
 	const Gear := preload("res://scripts/gear.gd")
-	const ROBE := Color(0.2, 0.17, 0.36)
-	const APRON := Color(0.42, 0.27, 0.15)
-	const SKIN := Color(0.78, 0.6, 0.47)
-	const HAIR := Color(0.18, 0.12, 0.1)
+	const Particles := preload("res://scripts/particles.gd")
+	const Shade := preload("res://scripts/shade.gd")
+	const ROBE := Color(0.22, 0.18, 0.4)
+	const APRON := Color(0.44, 0.28, 0.15)
+	const SKIN := Color(0.8, 0.62, 0.49)
+	const HAIR := Color(0.17, 0.11, 0.1)
 	const RUNE := Color(0.62, 0.66, 1.0)  # (the Rune Artist's colour, as the bench's slate)
+	## Her figure's frame, in units (k() pixels each): this wide and tall,
+	## her feet at 0 and the top of her bun near -TALL.
+	const WIDE := 118.0
+	const TALL := 252.0
+	## How many rune motes drift up from the stylus at once (Effects Medium;
+	## High has more, Low none: particles.gd EFFECTS "rate").
+	const MOTES := 4
 	var t := 0.0
 	var _acc := 0.0
 
@@ -2463,71 +2753,154 @@ class RuneArtist extends Button:
 	func _process(delta: float) -> void:
 		t += delta
 		_acc += delta
-		# (the stylus's glow breathes: a few times a second, only while on screen)
-		if _acc < 1.0 / 10.0 or not is_visible_in_tree():
+		# (she breathes and the stylus glows: a few times a second, only while on screen)
+		if _acc < 1.0 / 12.0 or not is_visible_in_tree():
 			return
 		_acc = 0.0
 		queue_redraw()
 
+	## Pixels a unit of her frame, at her size now.
+	func k() -> float:
+		return minf(size.x / WIDE, size.y / TALL)
+
+	## How many rune motes rise from the stylus (Effects: Low none).
+	func motes() -> int:
+		return int(round(MOTES * float(Particles.lv().get("rate", 1.0))))
+
+	## Where her head, neck and body are, at her size now (for the tests and
+	## for what's drawn): "head" (its centre) and "r" (its radius), "neck"
+	## (from under the chin into the collar), "body" (shoulders to hem) and
+	## "stylus" (its glowing tip).
+	func figure() -> Dictionary:
+		var s := k()
+		var o := Vector2(size.x * 0.5, size.y - 3.0 * s)
+		var bob := sin(t * 1.7) * 0.9
+		var P := func(x: float, y: float) -> Vector2: return o + Vector2(x, y) * s
+		var head: Vector2 = P.call(0.0, -215.0 + bob)
+		return {"o": o, "k": s, "bob": bob, "head": head, "r": 21.0 * s,
+			"neck": Rect2(P.call(-7.0, -199.0 + bob), Vector2(14.0, 26.0) * s),
+			"body": Rect2(P.call(-48.0, -176.0 + bob), Vector2(96.0, 176.0) * s),
+			"stylus": P.call(56.0, -226.0 + bob * 1.4)}
+
 	func _draw() -> void:
-		var w := size.x
-		var h := size.y
-		var r := minf(w * 0.24, h * 0.17)  # the head's radius
-		var c := Vector2(w * 0.5, h * 0.24)  # the head
+		var f := figure()
+		var s: float = f["k"]
+		var o: Vector2 = f["o"]
+		var bob: float = f["bob"]
 		var hot := is_hovered() or has_focus()
 		var glow := 0.75 + 0.25 * sin(t * 2.4)
+		var P := func(x: float, y: float) -> Vector2: return o + Vector2(x, y + bob * clampf(-y / 176.0, 0.0, 1.0)) * s
+		var Q := func(pts: Array) -> PackedVector2Array:
+			var out := PackedVector2Array()
+			for i in range(0, pts.size(), 2):
+				out.append(P.call(pts[i], pts[i + 1]))
+			return out
 		var b := UI.Draw.Batch.new()
-		Art.light(b, c + Vector2(0, r * 1.6), Vector2(r * 3.4, r * 3.6), Color(RUNE, 0.16 + (0.08 if hot else 0.0)))
-		# The robe, from the shoulders down to the bench's edge, lit from the left.
-		var top := c.y + r * 0.95
-		var foot := h * 0.97
-		var robe := PackedVector2Array([Vector2(c.x - r * 1.75, foot), Vector2(c.x - r * 1.5, top + r * 0.35), Vector2(c.x - r * 0.55, top),
-			Vector2(c.x + r * 0.55, top), Vector2(c.x + r * 1.5, top + r * 0.35), Vector2(c.x + r * 1.75, foot)])
-		b.poly(robe, ROBE, 1.4)
-		# A rune-light trim down its front and round the collar.
-		b.line(Vector2(c.x - r * 0.5, top + r * 0.05), Vector2(c.x - r * 0.62, foot), Color(RUNE, 0.55), maxf(1.0, r * 0.08))
-		b.line(Vector2(c.x + r * 0.5, top + r * 0.05), Vector2(c.x + r * 0.62, foot), Color(RUNE, 0.4), maxf(1.0, r * 0.08))
-		b.arc(Vector2(c.x, top - r * 0.1), r * 0.6, 0.2, PI - 0.2, 10, Color(RUNE, 0.6), maxf(1.0, r * 0.1))
-		# The leather apron, its strap and a pocket of chalk.
-		var apron := PackedVector2Array([Vector2(c.x - r * 0.75, top + r * 0.95), Vector2(c.x + r * 0.75, top + r * 0.95),
-			Vector2(c.x + r * 0.95, foot), Vector2(c.x - r * 0.95, foot)])
-		b.poly(apron, APRON, 1.0)
-		b.line(Vector2(c.x - r * 0.62, top + r * 0.95), Vector2(c.x - r * 0.3, top + r * 0.1), APRON.darkened(0.2), maxf(1.0, r * 0.1))
-		b.line(Vector2(c.x + r * 0.62, top + r * 0.95), Vector2(c.x + r * 0.3, top + r * 0.1), APRON.darkened(0.2), maxf(1.0, r * 0.1))
-		b.box(Rect2(c.x + r * 0.15, top + r * 1.5, r * 0.5, r * 0.4), APRON.darkened(0.25))
-		b.rect(Rect2(c.x + r * 0.25, top + r * 1.38, r * 0.1, r * 0.2), Color(0.92, 0.92, 0.88))
-		# A rune shining on the robe's breast (gear.gd's lasting runes).
-		Gear.rune_into(b, "warding", Vector2(c.x - r * 1.22, top + r * 2.15), r * 0.3, Color(RUNE, 0.55 + 0.4 * glow), false)
-		# The left arm across the apron; the right raised, the stylus in hand.
-		var sh_r := Vector2(c.x + r * 1.25, top + r * 0.4)
-		var hand := Vector2(c.x + r * 1.65, top - r * 0.35)
-		b.stroke(sh_r, Vector2(c.x + r * 1.7, top + r * 0.9), ROBE.lightened(0.05), r * 0.5)
-		b.stroke(Vector2(c.x + r * 1.7, top + r * 0.9), hand, ROBE.lightened(0.08), r * 0.42)
-		b.stroke(Vector2(c.x - r * 1.25, top + r * 0.45), Vector2(c.x - r * 0.4, top + r * 1.55), ROBE.darkened(0.1), r * 0.46)
-		b.ball(Vector2(c.x - r * 0.3, top + r * 1.6), r * 0.2, SKIN)
-		var tip := hand + Vector2(r * 0.5, -r * 0.75)
-		b.stroke(hand + Vector2(-r * 0.1, r * 0.15), tip, Color(0.28, 0.2, 0.14), maxf(1.2, r * 0.1))
-		b.ball(hand, r * 0.22, SKIN)
-		Art.light(b, tip, Vector2(r * 0.9, r * 0.9), Color(RUNE, 0.55 * glow))
-		b.dot(tip, r * 0.1, Color(0.9, 0.92, 1.0))
-		# The head: a bun of dark hair, round spectacles, a calm face.
-		b.ball(c + Vector2(r * 0.15, -r * 0.85), r * 0.38, HAIR)
-		b.ball(c, r * 0.68, SKIN)
-		b.polygon(PackedVector2Array([c + Vector2(-r * 0.68, -r * 0.05), c + Vector2(-r * 0.55, -r * 0.5), c + Vector2(0, -r * 0.72),
-			c + Vector2(r * 0.55, -r * 0.5), c + Vector2(r * 0.68, -r * 0.05), c + Vector2(r * 0.45, -r * 0.35), c + Vector2(-r * 0.45, -r * 0.35)]), HAIR)
+		# Rune-light behind her, brighter when pointed at; a soft shadow at her feet.
+		Art.light(b, P.call(8.0, -150.0), Vector2(110.0, 150.0) * s, Color(RUNE, 0.12 + (0.08 if hot else 0.0)))
+		b.contact(o + Vector2(0, -1.0 * s), 46.0 * s, 0.4, 0.3)
+		# Her shoes under the hem.
 		for side in [-1.0, 1.0]:
-			var e := c + Vector2(side * r * 0.27, -r * 0.02)
-			b.dot(e, r * 0.06, Color(0.12, 0.08, 0.06))
-			b.arc(e, r * 0.2, 0.0, TAU, 14, Art.GILT, maxf(1.0, r * 0.06))
-			b.dot(e + Vector2(-r * 0.07, -r * 0.07), r * 0.04, Color(0.9, 0.95, 1.0, 0.7))
-		b.line(c + Vector2(-r * 0.07, -r * 0.02), c + Vector2(r * 0.07, -r * 0.02), Art.GILT, maxf(1.0, r * 0.05))
-		b.arc(c + Vector2(0, r * 0.28), r * 0.16, 0.3, PI - 0.3, 8, Color(0.45, 0.22, 0.18), maxf(1.0, r * 0.05))
+			b.oval(o + Vector2(side * 15.0, -3.0) * s, Vector2(11.0, 4.5) * s, 0.0, Color(0.16, 0.1, 0.08))
+		# The robe, from the shoulders to the floor, flaring at the hem; its
+		# shaded side, the folds, and rune-light trim along the hem.
+		var robe: PackedVector2Array = Q.call([-30, -176, -24, -150, -27, -118, -40, -60, -50, -6, 50, -6, 40, -60, 27, -118, 24, -150, 30, -176, 10, -184, -10, -184])
+		b.poly(robe, ROBE, 1.6)
+		b.polygon(Q.call([6, -182, 30, -176, 24, -150, 27, -118, 40, -60, 50, -6, 18, -6, 12, -60, 10, -120]), Color(0.04, 0.02, 0.1, 0.35))
+		for fx in [-30.0, -14.0, 22.0, 36.0]:
+			b.line(P.call(fx * 0.55, -110.0), P.call(fx, -8.0), Color(0.05, 0.03, 0.12, 0.35), maxf(1.0, 1.4 * s))
+		b.path(Q.call([-50, -7, -25, -9, 0, -10, 25, -9, 50, -7]), Color(RUNE, 0.45 + 0.25 * glow), maxf(1.0, 2.2 * s))
+		# The leather apron: a bib up to the chest, a pocket of chalk, ties at the waist.
+		var apron: PackedVector2Array = Q.call([-17, -160, 17, -160, 19, -122, 30, -24, -30, -24, -19, -122])
+		b.poly(apron, APRON, 1.2, Shade.CLOTH)
+		b.polygon(Q.call([2, -160, 17, -160, 19, -122, 30, -24, 8, -24]), Color(0.1, 0.04, 0.0, 0.25))
+		b.path(Q.call([-17, -160, -9, -182]), APRON.darkened(0.25), maxf(1.0, 2.6 * s))
+		b.path(Q.call([17, -160, 9, -182]), APRON.darkened(0.35), maxf(1.0, 2.6 * s))
+		b.line(P.call(-25.0, -121.0), P.call(25.0, -121.0), APRON.darkened(0.3), maxf(1.0, 3.0 * s))
+		b.poly(Q.call([4, -88, 22, -88, 22, -66, 4, -66]), APRON.darkened(0.18), 0.8)
+		b.rect(Rect2(P.call(9.0, -96.0), Vector2(2.6, 9.0) * s), Color(0.94, 0.94, 0.9))
+		b.rect(Rect2(P.call(14.0, -94.0), Vector2(2.6, 7.0) * s), Color(0.95, 0.85, 0.6))
+		# A belt of ink pots at her hip.
+		for i in 3:
+			var ip: Vector2 = P.call(-34.0 + i * 7.0, -114.0)
+			b.ball(ip, 3.2 * s, [Color(0.15, 0.2, 0.55), Color(0.5, 0.12, 0.14), Color(0.12, 0.35, 0.25)][i])
+			b.rect(Rect2(ip + Vector2(-1.4, -5.6) * s, Vector2(2.8, 2.6) * s), Art.GILT.darkened(0.2))
+		# A rune shining on the robe's skirt (gear.gd's lasting runes).
+		Gear.rune_into(b, "warding", P.call(-35.0, -72.0), 6.0 * s, Color(RUNE, 0.55 + 0.4 * glow), false)
+		# Her left arm (to your left) across the apron, a stick of chalk in hand.
+		var sl: Vector2 = P.call(-28.0, -170.0)
+		var el: Vector2 = P.call(-36.0, -132.0)
+		var hl: Vector2 = P.call(-10.0, -112.0)
+		b.stroke(sl, el, ROBE.lightened(0.04), 15.0 * s)
+		b.stroke(el, hl + Vector2(-5.0, -1.0) * s, ROBE.lightened(0.02), 13.0 * s)
+		b.line(hl + Vector2(-9.0, -5.0) * s, hl + Vector2(-8.0, 5.0) * s, Color(RUNE, 0.55), maxf(1.0, 2.0 * s))
+		b.ball(hl, 5.6 * s, SKIN)
+		b.rect(Rect2(hl + Vector2(2.0, -2.0) * s, Vector2(7.0, 2.4) * s), Color(0.94, 0.94, 0.9))
+		# Her neck, from under the jaw into a high collar trimmed in rune-light.
+		var nk: Rect2 = f["neck"]
+		b.poly(PackedVector2Array([nk.position, Vector2(nk.end.x, nk.position.y), Vector2(nk.end.x + 1.5 * s, nk.end.y), Vector2(nk.position.x - 1.5 * s, nk.end.y)]), SKIN.darkened(0.05), 1.2)
+		b.polygon(PackedVector2Array([Vector2(nk.get_center().x + 1.0 * s, nk.position.y), Vector2(nk.end.x, nk.position.y), Vector2(nk.end.x + 1.5 * s, nk.end.y), Vector2(nk.get_center().x + 2.0 * s, nk.end.y)]), Color(0.35, 0.15, 0.1, 0.3))
+		b.soft(Vector2(nk.get_center().x + 1.0 * s, nk.position.y + 3.0 * s), Vector2(9.0, 3.0) * s, Color(0.25, 0.08, 0.05, 0.45))
+		var collar: PackedVector2Array = Q.call([-13, -184, 13, -184, 15, -177, 0, -173, -15, -177])
+		b.poly(collar, ROBE.lightened(0.08), 1.0)
+		b.path(Q.call([-15, -177, 0, -173, 15, -177]), Color(RUNE, 0.5 + 0.3 * glow), maxf(1.0, 1.8 * s))
+		# Her right arm raised, the stylus in hand, its tip glowing.
+		var sr: Vector2 = P.call(28.0, -170.0)
+		var er: Vector2 = P.call(46.0, -138.0)
+		var hr: Vector2 = P.call(44.0, -188.0 + sin(t * 1.3) * 1.2)
+		var tip: Vector2 = f["stylus"]
+		b.stroke(sr, er, ROBE.darkened(0.08), 15.0 * s)
+		b.stroke(er, hr + Vector2(1.0, 5.0) * s, ROBE.darkened(0.04), 13.0 * s)
+		b.arc(hr + Vector2(1.0, 7.0) * s, 6.5 * s, 0.4, PI - 0.4, 8, Color(RUNE, 0.5), maxf(1.0, 1.6 * s))
+		b.stroke(hr + Vector2(-2.0, 3.0) * s, tip, Color(0.3, 0.2, 0.14), maxf(1.2, 2.6 * s))
+		b.ball(hr, 5.6 * s, SKIN)
+		Art.light(b, tip, Vector2(22.0, 22.0) * s, Color(RUNE, 0.55 * glow + (0.15 if hot else 0.0)))
+		b.dot(tip, 2.6 * s, Color(0.92, 0.94, 1.0))
+		# A few rune motes drifting up from the tip (Effects: none on Low).
+		var n := motes()
+		for i in n:
+			var life := fposmod(t * 0.45 + float(i) / maxf(1.0, n), 1.0)
+			var mp := tip + Vector2(sin(t * 1.9 + i * 2.1) * 5.0 + i * 1.5, -life * 34.0) * s
+			b.dot(mp, (1.4 - life * 0.6) * s, Color(RUNE.lightened(0.3), 0.75 * (1.0 - life)))
+		# The head: her bun with a pencil through it, the face, spectacles.
+		var c: Vector2 = f["head"]
+		var r: float = f["r"]
+		b.ball(c + Vector2(5.0, -22.0) * s, 10.5 * s, HAIR)
+		b.stroke(c + Vector2(-8.0, -30.0) * s, c + Vector2(18.0, -16.0) * s, Color(0.85, 0.66, 0.28), maxf(1.0, 2.0 * s))
+		b.ball(c + Vector2(-r * 0.96, 2.0 * s), 4.0 * s, SKIN.darkened(0.08))
+		b.ball(c + Vector2(r * 0.96, 2.0 * s), 4.0 * s, SKIN.darkened(0.15))
+		b.ball(c, r, SKIN)
+		b.polygon(_hair(c, r), HAIR)
+		var open := fmod(t + 1.3, 4.6) > 0.14
+		for side in [-1.0, 1.0]:
+			var e := c + Vector2(side * r * 0.38, r * 0.02)
+			b.line(e + Vector2(-r * 0.16, -r * 0.3), e + Vector2(r * 0.16, -r * 0.34 + side * r * 0.02), HAIR, maxf(1.0, r * 0.08))
+			if open:
+				b.dot(e, r * 0.085, Color(0.14, 0.09, 0.07))
+				b.dot(e + Vector2(-r * 0.03, -r * 0.03), r * 0.03, Color(1, 1, 1, 0.8))
+			else:
+				b.line(e + Vector2(-r * 0.1, 0), e + Vector2(r * 0.1, 0), Color(0.14, 0.09, 0.07), maxf(1.0, r * 0.05))
+			b.arc(e, r * 0.27, 0.0, TAU, 16, Art.GILT, maxf(1.0, r * 0.07))
+			b.dot(e + Vector2(-r * 0.1, -r * 0.11), r * 0.06, Color(0.9, 0.95, 1.0, 0.65))
+			b.dot(c + Vector2(side * r * 0.5, r * 0.36), r * 0.12, Color(0.9, 0.42, 0.38, 0.25))
+		b.line(c + Vector2(-r * 0.11, -r * 0.02), c + Vector2(r * 0.11, -r * 0.02), Art.GILT, maxf(1.0, r * 0.06))
+		b.line(c + Vector2(r * 0.03, r * 0.12), c + Vector2(r * 0.08, r * 0.32), SKIN.darkened(0.22), maxf(1.0, r * 0.06))
+		b.arc(c + Vector2(0, r * 0.4), r * 0.2, 0.35, PI - 0.35, 8, Color(0.5, 0.22, 0.2), maxf(1.0, r * 0.06))
 		b.flush(self)
 		if hot and not _touching():
 			var ring := UI.rounded(Rect2(Vector2(1, 1), size - Vector2(2, 2)), 6.0)
 			ring.append(ring[0])
 			draw_polyline(ring, Color(UI.GILT, 0.3), 4.0, true)
 			draw_polyline(ring, UI.GILT_HI, 1.4, true)
+
+	## Her hair over the top of her head, parted, falling a little at the
+	## temples (in the head's own frame: centre `c`, radius `r`).
+	static func _hair(c: Vector2, r: float) -> PackedVector2Array:
+		var pts := PackedVector2Array()
+		for p in [[-1.0, -0.05], [-0.92, -0.55], [-0.55, -0.95], [0.0, -1.06], [0.55, -0.95], [0.92, -0.55], [1.0, -0.05],
+				[0.82, -0.3], [0.5, -0.55], [0.12, -0.5], [-0.05, -0.62], [-0.4, -0.5], [-0.8, -0.3]]:
+			pts.append(c + Vector2(p[0], p[1]) * r)
+		return pts
 
 	## On a phone nothing shows the focus (a tap is its own highlight).
 	func _touching() -> bool:
@@ -2600,10 +2973,16 @@ class OutfitterFace extends Control:
 		var c := Vector2(r * 1.2, size.y * 0.5)
 		var b := UI.Draw.Batch.new()
 		UI.glow_into(b, c, r * 1.5, BRASS, 0.8)
-		b.polygon(PackedVector2Array([c + Vector2(-r * 0.95, r * 1.15), c + Vector2(-r * 0.7, r * 0.55), c + Vector2(r * 0.7, r * 0.55), c + Vector2(r * 0.95, r * 1.15)]), COAT)
-		b.dot(c + Vector2(-r * 0.2, r * 0.82), r * 0.07, BRASS)
-		b.dot(c + Vector2(r * 0.2, r * 0.82), r * 0.07, BRASS)
-		head_into(b, c, r, open)
+		# His shoulders in the coat, a neck between them and his head, and
+		# the shirt's collar round it.
+		b.polygon(PackedVector2Array([c + Vector2(-r * 0.98, r * 1.18), c + Vector2(-r * 0.74, r * 0.72), c + Vector2(r * 0.74, r * 0.72), c + Vector2(r * 0.98, r * 1.18)]), COAT)
+		b.poly(PackedVector2Array([c + Vector2(-r * 0.17, r * 0.38), c + Vector2(r * 0.17, r * 0.38), c + Vector2(r * 0.2, r * 0.8), c + Vector2(-r * 0.2, r * 0.8)]), SKIN.darkened(0.06), 1.0)
+		b.soft(c + Vector2(r * 0.02, r * 0.46), Vector2(r * 0.22, r * 0.08), Color(0.25, 0.1, 0.06, 0.4))
+		for side in [-1.0, 1.0]:
+			b.polygon(PackedVector2Array([c + Vector2(side * r * 0.24, r * 0.66), c + Vector2(side * r * 0.03, r * 0.8), c + Vector2(side * r * 0.2, r * 0.94), c + Vector2(side * r * 0.36, r * 0.74)]), Color(0.93, 0.9, 0.84))
+		b.dot(c + Vector2(-r * 0.2, r * 1.0), r * 0.07, BRASS)
+		b.dot(c + Vector2(r * 0.2, r * 1.0), r * 0.07, BRASS)
+		head_into(b, c + Vector2(0, -r * 0.08), r, open)
 		b.flush(self)
 		var tip := Vector2(size.x, size.y * 0.5)
 		draw_colored_polygon(PackedVector2Array([tip + Vector2(1, -7), tip + Vector2(-9, 0), tip + Vector2(1, 7)]), Color(0.13, 0.095, 0.06, 0.95))

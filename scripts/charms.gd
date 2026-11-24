@@ -27,6 +27,7 @@ extends RefCounted
 ## change.
 
 const Gear := preload("res://scripts/gear.gd")
+const RuneArtistName := preload("res://scripts/rune_artist_name.gd")
 const Essence := preload("res://scripts/essence.gd")
 const TRAIN := "res://scripts/train.gd"  # (loaded when needed: the train preloads this)
 
@@ -117,7 +118,7 @@ static var LOOT := {"vault": 0.2, "secret": 0.3, "monster": 0.004, "higher": 1}
 static var OLD_ITEMS := {"wardbreaker": {"refund": {"blade": 10}}}
 
 ## The words charms use (cards, the bench, the tower's inventory).
-static var TEXT := {
+static var TEXT: Dictionary = RuneArtistName.named({
 	"charge": "Charge  ·  %d of %d",
 	"charge_line": "%s: %s",
 	"charge_empty": "Spent: now its charge draws on the essence you carry. Filter essence in to refill it, at the workshop bench or from the inventory in a tower. Nothing refills it on its own.",
@@ -144,12 +145,12 @@ static var TEXT := {
 	"refill_head": "Your charms",
 	"craft_head": "Craft a charm",
 	"nothing_spent": "Every charm you own is charged.",
-	"note": "Refill a charm's charge with crystals of its kind. New charms are crafted here too: by you if you carry the Rune Artist's mark, else by the workshop's Rune Artist.",
+	"note": "Refill a charm's charge with crystals of its kind. New charms are crafted here too: by you if you carry the Rune Artist's mark, else by {rune_artist}, the workshop's Rune Artist.",
 	"old_refund": "%s became a charm: what you paid came back (%s)",
 	"recipe_locked": "A recipe not yet learned. Your renown rank teaches it (%s), or a noble's contract may.",
 	"recipe_contract": "A recipe not yet learned. A noble's contract may teach it.",
 	"refill_cut": "Your renown makes refills %d%% cheaper.",
-}
+})
 
 
 # --- what a charm is -------------------------------------------------------------------

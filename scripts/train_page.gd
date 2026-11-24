@@ -59,6 +59,10 @@ const CAR_TIPS := {"personal": ["chest"], "store": ["store"], "workshop": ["benc
 ## The wardrobe's slots on a phone (smaller than elsewhere, so the doll's
 ## five rows, the charm's included, fit the car).
 const WARDROBE_PHONE := 41.0
+## Rayne, the Rune Artist, standing in her own column on a computer: at most
+## this tall, and not drawn there below this (she stands by her words instead).
+const RAYNE_TALL := 460.0
+const RAYNE_LEAST := 230.0
 ## The bench's Charms counter: charms across (a computer, a phone: room for the card).
 const CHARM_COLS := [6, 4]
 static var B := Bench.TEXT
@@ -836,7 +840,7 @@ func _workshop(root: Node) -> void:
 	mid.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	mid.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	row.add_child(mid)
-	_rune_artist(mid)  # (the Rune Artist at the bench, and what they say)
+	var said_row := _rune_artist(mid)  # (Rayne, the Rune Artist, at the bench, and what she says)
 	var left := _furnish(mid, "plain")
 	left.custom_minimum_size.x = 4.0 * _cell() + 18.0
 	if not small:
@@ -912,21 +916,48 @@ func _workshop(root: Node) -> void:
 		_note(left, empty)
 		keys.append("bench:none")
 	_card(row, keys, "bench:x:" + _x_fullest() if counter == "exchange" else "")
+	_rayne_stands(row, said_row)
 
 
-## The Rune Artist who works the bench (bench.gd ARTIST; drawn by
-## train_view.gd RuneArtist) and a bubble with what they say: their
+## Rayne, the Rune Artist, standing full figure at the bench: on a computer
+## she gets her own column beside the counters' panel, as tall as the car
+## leaves room for (like Joel in his car), as long as the row still fits
+## the car's width; else (a phone, a narrow window) she stands small beside
+## her words, as before.
+func _rayne_stands(row: HBoxContainer, said_row: HBoxContainer) -> void:
+	var npc: Control = said_row.get_child(0) if said_row.get_child_count() > 1 else null
+	if npc == null or _small():
+		return
+	var r = view.rooms.get("workshop") if view != null else null
+	if r == null or r.area.size.x <= 0.0:
+		return
+	var tall: float = r.area.size.y - (70.0 if String(tips.get("workshop", "")) != "" else 0.0) - 24.0
+	var spare: float = r.area.size.x - row.get_combined_minimum_size().x + npc.custom_minimum_size.x - 2.0 * float(row.get_theme_constant("separation")) - 24.0
+	var aspect: float = TrainView.RuneArtist.WIDE / TrainView.RuneArtist.TALL
+	var h := minf(minf(tall, RAYNE_TALL), spare / aspect)
+	if h < RAYNE_LEAST:
+		return
+	said_row.remove_child(npc)
+	npc.custom_minimum_size = Vector2(ceilf(h * aspect), floorf(h))
+	npc.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	row.add_child(npc)
+	row.move_child(npc, 1)
+
+
+## Rayne (bench.gd ARTIST, her name in rune_artist_name.gd; drawn by
+## train_view.gd RuneArtist) and a bubble with what she says: her
 ## greeting (another line for a climber with the mark), or the line a press
-## on them brought (the next each time).
-func _rune_artist(parent: Node) -> void:
+## on her brought (the next each time). Returns the row (her, then the
+## bubble): on a computer _rayne_stands may move her to a column of her own.
+func _rune_artist(parent: Node) -> HBoxContainer:
 	var small := _small()
 	var row := HBoxContainer.new()
 	row.add_theme_constant_override("separation", 4 if small else 8)
 	row.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	parent.add_child(row)
 	var npc := TrainView.RuneArtist.new()
-	npc.custom_minimum_size = Vector2(66, 84) if small else Vector2(92, 116)
-	npc.set_meta("help", "rune_artist_npc")  # (the Entity explains them: entity_help.gd)
+	npc.custom_minimum_size = Vector2(50, 92) if small else Vector2(84, 170)
+	npc.set_meta("help", "rune_artist_npc")  # (the Entity explains her: entity_help.gd)
 	npc.set_meta("rune_artist", true)
 	npc.pressed.connect(_artist_talk)
 	row.add_child(npc)
@@ -939,9 +970,10 @@ func _rune_artist(parent: Node) -> void:
 	var bubble := artist_says(said, small)
 	bubble.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	row.add_child(bubble)
+	return row
 
 
-## What the Rune Artist says: a bubble edged in rune-light, their name on it.
+## What Rayne says: a bubble edged in rune-light, her name on it.
 static func artist_says(text: String, small := false) -> PanelContainer:
 	var bubble := PanelContainer.new()
 	var st: StyleBox = brass_box(8.0 if small else 10.0, 8.0)
