@@ -5,11 +5,14 @@ extends Node2D
 ## room while the duel lasts, seen from above like a tower's floor: plank
 ## floorboards along the car, a ring of sawdust roped off on brass posts,
 ## tiered benches of onlookers along both sides, the car's end doors, and
-## hanging lamps down its middle (their light is real: lighting.gd).
+## hanging lamps down its middle (their light is real: lighting.gd), dust
+## and sawdust drifting slowly in each lamp's light (a particles.gd stream
+## per lamp, "lamp_dust": the Effects setting thins it, Low has none).
 ## Drawn in code; the colours are LOOK.
 
 const UI := preload("res://scripts/ui.gd")
 const Art := preload("res://scripts/train_art.gd")
+const Particles := preload("res://scripts/particles.gd")
 
 ## Its colours.
 static var LOOK := {
@@ -25,6 +28,7 @@ var main
 var rect := Rect2()
 var lights: Array = []
 var crowd: Array = []  # [pos, colour, hat]
+var dust: Array = []  # each lamp's stream of drifting dust (particles.gd emitter handles)
 
 
 func _ready() -> void:
@@ -46,6 +50,11 @@ func _ready() -> void:
 		for i in n:
 			var at := Vector2(lerpf(rect.position.x, rect.end.x, (i + 0.5) / n), rect.get_center().y)
 			lights.append(main.lighting.add_light(at, 260.0, LOOK["lamp"], 0.55, 0.1))
+	if main != null:
+		for at in lamp_spots():
+			var e = Particles.emitter(main, func(): return at, "lamp_dust")
+			e.tag = "arena_dust"
+			dust.append(e)
 	queue_redraw()
 
 
@@ -54,6 +63,9 @@ func _exit_tree() -> void:
 		for id in lights:
 			main.lighting.remove_light(id)
 	lights.clear()
+	for e in dust:
+		e.stop()
+	dust.clear()
 
 
 func lamp_spots() -> Array:

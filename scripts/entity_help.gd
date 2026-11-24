@@ -51,8 +51,9 @@ const Entity := preload("res://scripts/entity.gd")
 const Guide := preload("res://scripts/guide.gd")
 const StorageView := preload("res://scripts/storage_view.gd")
 const OutfitterName := preload("res://scripts/outfitter_name.gd")
+const RuneArtistName := preload("res://scripts/rune_artist_name.gd")
 
-static var HELP: Dictionary = OutfitterName.named({
+static var HELP: Dictionary = RuneArtistName.named(OutfitterName.named({
 	# --- the rail -----------------------------------------------------------------------
 	"rail:climber": "Your climber's book: abilities, the tree, marks, essence and your record.",
 	"rail:engine": "Opens the Engine: its map of the six towers. Climb the one by your station, or ride to another.",
@@ -149,7 +150,7 @@ static var HELP: Dictionary = OutfitterName.named({
 	"exchange_do:big": "Makes the trade: {price}. A trade this big asks first.",
 	"bench_tab:charm": "Charms: refill a charm's spent charge with crystals of its kind, or craft a new charm.{crafter}",
 	"bench_tab": "{counter}.{crafter}",
-	"rune_artist_npc": "{artist}, who works the bench. Without the Rune Artist's mark, they craft for you: the same crystals plus a premium on top. Press to hear them.",
+	"rune_artist_npc": "{artist}, the Rune Artist who works the bench. Without the Rune Artist's mark, she crafts for you: the same crystals plus a premium on top. Press to hear her.",
 	"slot:bench:item": "{piece}, {price} to brew: {desc}.",
 	"slot:bench:supply": "{piece}, packed on your belt. It can be broken down for crystals.",
 	"slot:bench": "{piece}: {counter} it here.",
@@ -351,12 +352,12 @@ static var HELP: Dictionary = OutfitterName.named({
 	# --- anywhere ----------------------------------------------------------------------------------------
 	"back": "Back where you came from.",
 	"close": "Closes this page.",
-})
+}))
 
 ## The Entity's comment under an explanation, by the kind of thing (the
 ## part of its key before ":" or "_"; "any" for everything else). Short,
 ## dry, in its own voice; never the story.
-static var COMMENTS: Dictionary = OutfitterName.named({
+static var COMMENTS: Dictionary = RuneArtistName.named(OutfitterName.named({
 	"rail": ["Every door on this train leads somewhere. Most of them lead back here.", "I've walked this rail more often than you have.", "Choose a car. The train won't mind."],
 	"slot": ["A small thing. Small things matter up there.", "I'd keep an eye on that one.", "Everything you carry tells me something about you.", "Weigh it well. The tower will."],
 	"buy": ["{outfitter} remembers who pays.", "Crystals spent are crystals that can't be lost. Some comfort.", "A fair price, by his reckoning."],
@@ -409,21 +410,21 @@ static var COMMENTS: Dictionary = OutfitterName.named({
 	"back": ["Back, then. Nothing's lost.", "Retreat is a kind of plan."],
 	"close": ["Done here? I'll keep it as it is."],
 	"any": ["I'd press it. Eventually.", "Simple enough. Mostly.", "You'll see. I already have.", "Go on. I'm watching."],
-})
+}))
 
 ## Small words the explanations are made with (and the Settings switch).
-static var TEXT := {
+static var TEXT: Dictionary = RuneArtistName.named({
 	"setting": "The Entity explains buttons",
 	"better": "It beats what you'd wear.",
 	"worse": "What you'd wear is better.",
 	"even": "About as good as what you'd wear.",
 	"crafter_you": " You craft it yourself.",
-	"crafter_artist": " The Rune Artist here crafts it for you: materials + premium.",
+	"crafter_artist": " {rune_artist}, the Rune Artist here, crafts it for you: materials + premium.",
 	"any_kind": " Any kind of essence pays for it: your fullest crystals first.",
 	"counted": "%d of %d",
 	"best": "Your best there: floor %d.",
 	"best_none": "You haven't climbed it yet.",
-}
+})
 
 ## Which of a button's tags names its explanation, in order: [tag, how the
 ## key is made]. "raw": the tag's value is the key; "v": tag:value; "":

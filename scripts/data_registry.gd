@@ -32,6 +32,7 @@ extends RefCounted
 ## numbers are kept within bounds, and words keep their %d / %s blanks.
 
 const TestRun := preload("res://scripts/test_run.gd")
+const RuneArtistName := preload("res://scripts/rune_artist_name.gd")  # (her name in the tables' names)
 const PROJECT_PATH := "res://data/overrides.json"
 const LOCAL_PATH := "user://overrides.json"
 const FORMAT := 1
@@ -108,7 +109,7 @@ const SECTIONS := [
 		"names": {"THEMES": "Rooms", "NEEDS": "What's handy in each tower (why)", "TEXT": "What's handy: words"}},
 	{"id": "train_words", "group": "words", "name": "The train and store", "when": "page",
 		"tables": ["train/TEXT", "train/OUTFITTER", "bench/TEXT", "bench/ARTIST", "bench/EXCHANGE_TEXT", "vessel/TEXT", "loadout_page/TEXT", "stash_page/STASH_TEXT", "storage_view/TEXT", "basic_gift/TEXT"], "kinds": ["text"],
-		"names": {"TEXT": "Words", "STASH_TEXT": "The stash screen", "EXCHANGE_TEXT": "The Exchange (Workshop)"}},
+		"names": {"TEXT": "Words", "STASH_TEXT": "The stash screen", "EXCHANGE_TEXT": "The Exchange (Workshop)", "ARTIST": RuneArtistName.NAME + ", the Rune Artist: her words"}},
 	{"id": "climb_words", "group": "words", "name": "The climb: wings, finds, mirrors", "when": "live",
 		"tables": ["wings/TEXT", "lost/TEXT", "mirror/TEXT", "proving/TEXT", "doors/LOCK_TEXT", "puzzle/TEXT", "traps/KINDS", "traps/FIRE_FED", "main/FALL_TEXT"], "kinds": ["text"],
 		"names": {"KINDS": "Traps"}},
@@ -287,7 +288,7 @@ const SECTIONS := [
 		"names": {"DATA": "Walk bob, swings, rolls, hurt, heal, foes' breath and dissolve, the beasts' entrance and slow beat, screen shake, numbers, menus, the world"}},
 	{"id": "bench_numbers", "group": "numbers", "name": "Workshop and vessel", "when": "live",
 		"tables": ["bench/BREW", "bench/TEMPER", "bench/TEMPER_RARITY", "bench/TEMPER_DENSITY", "bench/INSCRIBE", "bench/PREMIUM", "bench/EXCHANGE", "bench/EXCHANGE_STEPS", "vessel/BREW", "vessel/RAW", "vessel/CORE", "gear/CORE_RUNES"], "kinds": ["number"],
-		"names": {"EXCHANGE": "The Exchange: give this much, get that much; a trade this big asks first", "EXCHANGE_STEPS": "The Exchange's quick steps", "BREW": "Brewing costs", "TEMPER": "Tempering costs", "RAW": "Vessel: raw essence (share caught at a stair, raw essence a tincture takes)", "CORE": "Vessel: a core rune lasts (floors)", "CORE_RUNES": "Core runes", "PREMIUM": "The Rune Artist's premium (share of the materials; a fee for vessel work)"}},
+		"names": {"EXCHANGE": "The Exchange: give this much, get that much; a trade this big asks first", "EXCHANGE_STEPS": "The Exchange's quick steps", "BREW": "Brewing costs", "TEMPER": "Tempering costs", "RAW": "Vessel: raw essence (share caught at a stair, raw essence a tincture takes)", "CORE": "Vessel: a core rune lasts (floors)", "CORE_RUNES": "Core runes", "PREMIUM": RuneArtistName.NAME + "'s premium, the Rune Artist's (share of the materials; a fee for vessel work)"}},
 	{"id": "rewards", "group": "numbers", "name": "Wings, rewards and the Proving", "when": "floor",
 		"tables": ["wings/REWARD", "wings/WAVES", "wings/SECRET", "wings/FAIL_MODES", "vaults/RULES", "portals/RULES", "floors/SECRET_CONTENTS", "proving/PRIZE", "proving/CAST_DOWN", "mirror/ROOM", "mirror/PRIZE"], "kinds": ["number"],
 		"names": {"ROOM": "Mirror rooms", "PRIZE": "Prizes"}},

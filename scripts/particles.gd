@@ -87,6 +87,8 @@ static var PRESETS := {
 	"mote": {"color": Color(0.9, 0.9, 1.0), "count": 4, "speed": 80.0, "life": 0.6, "size": 2.4, "gravity": -20.0, "drag": 2.0, "spread": 3.14, "blend": "add", "shape": "dot"},
 	# --- an enchanted weapon's streams ---
 	"ember": {"color": Color(1.0, 0.55, 0.25), "count": 1, "speed": 16.0, "life": 0.9, "size": 2.2, "gravity": -34.0, "drag": 1.2, "spread": 3.14, "blend": "add", "shape": "dot", "rate": 9.0, "jitter": 2.0},
+	# (the train's Arena car, arena_car.gd: dust drifting slowly in a hanging lamp's light)
+	"lamp_dust": {"color": Color(1.0, 0.86, 0.62, 0.55), "count": 1, "speed": 7.0, "life": 3.2, "size": 1.4, "gravity": -3.0, "drag": 0.4, "spread": 3.14, "blend": "add", "shape": "dot", "rate": 2.5, "jitter": 70.0},
 	"drip": {"color": Color(0.45, 0.78, 0.9), "count": 1, "speed": 5.0, "life": 0.65, "size": 1.9, "gravity": 190.0, "drag": 0.4, "spread": 3.14, "blend": "add", "shape": "dot", "rate": 4.0, "jitter": 2.0},
 	"wisp": {"color": Color(0.8, 0.92, 1.0), "count": 1, "speed": 20.0, "life": 1.1, "size": 3.0, "gravity": -6.0, "drag": 1.4, "spread": 3.14, "blend": "add", "shape": "dot", "rate": 5.0, "jitter": 3.0},
 	"shimmer": {"color": Color(0.9, 0.4, 0.45), "count": 1, "speed": 5.0, "life": 0.3, "size": 1.8, "drag": 2.0, "spread": 3.14, "blend": "add", "shape": "dot", "rate": 70.0, "jitter": 1.0},

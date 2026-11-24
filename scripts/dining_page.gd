@@ -19,8 +19,16 @@ const Art := preload("res://scripts/train_art.gd")
 const Bonds := preload("res://scripts/bonds.gd")
 const Towers := preload("res://scripts/towers.gd")
 
-## A seated climber's size (a computer, a phone).
+## A seated climber's size (a computer, a phone) at its smallest: the
+## tables draw them as big as the car has room for (seats()), up to
+## DINER_MAX times this, and shrink them to fit when many sit down.
 const DINER := [Vector2(104, 122), Vector2(80, 94)]
+const DINER_MAX := 2.3
+## A single row (or fewer rows) is kept while it's at least this share of
+## the biggest size more rows would allow (three sit side by side, not two over one).
+const ROW_KEEP := 0.8
+const PLACARD_W := [300.0, 390.0]  # the placard's widest (a phone, a computer)
+const SEAT_GAP := [6.0, 10.0]
 
 var tp  # train_page.gd
 var m  # menu.gd
@@ -56,11 +64,12 @@ func build(root: Node) -> void:
 	var row: HBoxContainer = tp._main_row(root)
 	var tables: VBoxContainer = tp._furnish(row, "tables")
 	tp._tag(tables, Dining.TEXT["tables_short"] if small else Dining.TEXT["tables"])
-	var cols := 3
+	var fit := seats(people.size())
+	var cols: int = fit["cols"]
 	var grid: GridContainer = tp._grid(tables, cols)
-	grid.add_theme_constant_override("h_separation", 6 if small else 10)
-	grid.add_theme_constant_override("v_separation", 6 if small else 10)
-	var sz: Vector2 = DINER[1 if small else 0]
+	grid.add_theme_constant_override("h_separation", int(SEAT_GAP[0 if small else 1]))
+	grid.add_theme_constant_override("v_separation", int(SEAT_GAP[0 if small else 1]))
+	var sz: Vector2 = fit["size"]
 	for r in people:
 		var d := Diner.new()
 		d.setup(r, Dining.attitude(prof, r))
@@ -72,10 +81,10 @@ func build(root: Node) -> void:
 		d.pressed.connect(_talk_to.bind(String(r.get("id", ""))))
 		grid.add_child(d)
 	if people.is_empty():
-		tp._note(tables, Dining.TEXT["nobody"], 3.0 * sz.x)
+		tp._note(tables, Dining.TEXT["nobody"], 3.0 * DINER[1 if small else 0].x)
 	# The placard: the talk.
 	var plac := TrainView.Furnish.new("placard", small)
-	plac.custom_minimum_size.x = minf(300.0 if small else 390.0, maxf(220.0, tp._area_w() - 3.0 * sz.x - 70.0))
+	plac.custom_minimum_size.x = _placard_w()
 	plac.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	row.add_child(plac)
 	var sc: ScrollContainer = tp._card_scroll(plac)
@@ -97,6 +106,50 @@ func build(root: Node) -> void:
 		for b in col.find_children("*", "BaseButton", true, false):
 			b.custom_minimum_size.y = maxf(b.custom_minimum_size.y, 36.0)
 	m.details = null
+
+
+## The car's area for its things (the room inside its margins).
+func _area() -> Vector2:
+	var r = tp.view.rooms.get("dining") if tp.view != null else null
+	return r.area.size if r != null and r.area.size.x > 0.0 else Vector2(1000, 600)
+
+
+func _placard_w() -> float:
+	var small: bool = tp._small()
+	return clampf(_area().x * 0.32, 220.0, PLACARD_W[0 if small else 1])
+
+
+## How the `n` climbers sit: {"cols", "rows", "size"}, as big as the room
+## beside the placard allows (the Entity's tip over the car taken off its
+## height), at most DINER_MAX times their smallest size and never smaller;
+## a single row kept while it's nearly as big (ROW_KEEP). More climbers,
+## smaller each, so they never run under the placard or off the car.
+func seats(n: int) -> Dictionary:
+	var small: bool = tp._small()
+	var base: Vector2 = DINER[0]
+	var least: Vector2 = DINER[1 if small else 0]
+	var area := _area()
+	var f := 0.75 if small else 1.0
+	var gap: float = SEAT_GAP[0 if small else 1]
+	var row_gap := 14.0 if small else 26.0
+	var w := area.x - _placard_w() - row_gap - 28.0 * f - 24.0
+	var h := area.y - (70.0 if String(tp.tips.get("dining", "")) != "" else 0.0) - 26.0 * f - 24.0 - 16.0
+	var best := {"cols": mini(3, maxi(1, n)), "rows": 1, "k": 0.0}
+	var options: Array = []
+	for cols in range(1, maxi(1, n) + 1):
+		var rows := int(ceil(float(maxi(1, n)) / cols))
+		var k := minf((w - gap * (cols - 1)) / cols / base.x, (h - gap * (rows - 1)) / rows / base.y)
+		options.append({"cols": cols, "rows": rows, "k": minf(k, DINER_MAX)})
+	for o in options:
+		if o["k"] > best["k"]:
+			best = o
+	for o in options:
+		if o["rows"] < best["rows"] and o["k"] >= best["k"] * ROW_KEEP:
+			best = o
+	var size: Vector2 = (base * float(best["k"])).floor()
+	if size.x < least.x:
+		size = least
+	return {"cols": best["cols"], "rows": best["rows"], "size": size}
 
 
 func _reset() -> void:
@@ -383,15 +436,22 @@ func _bye() -> void:
 
 
 ## A seated climber: drawn behind a laid table in their own look and gear
-## (rivals.gd look_of, appearance.gd draw_front), a lamp on the cloth, their
-## marks as small gems on the brass name plate. Gilt-edged when you're
-## talking with them; a cold one sits in a cooler light.
+## (rivals.gd look_of, appearance.gd draw_front), their marks glowing on
+## them in their bonds' colours (brighter with each step), a lamp on the
+## cloth, a plate and a glass, their marks as small gems on the brass name
+## plate. Drawn to the size the tables give it (bigger when few sit down).
+## Gilt-edged when you're talking with them; a cold one sits in a cooler light.
 class Diner extends Button:
 	const UI := preload("res://scripts/ui.gd")
 	const Art := preload("res://scripts/train_art.gd")
 	const Appearance := preload("res://scripts/appearance.gd")
 	const Rivals := preload("res://scripts/rivals.gd")
+	const Bonds := preload("res://scripts/bonds.gd")
+	## Where each mark sits on the front figure (as the climber screen's: menu.gd SPOTS).
+	const SPOTS := {"brow": Vector2(0, -110), "throat": Vector2(0, -77), "heart": Vector2(-11, -47),
+		"back": Vector2(24, -36), "hand": Vector2(-50, 9), "legs": Vector2(-11, 62)}
 	var rec := {}
+	var marks: Array = []  # [part, colour, step]
 	var look := {}
 	var mood := "plain"
 	var on := false
@@ -402,6 +462,7 @@ class Diner extends Button:
 		mood = att
 		look = Rivals.look_of(r)
 		cols = (r.get("bonds", []) as Array).map(func(b): return Rivals.bond_color(String(b[0])))
+		marks = (r.get("bonds", []) as Array).map(func(b): return [String(b[1]), Rivals.bond_color(String(b[0])), int(b[2])])
 		text = ""
 		flat = true
 		clip_contents = true
@@ -414,23 +475,41 @@ class Diner extends Button:
 		mouse_exited.connect(queue_redraw)
 		focus_entered.connect(queue_redraw)
 		focus_exited.connect(queue_redraw)
+		resized.connect(queue_redraw)
+
+	## How big the figure is drawn (pixels a unit of its frame; for the tests).
+	func figure_scale() -> float:
+		return (size.y * 0.6 - 4.0) / 150.0
 
 	func _draw() -> void:
 		var s := size
+		var z := s.x / 104.0  # (its parts scale with it: 1 at its smallest on a computer)
 		var lit: bool = on or has_focus() or is_hovered()
 		var b := UI.Draw.Batch.new()
-		var plate_h := clampf(s.y * 0.17, 14.0, 20.0)
+		var plate_h := clampf(s.y * 0.15, 14.0, 26.0)
 		var table_y := s.y * 0.6
-		var lamp := Vector2(s.x * 0.8, table_y - 2.0)
+		var lamp := Vector2(s.x * 0.8, table_y - 2.0 * z)
 		# The lamp's warm light on the wall behind.
 		var warm := Color(1.0, 0.78, 0.45) if mood != "cold" else Color(0.65, 0.75, 0.95)
-		Art.light(b, lamp + Vector2(0, -12), Vector2(s.x * 0.6, s.y * 0.45), Color(warm, 0.16 if lit else 0.1))
+		Art.light(b, lamp + Vector2(0, -12.0 * z), Vector2(s.x * 0.6, s.y * 0.45), Color(warm, 0.16 if lit else 0.1))
 		b.flush(self)
-		# The climber, from the waist up, behind the table.
-		var k := (table_y - 4.0) / 150.0
+		# The climber, from the waist up, behind the table; their marks
+		# glowing on them in their bonds' colours (brighter with each step).
+		var k := figure_scale()
 		draw_set_transform(Vector2(s.x * 0.42, table_y + 6.0 * k), 0.0, Vector2(k, k))
 		var fb := UI.Draw.Batch.new()
+		fb.contact(Vector2(0, -2.0), 54.0, 0.3, 0.3)
 		Appearance.draw_front(fb, look)
+		for mk in marks:
+			var at: Vector2 = SPOTS.get(mk[0], Vector2.ZERO)
+			if at.y > 0.0:
+				continue  # (under the table)
+			var step := clampi(int(mk[2]), 1, 5)
+			UI.glow_into(fb, at, 20.0 + 5.0 * step, mk[1], 1.8 + 0.5 * step)
+			fb.dot(at, 6.0, Color(UI.OUTLINE, 0.9))
+			fb.dot(at, 4.8, Color(mk[1]).darkened(0.2))
+			fb.dot(at, 2.6, Color(mk[1]).lightened(0.35))
+			fb.dot(at + Vector2(-1.2, -1.2), 1.4, Color(1, 1, 1, 0.8))
 		fb.flush(self)
 		draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
 		var t := UI.Draw.Batch.new()
@@ -439,36 +518,39 @@ class Diner extends Button:
 		t.rect(cloth.grow(1.0), Art.OUTLINE)
 		Art.vgrad(t, cloth, Color(0.93, 0.9, 0.84), Color(0.7, 0.66, 0.6))
 		t.rect(Rect2(cloth.position, Vector2(cloth.size.x, 3.0)), Color(1, 1, 1, 0.5))
-		var fx := cloth.position.x + 8.0
-		while fx < cloth.end.x - 4.0:
-			t.rect(Rect2(fx, cloth.position.y + 4.0, 1.0, cloth.size.y - 4.0), Color(0, 0, 0, 0.08))
-			fx += 9.0
-		var plate := Vector2(s.x * 0.36, table_y + 5.0)
-		t.polygon(UI._oval(plate, Vector2(12.0, 3.4), 16), Color(0.55, 0.52, 0.5))
-		t.polygon(UI._oval(plate, Vector2(10.0, 2.6), 16), Color(0.98, 0.97, 0.94))
-		var glass := Vector2(s.x * 0.58, table_y + 3.0)
-		t.polygon(PackedVector2Array([glass + Vector2(-3, -10), glass + Vector2(3, -10), glass + Vector2(2, -3), glass + Vector2(-2, -3)]), Color(0.7, 0.2, 0.25, 0.75))
-		t.rect(Rect2(glass + Vector2(-0.6, -3), Vector2(1.2, 3)), Color(0.85, 0.85, 0.9, 0.8))
+		var fx := cloth.position.x + 8.0 * z
+		while fx < cloth.end.x - 4.0 * z:
+			t.rect(Rect2(fx, cloth.position.y + 4.0 * z, maxf(1.0, z), cloth.size.y - 4.0 * z), Color(0, 0, 0, 0.08))
+			fx += 9.0 * z
+		var plate := Vector2(s.x * 0.36, table_y + 5.0 * z)
+		t.polygon(UI._oval(plate, Vector2(12.0, 3.4) * z, 16), Color(0.55, 0.52, 0.5))
+		t.polygon(UI._oval(plate, Vector2(10.0, 2.6) * z, 16), Color(0.98, 0.97, 0.94))
+		var glass := Vector2(s.x * 0.58, table_y + 3.0 * z)
+		t.polygon(PackedVector2Array([glass + Vector2(-3, -10) * z, glass + Vector2(3, -10) * z, glass + Vector2(2, -3) * z, glass + Vector2(-2, -3) * z]), Color(0.7, 0.2, 0.25, 0.75))
+		t.rect(Rect2(glass + Vector2(-0.6, -3) * z, Vector2(1.2, 3) * z), Color(0.85, 0.85, 0.9, 0.8))
+		t.rect(Rect2(glass + Vector2(-1.6, -9.4) * z, Vector2(0.9, 5.0) * z), Color(1, 1, 1, 0.35))
 		# The lamp: a brass foot, a fringed shade, the bulb's glow.
-		t.rect(Rect2(lamp + Vector2(-1.2, -12), Vector2(2.4, 12)), Art.GILT.darkened(0.2))
-		t.polygon(UI._oval(lamp, Vector2(5.0, 1.6), 10), Art.GILT.darkened(0.3))
-		var sh := lamp + Vector2(0, -16)
-		t.polygon(PackedVector2Array([sh + Vector2(-5, -4), sh + Vector2(5, -4), sh + Vector2(8, 4), sh + Vector2(-8, 4)]), Color(0.75, 0.32, 0.25) if mood != "cold" else Color(0.35, 0.45, 0.6))
-		t.rect(Rect2(sh + Vector2(-8, 4), Vector2(16, 1.2)), Art.GILT)
-		Art.light(t, sh + Vector2(0, 6), Vector2(14, 8), Color(warm, 0.35))
+		t.rect(Rect2(lamp + Vector2(-1.2, -12) * z, Vector2(2.4, 12) * z), Art.GILT.darkened(0.2))
+		t.polygon(UI._oval(lamp, Vector2(5.0, 1.6) * z, 10), Art.GILT.darkened(0.3))
+		var sh := lamp + Vector2(0, -16) * z
+		t.polygon(PackedVector2Array([sh + Vector2(-5, -4) * z, sh + Vector2(5, -4) * z, sh + Vector2(8, 4) * z, sh + Vector2(-8, 4) * z]), Color(0.75, 0.32, 0.25) if mood != "cold" else Color(0.35, 0.45, 0.6))
+		t.rect(Rect2(sh + Vector2(-8, 4) * z, Vector2(16, 1.2) * z), Art.GILT)
+		Art.light(t, sh + Vector2(0, 6) * z, Vector2(14, 8) * z, Color(warm, 0.35))
 		# The brass name plate, their marks as gems on it.
 		var pr := Rect2(4.0, s.y - plate_h - 2.0, s.x - 8.0, plate_h)
 		t.rect(pr.grow(1.0), Art.OUTLINE)
 		Art.vgrad(t, pr, Art.GILT.darkened(0.15) if lit else Art.GILT.darkened(0.45), Art.GILT.darkened(0.6))
-		var gx := pr.end.x - 6.0
+		var gr := plate_h * 0.16
+		var gx := pr.end.x - gr * 2.2
 		for c in cols:
-			t.circle(Vector2(gx, pr.get_center().y), 3.0, Art.OUTLINE, 10)
-			t.circle(Vector2(gx, pr.get_center().y), 2.2, c, 10)
-			gx -= 7.0
+			t.circle(Vector2(gx, pr.get_center().y), gr + 0.8, Art.OUTLINE, 10)
+			t.circle(Vector2(gx, pr.get_center().y), gr, c, 10)
+			t.circle(Vector2(gx - gr * 0.3, pr.get_center().y - gr * 0.3), gr * 0.35, Color(1, 1, 1, 0.5), 6)
+			gx -= gr * 2.4
 		if lit:
 			var edge := Rect2(Vector2.ZERO, s).grow(-1.0)
 			t.path(PackedVector2Array([edge.position, Vector2(edge.end.x, edge.position.y), edge.end, Vector2(edge.position.x, edge.end.y)]), Color(UI.GILT, 0.9 if on else 0.55), 1.6, true)
 		t.flush(self)
 		var f := UI.font("display")
-		var room := pr.size.x - 10.0 - 7.0 * cols.size()
+		var room := pr.size.x - 10.0 - gr * 2.4 * cols.size()
 		UI.draw_text(self, f, Vector2(pr.position.x + 5.0, pr.end.y - plate_h * 0.25), String(rec.get("name", "")), HORIZONTAL_ALIGNMENT_LEFT, room, int(plate_h * 0.8), Color(0.12, 0.08, 0.05) if lit else Color(0.98, 0.9, 0.7))
