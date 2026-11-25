@@ -4,7 +4,7 @@ extends "res://scripts/mirror.gd"
 ## In a DUEL it fights you as your mirror image does (mirror.gd: its
 ## weapon's swing chain, rolls, a guard, and a spell for each of up to two
 ## of its marks, every attack telegraphed and glinting), but drawn as a
-## climber of its own (its look and gear, its marks glowing on its body),
+## climber of its own (its look and gear; no marks drawn on its body),
 ## and its spells leave its bond's state on you when they land (reactions.gd
 ## CLIMBER). It never dies: at its yield share of health it yields
 ## (rivals.gd on_yield).
@@ -374,14 +374,7 @@ func _draw() -> void:
 		_draw_rolled(b)
 	else:
 		draw_climber(b, look, _pose(f, sd, t))
-	for m in marks:
-		var at := _mark_at(String(m[0]), f, sd)
-		var mc: Color = m[1]
-		b.dot(at, 3.2, Color(Palette.OUTLINE, 0.8))
-		b.dot(at, 2.3, mc)
-		for i in int(m[2]):
-			var a := at.angle() + PI + (float(i) - (float(m[2]) - 1.0) / 2.0) * 0.5
-			b.line(at + Vector2.from_angle(a) * 3.0, at + Vector2.from_angle(a) * 6.0, Color(mc, 0.9), 1.2)
+	# (No marks drawn on a rival's body: the owner's choice. Their spells still show their essence.)
 	var fl := clampf(flash / 0.12, 0.0, 1.0) * 0.6
 	if fl > 0.0:
 		for i in b.cols.size():

@@ -1133,7 +1133,7 @@ func _begin_basics(from: int) -> void:
 
 
 func _skip_basics() -> void:
-	_again("basics:basics", Tutorial.skip(_prof()), "ui_confirm", "begin")
+	m.ask(String(Tutorial.TEXT["skip_warn"]), String(Tutorial.TEXT["skip_confirm"]), func(): _again("basics:basics", Tutorial.skip(_prof()), "ui_confirm", "begin"), true)
 
 
 func _redraw_rail() -> void:
