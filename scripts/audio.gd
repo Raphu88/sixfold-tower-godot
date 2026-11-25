@@ -1,13 +1,15 @@
 extends Node
 ## Plays the game's sounds and music. The sounds are recorded CC0 effects,
 ## layered and levelled by tools/build_audio.py; sound_bank.gd lists them.
+## The music director (music.gd) says which track plays where; this plays
+## it, crossfading from one to the next, under each place's ambience.
 ## Each sound can have several variants; one is picked at random, with a
 ## little pitch variance, so repeats never sound identical.
 
 const Bank := preload("res://scripts/sound_bank.gd")
+const Music := preload("res://scripts/music.gd")
 
 const MASTER_DB := 0.0
-const MUSIC_DB := -12.0
 const AMBIENCE_DB := -17.0
 const NO_STACK_MS := 40  # the same sound twice at once only gets louder
 const UI_GAP_MS := 70  # menu sounds share one gap, so opening a page doesn't click twice
@@ -29,7 +31,15 @@ var voice_start: Array = []  # per player: when it started (msec)
 var voice_fade: Array = []  # per player: a fade-out tween, or null
 var last_played := {}
 var last_variant := {}
-var music: AudioStreamPlayer
+var music: AudioStreamPlayer  # the track playing now (music.gd's mood picks it)
+## Track name -> {player, level (0..1: its share of the crossfade), target,
+## rate (level a second), db (its level now), db_to, db_rate}.
+var tracks := {}
+var mood := ""  # the mood playing (music.gd MOODS)
+var director = Music.new()
+var director_on := true  # (tests turn it off to set moods themselves)
+var _look_t := 0.0
+var _music_us := 0
 var ambience: AudioStreamPlayer
 var ambience_key := "ambience"  # which loop plays: "ambience", or "ambience_<tower>" / "ambience_train"
 var music_on := true
@@ -52,7 +62,8 @@ func _ready() -> void:
 				list.append(s)
 		streams[sound] = list
 	ambience = _loop_player(Bank.MUSIC.get("ambience", ""), AMBIENCE_DB)
-	music = _loop_player(Bank.MUSIC.get("music", ""), MUSIC_DB)
+	_music_us = Time.get_ticks_usec()
+	set_mood("menu", 0.0)  # (the title shows first; the director looks from the next frame)
 
 
 func _loop_player(path: String, db: float) -> AudioStreamPlayer:
@@ -89,9 +100,121 @@ func set_levels(music_frac: float, sound_frac: float) -> void:
 
 
 func _apply_music() -> void:
-	var off := not music_on or music_level <= 0.01
-	music.volume_db = -80.0 if off else MUSIC_DB + linear_to_db(music_level)
+	for name in tracks:
+		_track_volume(tracks[name])
 	ambience.volume_db = _ambience_db()
+
+
+func music_muted() -> bool:
+	return not music_on or music_level <= 0.01
+
+
+# --- the music: moods and crossfades (music.gd picks the mood) ---------------
+
+## Plays a mood's track at its level (music.gd MOODS), crossfading from what
+## plays now over `fade_time` seconds (-1: music.gd's fade for the change).
+## A track faded out pauses where it was and carries on from there when it
+## comes back; the story's starts again from its six tolls (music.gd RESTART).
+func set_mood(new_mood: String, fade_time := -1.0) -> void:
+	if not Music.MOODS.has(new_mood) or new_mood == mood:
+		return
+	var fade := Music.fade_time(mood, new_mood) if fade_time < 0.0 else fade_time
+	mood = new_mood
+	var want: Dictionary = Music.MOODS[new_mood]
+	var name := String(want["track"])
+	for other in tracks:
+		if other != name:
+			_fade_track(tracks[other], 0.0, fade)
+	var tr: Dictionary = _track(name)
+	if tr.is_empty():
+		music = null
+		return
+	var p: AudioStreamPlayer = tr["player"]
+	if float(tr["level"]) <= 0.0:
+		tr["db"] = float(want["db"])
+		if name in Music.RESTART or not (p.playing or p.stream_paused):
+			p.stream_paused = false
+			p.play(0.0)
+		else:
+			p.stream_paused = false  # (carries on where it was left)
+	tr["db_to"] = float(want["db"])
+	tr["db_rate"] = absf(float(want["db"]) - float(tr["db"])) / maxf(fade, 0.001)
+	_fade_track(tr, 1.0, fade)
+	music = p
+
+
+## A track's player, made the first time it's needed.
+func _track(name: String) -> Dictionary:
+	if tracks.has(name):
+		return tracks[name]
+	var path := String(Bank.MUSIC.get(name, ""))
+	var s = load(path) if path != "" else null
+	if s == null:
+		return {}
+	if "loop" in s:
+		s.loop = true  # (from its loop_offset, set on import: the story's tolls play once)
+	var p := AudioStreamPlayer.new()
+	p.stream = s
+	p.volume_db = -80.0
+	add_child(p)
+	tracks[name] = {"player": p, "level": 0.0, "target": 0.0, "rate": 1.0, "db": -12.0, "db_to": -12.0, "db_rate": 0.0}
+	return tracks[name]
+
+
+func _fade_track(tr: Dictionary, target: float, fade: float) -> void:
+	tr["target"] = target
+	tr["rate"] = 1.0 / maxf(fade, 0.001)
+	if fade <= 0.0:
+		tr["level"] = target
+		tr["db"] = tr["db_to"]
+		_settle(tr)
+	_track_volume(tr)
+
+
+## Each frame, in real time (slow motion and the paused game don't drag a
+## fade out), and the director's look a few times a second.
+func _process(_delta: float) -> void:
+	var now := Time.get_ticks_usec()
+	var dt := minf((now - _music_us) / 1000000.0, 0.25)
+	_music_us = now
+	for name in tracks:
+		var tr: Dictionary = tracks[name]
+		if float(tr["level"]) != float(tr["target"]) or float(tr["db"]) != float(tr["db_to"]):
+			tr["level"] = move_toward(float(tr["level"]), float(tr["target"]), float(tr["rate"]) * dt)
+			tr["db"] = move_toward(float(tr["db"]), float(tr["db_to"]), float(tr["db_rate"]) * dt)
+			_settle(tr)
+			_track_volume(tr)
+	if director_on:
+		_look_t -= dt
+		if _look_t <= 0.0:
+			_look_t = float(Music.RULES["check_every"])
+			set_mood(director.update(get_parent(), float(Music.RULES["check_every"])))
+
+
+## A track that has faded all the way out pauses (it carries on from there).
+func _settle(tr: Dictionary) -> void:
+	var p: AudioStreamPlayer = tr["player"]
+	if float(tr["level"]) <= 0.0 and float(tr["target"]) <= 0.0 and p.playing:
+		p.stream_paused = true
+
+
+## An equal-power crossfade: the two tracks together stay as loud through it.
+func _track_volume(tr: Dictionary) -> void:
+	var p: AudioStreamPlayer = tr["player"]
+	var share := sin(clampf(float(tr["level"]), 0.0, 1.0) * PI * 0.5)
+	if music_muted() or share <= 0.001:
+		p.volume_db = -80.0
+	else:
+		p.volume_db = float(tr["db"]) + linear_to_db(share) + linear_to_db(music_level)
+
+
+## The track heard now (the one fading in), or "".
+func track_playing() -> String:
+	for name in tracks:
+		var p: AudioStreamPlayer = tracks[name]["player"]
+		if float(tracks[name]["target"]) > 0.0 and p.playing and not p.stream_paused:
+			return name
+	return ""
 
 
 func _ambience_db() -> float:

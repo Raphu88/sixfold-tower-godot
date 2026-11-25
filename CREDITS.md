@@ -10,7 +10,9 @@ All sound effects and music are **CC0** (public domain) from [OpenGameArt.org](h
 | [80 CC0 RPG SFX](https://opengameart.org/content/80-cc0-rpg-sfx) | rubberduck | spells, slime, creature sounds, arrow thunks, rubble |
 | [100 CC0 SFX](https://opengameart.org/content/100-cc0-sfx) | rubberduck | slams, metal clangs, wood, gong |
 | [37 hits/punches](https://opengameart.org/content/37-hitspunches) | Independent.nu | punch and hit bodies |
-| [Evil temple Ambiance loop](https://opengameart.org/content/evil-temple-ambiance-loop) | HaelDB | background music (slowed to 85%, same pitch) |
+| [Fantasy: Rising Moon](https://opengameart.org/content/fantasy-rising-moon) | RandomMind | music: the title, the train and stations, and a climb's calm rooms (CC0) |
+| [Frost in the Northern Winter](https://opengameart.org/content/frost-in-the-northern-winter) | Kaiser (posted by The Oracle) | music: story moments (the introduction, the Regard, the Makers, the ending), cut to open with six tolls (CC0) |
+| [Great Labyrinth (Orchestral dungeon music)](https://opengameart.org/content/great-labyrinthorchestral-dungeon-music) | MintoDog | music: a climb's danger and the guardian's fight (CC0) |
 | [Dark Cavern Ambient](https://opengameart.org/content/dark-cavern-ambient) | Paul Wortmann | tower ambience |
 | [Medieval Sound Effects: Weapon Textures](https://opengameart.org/content/medieval-sound-effects-weapon-textures) | Still North Media (posted by MedicineStorm) | bow draw, nock and release, crossbow shot, reload and bolt, dagger and spear swings, blade draws |
 | [Fantasy Sound Effects (Tinysized SFX)](https://opengameart.org/content/fantasy-sound-effects-tinysized-sfx) | Vehicle (Jan Schupke) | dagger draw, pouch (pick-ups, inventory), spike trap scrape, gas hiss |

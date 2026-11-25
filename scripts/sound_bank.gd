@@ -260,7 +260,6 @@ const SFX := {
 }
 
 const MUSIC := {
-	"music": "res://assets/audio/music/music.ogg",
 	"ambience": "res://assets/audio/music/ambience.ogg",
 	"ambience_gryphon": "res://assets/audio/music/ambience_gryphon.ogg",
 	"ambience_kraken": "res://assets/audio/music/ambience_kraken.ogg",
@@ -269,4 +268,7 @@ const MUSIC := {
 	"ambience_firebird": "res://assets/audio/music/ambience_firebird.ogg",
 	"ambience_chimera": "res://assets/audio/music/ambience_chimera.ogg",
 	"ambience_train": "res://assets/audio/music/ambience_train.ogg",
+	"menu": "res://assets/audio/music/menu.ogg",
+	"story": "res://assets/audio/music/story.ogg",
+	"climb_intense": "res://assets/audio/music/climb_intense.ogg",
 }
