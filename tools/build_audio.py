@@ -3,7 +3,7 @@
 
     tools/fetch_audio_sources.sh .audio_sources
     python3 tools/build_audio.py .audio_sources
-    python3 tools/build_audio.py .audio_sources --only=music,burn   (only these)
+    python3 tools/build_audio.py .audio_sources --only=menu,burn    (only these)
 
 Each game sound is one or more variants (one is picked at random when it
 plays). Each variant layers recorded clips, optionally with a synthesised
@@ -503,8 +503,32 @@ AMBIENCE = {
 MUSIC = {
     # name: source, crossfade (seconds), and tempo: 1.0 as recorded, below 1
     # slower (0.85 plays at 85% speed, so 1/0.85 longer), at the same pitch
-    # (a time-stretch, not a slowed tape).
-    "music": {"src": "music/evil_temple.ogg", "fade": 4.0, "tempo": 0.85},
+    # (a time-stretch, not a slowed tape). Optional:
+    #   "end"        cut the recording here (seconds; the rest is dropped)
+    #   "cuts"       [[from, to], ...] stretches taken out (seconds in the
+    #                recording), each joined with a short crossfade
+    #   "loop_from"  where the loop goes back to (seconds in the built
+    #                track): what's before it plays once (an intro). The
+    #                end crossfades into the moment before it, and the ogg's
+    #                import gets loop_offset, so Godot jumps back there.
+    #                Without it the end crossfades into the start.
+    #   "fade": 0    the recording already loops seamlessly: kept whole
+    #   "q"          the ogg's quality (libvorbis -q:a; default 4). Music is
+    #                most of the web build's sound, so the soft tracks use 2.
+    # The music director (scripts/music.gd) picks which one plays where.
+    # Menus, the train and stations, and a climb's calm rooms: "Fantasy:
+    # Rising Moon" (RandomMind), whole, its reverb tail into its soft start.
+    "menu": {"src": "music/Rising_Moon_0.mp3", "fade": 6.0, "end": 218.0, "q": 2},
+    # Story moments: "Frost in the Northern Winter" (Kaiser). It opens with
+    # seven slow tolls, one every 3 s; the seventh (18-21 s) is cut, so the
+    # story opens with exactly six, then the pads, which loop (from 26 s in
+    # the built track) and never bring the tolls back.
+    "story": {"src": "music/01_frost_in_the_northern_winter.flac", "fade": 4.0, "cuts": [[17.9, 20.9]], "end": 136.0,
+              "loop_from": 26.0, "q": 2},
+    # A climb's danger (dens, crypts, guard posts, lock-ins, a fight, a horde)
+    # and the guardian: "Great Labyrinth" (MintoDog), made to loop: 118 bars
+    # of 3/4 at 160 bpm, kept whole so the loop stays on the beat.
+    "climb_intense": {"src": "music/great_labyrinth_bpm160.flac", "fade": 0.0, "q": 3},
     "ambience": {"src": "music/dark_cavern_ambient_001.ogg", "fade": 6.0, "tempo": 1.0},
 }
 
@@ -728,22 +752,61 @@ def stretch(path, sr, channels, tempo):
 def build_music(src_root, name, spec):
     """Crossfades the end into the start so the track loops without a seam.
     At another tempo the crossfade is stretched with it, so the loop is
-    exactly 1/tempo as long."""
+    exactly 1/tempo as long. With "loop_from" the start plays once and the
+    end crossfades into the moment before loop_from instead (see MUSIC)."""
     sr = 44100
     tempo = float(spec.get("tempo", 1.0))
     path = os.path.join(src_root, spec["src"])
     x = decode(path, sr, 2) if tempo == 1.0 else stretch(path, sr, 2, tempo)
+    if "end" in spec:
+        x = x[:int(spec["end"] / tempo * sr)]
+    # Stretches taken out, last first (so the earlier times still hold),
+    # each joined over a short crossfade inside the quiet before both ends.
+    for a, b in sorted(spec.get("cuts", []), reverse=True):
+        a, b = int(a / tempo * sr), int(b / tempo * sr)
+        c = int(0.3 * sr)
+        r = np.linspace(0, 1, c)[:, None]
+        x = np.concatenate([x[:a - c], x[a - c:a] * (1 - r) + x[b - c:b] * r, x[b:]])
     n = int(spec["fade"] / tempo * sr)
-    head, body, tail = x[:n], x[n:-n], x[-n:]
-    ramp = np.linspace(0, 1, n)[:, None]
-    looped = np.concatenate([body, tail * (1 - ramp) + head * ramp])
+    loop_offset = 0.0
+    if n <= 0:
+        looped = x  # (made to loop: kept whole)
+    elif "loop_from" in spec:
+        at = int(spec["loop_from"] * sr)
+        ramp = np.linspace(0, 1, n)[:, None]
+        looped = x.copy()
+        looped[-n:] = x[-n:] * (1 - ramp) + x[at - n:at] * ramp
+        loop_offset = at / sr
+    else:
+        head, body, tail = x[:n], x[n:-n], x[-n:]
+        ramp = np.linspace(0, 1, n)[:, None]
+        looped = np.concatenate([body, tail * (1 - ramp) + head * ramp])
     looped *= 10 ** ((-19 - 20 * np.log10(np.sqrt(np.mean(looped ** 2)) + 1e-12)) / 20)
     looped = np.tanh(looped * 1.05) / 1.05
     pcm = (np.clip(looped, -1, 1) * 32000).astype("<i2").tobytes()
     path = os.path.join(OUT_MUSIC, name + ".ogg")
     subprocess.run(["ffmpeg", "-v", "error", "-y", "-f", "s16le", "-ar", str(sr), "-ac", "2", "-i", "-",
-                    "-c:a", "libvorbis", "-q:a", "4", path], input=pcm, check=True)
+                    "-c:a", "libvorbis", "-q:a", str(spec.get("q", 4)), path], input=pcm, check=True)
+    _music_import(path, loop_offset)
     return "res://assets/audio/music/%s.ogg" % name
+
+
+def _music_import(path, loop_offset):
+    """The track's import settings: it loops, from loop_offset (seconds).
+    A new track gets an .import file asking for that (Godot fills in the
+    rest on import); an existing one has those two lines updated."""
+    imp = path + ".import"
+    want = {"loop": "true", "loop_offset": ("%.6f" % loop_offset).rstrip("0").rstrip(".") or "0"}
+    if not os.path.exists(imp):
+        open(imp, "w").write('[remap]\n\nimporter="oggvorbisstr"\ntype="AudioStreamOggVorbis"\n\n[params]\n\nloop=%s\nloop_offset=%s\n'
+                             % (want["loop"], want["loop_offset"]))
+        return
+    lines = open(imp).read().split("\n")
+    for i, line in enumerate(lines):
+        key = line.split("=")[0]
+        if key in want:
+            lines[i] = "%s=%s" % (key, want[key])
+    open(imp, "w").write("\n".join(lines))
 
 
 def _amb_clip(src_root, src, pitch, lp, hp):
