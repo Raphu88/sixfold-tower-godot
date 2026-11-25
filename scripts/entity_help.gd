@@ -599,7 +599,7 @@ static func _piece_facts(m, g, f: Dictionary) -> void:
 	f["versus"] = _versus(m, g)
 	var Pools = load("res://scripts/item_pool.gd")
 	if Pools.has_pool(g):
-		f["pool"] = String(Pools.TEXT["pool"] % [Pools.left(g), Pools.cap(g)]) + ": the bar along its top. A use draws on it first, then on the essence you carry; filter yours in to refill it, or hold the off-hand button to power it."
+		f["pool"] = String(Pools.TEXT["hover"]) % String(Pools.TEXT["pool"] % [Pools.left(g), Pools.cap(g)])
 
 
 static func _item_facts(id: String, f: Dictionary) -> void:

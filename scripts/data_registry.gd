@@ -271,7 +271,7 @@ const SECTIONS := [
 		"names": {"CHARGES": "Charges (how many, refill cost, numbers)", "AURA": "Auras (the Tide Shell)", "CRAFT": "Crafting a charm (Rune Artist)",
 			"SHOP": "Charms on the outfitter's rail", "LOOT": "Charms found in towers (chances)", "OLD_ITEMS": "Old consumables' refund", "BAG": "Bags: no bag, and when a big bag is heavy"}},
 	{"id": "item_pool_numbers", "group": "numbers", "name": "Items and their essence (own pools)", "when": "live",
-		"tables": ["item_pool/WEAPON", "item_pool/EDGE", "item_pool/POWER"], "kinds": ["number"],
+		"tables": ["item_pool/WEAPON", "item_pool/EDGE", "item_pool/POWER", "item_pool/REGEN"], "kinds": ["number"],
 		"names": {"WEAPON": "Enchanted weapons' pools (uses, essence a use)", "EDGE": "A finisher's edge, by essence", "POWER": "Powering an item (hold, essence, how much harder)"}},
 	{"id": "gear4_numbers", "group": "numbers", "name": "The off-hand, Summit Blades and deeds", "when": "live",
 		"tables": ["offhand/USES", "offhand/RULES", "summit_blades/BLADES", "summit_blades/AWAKEN", "summit_blades/RULES", "deeds/DEEDS", "deeds/RULES"], "kinds": ["number"],

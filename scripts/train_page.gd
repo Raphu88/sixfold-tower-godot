@@ -1143,6 +1143,8 @@ func _charge_lines(g) -> void:
 	m._detail_text(lines[0], UI.GOLD if full else UI.BAD.lerp(UI.GOLD, 0.4))
 	m._detail_text(lines[1], Color(Gear.color(g), 0.95))
 	m._detail_text(lines[2], UI.DIM)
+	if lines.size() > 3:
+		m._detail_text(lines[3], UI.DIM)  # (the tower's slow trickle: item_pool.gd regen_line)
 
 
 ## A charm the bench can craft: what it does, its charge, the price (and who

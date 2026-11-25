@@ -38,9 +38,10 @@ extends RefCounted
 ##           kind in its share), but not while a monster is after you (as
 ##           the Body tab's moves: body_move.gd hunted; at a camp, always).
 ##           On the train at the workshop bench's Charms counter, with
-##           crystals of its kind. Nothing else refills a pool (an enchanted
-##           pistol's chambers still fill themselves, as they always did, but
-##           its shots draw on the pool). A new climb doesn't refill it.
+##           crystals of its kind. Nothing else refills a pool but the
+##           tower's slow trickle below (an enchanted pistol's chambers
+##           still fill themselves, as they always did, but its shots draw
+##           on the pool). A new climb doesn't refill it.
 ##   POWER   pushes extra essence through for one stronger use. Hold the
 ##           off-hand button (POWER "hold" seconds): the wand in your free
 ##           off hand casts at once, powered; otherwise the enchanted weapon
@@ -49,6 +50,21 @@ extends RefCounted
 ##           carry (its kind first); a powered use hits "mult" times as hard
 ##           (its essence effect too), and pays for itself if the pool and
 ##           your carried essence are dry. A tap still casts a wand.
+## THE TOWER'S TRICKLE (REGEN): the owner's picture: "It uses its pool until
+## it is empty, at which point it starts taking essence from your body. If
+## no essence in your body is available, it slowly regenerates from the
+## tower." So a worn essence item (p.gear) regenerates only while it can't
+## fire otherwise: its own pool dry AND too little essence carried to pay
+## for a use (can_use false). Then, in a tower (a climb: not the train, the
+## arena, the practice room or a painter's try), the tower's essence seeps
+## in, REGEN "seconds" for each essence of the use (twice as quick in a
+## tower of the item's own essence: "other" is how much slower elsewhere;
+## a wild tower a little quicker: "wild"). One use back, it waits until
+## that use is spent, so it never fills past one use and never past full:
+## an item leaned on only this way fires its essence now and then (a 3
+## essence use: 36 seconds in its own tower, 72 elsewhere). It creates no
+## crystals and no banked essence. The seeping is kept on the record as
+## "regen" (essence so far; a record's copy, gear.gd rec, drops it).
 ## Slow growth: refills and power cost essence you would otherwise bank, and
 ## no pool grows; the numbers are small and plain data, easy to change.
 
@@ -56,7 +72,9 @@ const Gear := preload("res://scripts/gear.gd")
 const Weapons := preload("res://scripts/weapons.gd")
 const Essence := preload("res://scripts/essence.gd")
 const Charms := preload("res://scripts/charms.gd")  # (charms.gd loads this one only when needed)
+const Towers := preload("res://scripts/towers.gd")
 const BODY_MOVE := "res://scripts/body_move.gd"
+const WILD := "res://scripts/wild_towers.gd"
 
 ## An enchanted weapon's pool, by its kind (weapons.gd "kind"):
 ##   max     how many uses it holds when full
@@ -92,12 +110,23 @@ const EDGE_DEFAULT := "iron"
 ##   mult     how much harder the powered use hits
 static var POWER := {"hold": 0.5, "essence": 6.0, "mult": 1.5}
 
+## The tower's trickle into a dry item that can't fire otherwise (above):
+##   seconds  seconds for one essence to seep in, in a tower of the item's own essence
+##   other    how many times slower in a tower of another essence
+##   wild     how many times quicker in a wild tower (wild_towers.gd)
+static var REGEN := {"seconds": 12.0, "other": 2.0, "wild": 1.25}
+
 ## The words (cards, the HUD's help, the inventory, over the climber).
 static var TEXT := {
 	"pool": "Its own essence  ·  %d of %d uses",
 	"pool_full": "Its pool is full.",
-	"pool_dry": "Its pool is dry: each use now draws on the essence you carry.",
-	"pool_note": "Used first; when it's dry, a use draws on the essence you carry. Filter yours in to refill it: the inventory in the tower (no monster after you), or the workshop bench's Charms counter on the train. Hold the off-hand button to power its next use.",
+	"pool_dry": "Its pool is dry: each use now draws on the essence you carry; with none, the tower seeps a use back, slowly.",
+	"pool_note": "Used first; when it's dry, a use draws on the essence you carry, and with none, on a slow trickle from the tower. Filter yours in to refill it: the inventory in the tower (no monster after you), or the workshop bench's Charms counter on the train. Hold the off-hand button to power its next use.",
+	"regen": "Regenerates slowly from the tower, when it can't fire otherwise (faster in %s)",
+	"regen_any": "Regenerates slowly from the tower, when it can't fire otherwise",
+	"regen_back": "%s: a use seeps back from the tower",
+	"hud_regen": "Seeping back from the tower: %d%% of a use",
+	"hover": "%s: the bar along its top. A use draws on it first, then on the essence you carry, then on a slow trickle from the tower; filter yours in to refill it, or hold the off-hand button to power it.",
 	"edge": "%s: %s",
 	"shot": "%s: %s (a full draw)",
 	"bolt": "%s: %s (every bolt)",
@@ -282,6 +311,82 @@ static func keep_heirloom(main, g: Dictionary, was: int) -> void:
 	main.profile.save()
 
 
+# --- the tower's trickle (REGEN) -----------------------------------------------------------
+
+## Is the climber in a tower, where its essence can seep into an item? Not
+## on the train, in the arena or practice room, or a painter's try.
+static func in_tower(main) -> bool:
+	if main == null or main.get("player") == null or bool(main.get("on_train")):
+		return false
+	if main.has_method("practice_or_arena") and main.practice_or_arena():
+		return false
+	var tried = main.get("painter_try")
+	return not (tried is Dictionary and not tried.is_empty())
+
+
+## Seconds for one essence of the tower's to seep into this item here (0
+## where nothing seeps: not in a tower, or no pool).
+static func regen_seconds(main, g) -> float:
+	if not has_pool(g) or not in_tower(main):
+		return 0.0
+	var tk := String(Towers.TOWERS.get(String(main.get("tower")), {}).get("essence", ""))
+	var secs := float(REGEN["seconds"]) * (1.0 if tk == kind(g) else float(REGEN["other"]))
+	if load(WILD).is_wild(main.get("profile"), String(main.get("tower"))):
+		secs /= maxf(float(REGEN["wild"]), 0.01)
+	return maxf(secs, 0.01)
+
+
+## Is it seeping now: in a tower, its pool dry and too little carried to pay
+## for a use (the owner: "if no essence in your body is available").
+static func regenerating(main, g) -> bool:
+	return has_pool(g) and left(g) <= 0 and not can_use(main, g) and regen_seconds(main, g) > 0.0
+
+
+## How far the next use has seeped back, 0 to 1 (0 for none).
+static func regen_share(g) -> float:
+	if not (g is Dictionary) or not has_pool(g) or left(g) > 0 or per_use(g) <= 0:
+		return 0.0
+	return clampf(float(g.get("regen", 0.0)) / float(per_use(g)), 0.0, 1.0)
+
+
+## The tower's trickle into every worn essence item (player.gd, each tick).
+## A use back says so over the climber; the first seeping, the Entity explains.
+static func regen_tick(main, p, delta: float) -> void:
+	if p == null or not is_instance_valid(p) or not in_tower(main):
+		return
+	for slot in p.gear:
+		var g = p.gear[slot]
+		if not (g is Dictionary) or not has_pool(g):
+			continue
+		if left(g) > 0:
+			g.erase("regen")
+			continue
+		if not regenerating(main, g):
+			continue  # (it can still fire from the essence you carry: that comes first)
+		var was := float(g.get("regen", 0.0))
+		var got := was + delta / regen_seconds(main, g)
+		if was <= 0.0:
+			main.tip("item_pool_regen")
+		if got + 0.0001 < float(per_use(g)):
+			g["regen"] = got
+			continue
+		g.erase("regen")
+		g["charge"] = 1
+		keep_heirloom(main, g, 0)
+		main.fx_text(p.global_position + Vector2(0, -60), TEXT["regen_back"] % Gear.display(g), bar_color(g))
+
+
+## The card's line on the trickle: which tower it seeps quickest in.
+static func regen_line(g) -> String:
+	if not has_pool(g):
+		return ""
+	var k := kind(g)
+	for id in Towers.ORDER:
+		if String(Towers.TOWERS[id].get("essence", "")) == k:
+			return TEXT["regen"] % String(Towers.TOWERS[id]["name"]).replace("The ", "the ")
+	return TEXT["regen_any"]
+
+
 # --- filtering: refill ---------------------------------------------------------------------
 
 ## What refilling its pool costs, in essence (less your renown's cut).
@@ -461,6 +566,7 @@ static func weapon_lines(g) -> Array:
 		"gun":
 			out.append([TEXT["gun_dry"], col.lightened(0.2)])
 	out.append([TEXT["pool_full"] if full else (TEXT["pool_dry"] if left(g) <= 0 else TEXT["pool_note"]), Color(0.8, 0.78, 0.7)])
+	out.append([regen_line(g), Color(0.72, 0.7, 0.66)])
 	return out
 
 
@@ -471,12 +577,19 @@ static func bar_color(g) -> Color:
 
 
 ## A small flat bar of how full its pool is, into a Draw.Batch (the HUD,
-## touch buttons). Flat, as every HUD bar: no shading.
-static func bar_into(b, r: Rect2, g) -> void:
+## touch buttons). Flat, as every HUD bar: no shading. A use seeping back
+## from the tower shows as a faint fill; `live` (seeping now: regenerating)
+## makes the bar's empty part pulse faintly too.
+static func bar_into(b, r: Rect2, g, live := false) -> void:
 	if not has_pool(g):
 		return
 	b.rect(r.grow(1.0), Color(0, 0, 0, 0.7))
 	b.rect(r, Color(0.16, 0.14, 0.2, 0.9))
+	if live:
+		b.rect(r, Color(bar_color(g), _pulse()))
+	var seep := _seep_rect(r, g)
+	if seep.size.x > 0.0:
+		b.rect(seep, Color(bar_color(g), 0.45))
 	b.rect(Rect2(r.position, Vector2(r.size.x * share(g), r.size.y)), bar_color(g))
 
 
@@ -486,4 +599,20 @@ static func draw_bar(c: CanvasItem, r: Rect2, g) -> void:
 		return
 	c.draw_rect(r.grow(1.0), Color(0, 0, 0, 0.7))
 	c.draw_rect(r, Color(0.16, 0.14, 0.2, 0.9))
+	var seep := _seep_rect(r, g)
+	if seep.size.x > 0.0:
+		c.draw_rect(seep, Color(bar_color(g), 0.45))
 	c.draw_rect(Rect2(r.position, Vector2(r.size.x * share(g), r.size.y)), bar_color(g))
+
+
+## The faint part of the bar: the use seeping back (regen_share of one use).
+static func _seep_rect(r: Rect2, g) -> Rect2:
+	var k := regen_share(g)
+	if k <= 0.0 or cap(g) <= 0:
+		return Rect2()
+	return Rect2(r.position, Vector2(maxf(1.0, r.size.x * k / float(cap(g))), r.size.y))
+
+
+## A slow, faint pulse (seeping now).
+static func _pulse() -> float:
+	return 0.1 + 0.12 * (0.5 + 0.5 * sin(float(Time.get_ticks_msec()) * 0.004))

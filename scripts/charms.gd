@@ -11,7 +11,8 @@ extends RefCounted
 ##     that would turn your strike...). The charge is the charm's OWN
 ##     ESSENCE POOL (item_pool.gd, the rule every essence item follows): it
 ##     fires from the charm's pool first, and once that is spent, from the
-##     essence you carry (not yet banked). Nothing refills it on its own:
+##     essence you carry (not yet banked), and with none of that, the
+##     tower seeps a charge back, slowly (item_pool.gd REGEN). Otherwise
 ##     you refill it by FILTERING ESSENCE IN, on the train at the workshop
 ##     bench with crystals of the charm's kind, or in the tower from the
 ##     inventory, with essence you carry (not while a monster is after you).
@@ -121,7 +122,7 @@ static var OLD_ITEMS := {"wardbreaker": {"refund": {"blade": 10}}}
 static var TEXT: Dictionary = RuneArtistName.named({
 	"charge": "Charge  ·  %d of %d",
 	"charge_line": "%s: %s",
-	"charge_empty": "Spent: now its charge draws on the essence you carry. Filter essence in to refill it, at the workshop bench or from the inventory in a tower. Nothing refills it on its own.",
+	"charge_empty": "Spent: now its charge draws on the essence you carry. Filter essence in to refill it, at the workshop bench or from the inventory in a tower. Carry none, and the tower seeps a charge back, slowly.",
 	"charge_full": "Charged.",
 	"never_used": "A charm is never used up. Its passive is always on while you wear it.",
 	"refill": "Refill: %s",
@@ -293,7 +294,7 @@ static func charge_lines(g) -> Array:
 		return wl.map(func(l): return l[0])
 	var c: Dictionary = CHARGES[id]
 	return [TEXT["charge"] % [charges(g), charge_max(g)], TEXT["charge_line"] % [c["name"], c["desc"]],
-		TEXT["charge_full"] if missing(g) <= 0 else TEXT["charge_empty"]]
+		TEXT["charge_full"] if missing(g) <= 0 else TEXT["charge_empty"], _pool().regen_line(g)]
 
 
 # --- refilling ---------------------------------------------------------------------------
