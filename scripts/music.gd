@@ -5,7 +5,8 @@ extends RefCounted
 ##   menu     the title and its pages, a new climber's start, the train and
 ##            the stations: "Fantasy: Rising Moon"
 ##   story    the introduction's screens, the Regard (and its glimpse of the
-##            fracture), a Maker's meeting, the ending: "Frost in the
+##            fracture and the Makers in it), a Maker's meeting, the Makers'
+##            plea and the final meeting (story_scenes.gd), the ending: "Frost in the
 ##            Northern Winter", from its six tolls each time; when it's
 ##            over, what was playing before comes back where it left off
 ##   calm     a climb's quiet: Rising Moon again, softer, under the tower's
@@ -137,6 +138,8 @@ static func story_showing(main) -> bool:
 	var cs = main.get("climb_shape")
 	if cs != null and is_instance_valid(cs) and cs.ending_view != null and is_instance_valid(cs.ending_view):
 		return true
+	if cs != null and is_instance_valid(cs) and cs.story_view != null and is_instance_valid(cs.story_view):
+		return true  # (the Makers' plea, the final meeting: story_view.gd)
 	return false
 
 

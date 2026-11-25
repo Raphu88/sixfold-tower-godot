@@ -30,9 +30,13 @@ extends Node2D
 ##   The floor bot and the tests never roll into a barrier; tests turn
 ##   barriers on themselves (`barriers_on`, off in tests like the Proving).
 ## CAMPS: Items.CAMP_AFTER (after floors 3, 6 and 9), three cards each.
-## THE ENDING: once all six guardians have been beaten, the ending plays
-##   after the summit's victory (ENDING, placeholder words for the owner),
-##   then the same climber plays on.
+## THE STORY'S SCENES (story_scenes.gd): after the third guardian's summit
+##   the Makers' plea, after the sixth the final meeting and its choice
+##   (story_view.gd, start_story / end_story).
+## THE ENDING: once all six guardians have been beaten, the final meeting
+##   plays after the summit's victory, then the ending (its pages for the
+##   choice: story_scenes.gd ENDINGS; ENDING here only when the scenes are
+##   off), then the same climber plays on.
 ##
 ## Every word and number is here, in data, easy to rename or retune.
 
@@ -45,6 +49,7 @@ const Items := preload("res://scripts/items.gd")
 const Gear := preload("res://scripts/gear.gd")
 const Controls := preload("res://scripts/controls.gd")
 const Unbound := preload("res://scripts/unbound.gd")
+const Story := preload("res://scripts/story_scenes.gd")
 
 ## The first Regard opens this floor of the first climb.
 static var REGARD := {"floor": 6}
@@ -88,13 +93,15 @@ static var CONFRONT := {
 	"defy_none": "It finds nothing to take, and lets you go.",
 	"toll": 0.5,
 }
-## The ending: PLACEHOLDER words for the owner (each line is shown in turn).
+## The ending's plain page, shown only when there is no choice to tell
+## (the story's scenes off: story_scenes.gd has the real pages), and the
+## words under the last page and its prompt.
 static var ENDING := {
 	"title": "The Six Guardians",
 	"lines": [
-		"[Yours to write] All six guardians have been beaten.",
-		"[Yours to write] What the towers were for, and what comes now.",
-		"[Yours to write] The climber's story goes on.",
+		"All six guardians have been beaten.",
+		"All six wells run wild.",
+		"The climber's story goes on.",
 	],
 	"after": "You keep climbing. The towers still stand.",
 	"go_on": "to keep climbing",
@@ -158,6 +165,8 @@ var refusing := false  # a slip with no mark: the refusal shows, the horde waits
 var top_floor := 0  # the highest floor reached this climb (the death mark's scale)
 var barriers_on := not Engine.has_meta("sixfold_test")  # (off in tests unless a test turns them on)
 var ending_view: Control = null
+var story_view: Control = null  # the Makers' plea or the final meeting (story_view.gd)
+var final_deferred := false  # "Not yet" at the final meeting: it waits for another summit
 var _ending_frame := -1
 var _light := -1
 var over: Node2D  # drawn over the darkness: the barrier and its timer
@@ -219,6 +228,9 @@ func after_arrive() -> void:
 	if main.first_climb and main.floor_num == regard_floor() and main.regard.is_empty() and not main.in_camp:
 		main._begin_regard(false)
 		return
+	if Story.enabled() and Story.plea_due(main.profile) and not main.first_climb and not main.in_camp and main.regard.is_empty():
+		start_story("plea")  # (the third guardian's summit was missed: the plea comes at this stair)
+		return
 	if maker_owed():
 		main.profile.record["maker_owed"] = 0.0
 		main.profile.save()
@@ -239,7 +251,7 @@ func maker_owed() -> bool:
 func before_leaving() -> bool:
 	if Engine.get_process_frames() == _ending_frame:
 		return true  # (the press that closed the ending: once is enough)
-	if ending_view != null:
+	if ending_view != null or story_view != null:
 		return true
 	var rg: Dictionary = main.regard
 	if not rg.is_empty() and rg.get("mid", false):
@@ -248,8 +260,14 @@ func before_leaving() -> bool:
 	if not rg.is_empty() and rg.get("exit", false) and not rg.get("exit_chosen", false) and not main.camp_choosing:
 		_offer_exit()
 		return true
-	if not main.victory.is_empty() and ending_due():
-		show_ending()
+	if not main.victory.is_empty() and Story.enabled() and Story.plea_due(main.profile):
+		start_story("plea")  # (the third guardian beaten: the Makers ask the climber to stop)
+		return true
+	if not main.victory.is_empty() and ending_due() and not final_deferred:
+		if Story.enabled():
+			start_story("final")  # (the final meeting and its choice, then the ending)
+		else:
+			show_ending()
 		return true
 	return false
 
@@ -645,6 +663,7 @@ func refuse_now() -> void:
 	main._give_bonds()
 	refusing = true
 	main.regard = {"fell": false, "part": "", "id": "", "refused": true, "mid": true, "t": 0.0, "dark": main.fade > 0.5, "lines": TEXT["refused_lines"]}
+	Story.start_regard(main.regard, prof)  # (a climber's first Regard: the Makers watch the refusal)
 	main.banner = {}
 	main.player.set_physics_process(false)
 	for e in main.enemies():
@@ -728,6 +747,51 @@ func ending_due() -> bool:
 	return true
 
 
+## The Makers' council (story_view.gd): "plea" or "final". The game pauses.
+func start_story(kind: String) -> void:
+	if story_view != null or ending_view != null:
+		return
+	var layer := CanvasLayer.new()
+	layer.layer = 9  # over the HUD and the touch buttons, under the menu (10)
+	layer.process_mode = Node.PROCESS_MODE_ALWAYS
+	main.add_child(layer)
+	story_view = load("res://scripts/story_view.gd").new()
+	story_view.main = main
+	story_view.shape = self
+	story_view.kind = kind
+	layer.add_child(story_view)
+	if main.player != null:
+		main.player.velocity = Vector2.ZERO
+	get_tree().paused = true
+	main.sfx("maker_meeting", 1.0, 0.0, 0.0)
+	main.sfx("glint", 0.3, -4.0, 0.0)
+
+
+## The council over (story_view.gd finish): the Entity's word on the plea's
+## answer; the final meeting's choice goes on to the ending ("Not yet":
+## the summit's flow goes on, and the meeting waits for another summit).
+func end_story(kind: String, id: String) -> void:
+	if story_view == null:
+		return
+	var layer = story_view.get_parent()
+	story_view.queue_free()
+	if layer != null:
+		layer.queue_free()
+	story_view = null
+	get_tree().paused = false
+	main.tip("story_" + kind)  # (the Entity explains it, the first time)
+	if kind == "plea" and id != "":
+		main.story("plea_" + id)  # (its next line follows the answer: entity.gd STORY)
+	if kind == "final" and id in ["ascend", "fight"]:
+		show_ending()
+		return
+	if kind == "final":
+		final_deferred = true
+	if not main.victory.is_empty():
+		main.end_regard()  # (the summit's flow goes on: the heirloom, the train)
+		_ending_frame = Engine.get_process_frames()
+
+
 func show_ending() -> void:
 	if ending_view != null:
 		return
@@ -749,6 +813,10 @@ func end_ending() -> void:
 		return
 	main.profile.note("ending")
 	main.profile.save()
+	var chose := Story.choice(main.profile)
+	if chose != "":
+		main.story("after_" + chose)  # (the Entity's word on it, once: entity.gd STORY)
+		main.tip("story_" + chose)
 	var layer = ending_view.get_parent()
 	ending_view.queue_free()
 	if layer != null:
@@ -760,8 +828,15 @@ func end_ending() -> void:
 
 
 class EndingView extends Control:
+	## The ending, page by page (story_scenes.gd ending_pages: the choice, the
+	## Entity's truth, what comes after), each a picture over its words; the
+	## plain ENDING page when there's no choice. Enter, A, a click or a tap
+	## turns the page once its words are in; Skip (the corner, or Esc) ends it.
 	var shape
 	var t := 0.0
+	var clock := 0.0
+	var page := 0
+	var pages: Array = []
 	var _us := 0
 
 	func _ready() -> void:
@@ -769,58 +844,126 @@ class EndingView extends Control:
 		set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 		mouse_filter = Control.MOUSE_FILTER_STOP
 		_us = Time.get_ticks_usec()
+		pages = shape.Story.ending_pages(shape.main.profile)
+		if pages.is_empty():
+			pages = [{"title": String(shape.ENDING["title"]), "lines": shape.ENDING["lines"], "scene": "ring", "key": "plain"}]
+
+	func lines() -> Array:
+		return pages[page]["lines"]
+
+	func last() -> bool:
+		return page >= pages.size() - 1
 
 	func ready_to_go() -> bool:
-		return t > 1.2 + float(shape.ENDING["lines"].size()) * 0.6
+		return t > 1.2 + float(lines().size()) * 0.6
+
+	## Turns the page, or ends the ending on the last one.
+	func next() -> void:
+		if not ready_to_go():
+			return
+		if last():
+			shape.end_ending()
+			return
+		page += 1
+		t = 0.0
+		shape.main.sfx("ui_move", 0.6, -4.0, 0.0)
 
 	func _process(_d: float) -> void:
 		var now := Time.get_ticks_usec()
-		t += minf((now - _us) / 1000000.0, 0.1)
+		var dt := minf((now - _us) / 1000000.0, 0.1)
+		t += dt
+		clock += dt
 		_us = now
 		queue_redraw()
-		if ready_to_go() and (Input.is_action_just_pressed("ui_accept") or Input.is_action_just_pressed("attack")):
+		if shape.main.menu_open():
+			return
+		if Input.is_action_just_pressed("ui_cancel"):
 			shape.end_ending()
+		elif Input.is_action_just_pressed("ui_accept") or Input.is_action_just_pressed("attack"):
+			next()
 
 	func _gui_input(event: InputEvent) -> void:
 		var tap: bool = (event is InputEventScreenTouch and not event.pressed) or (event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_LEFT)
-		if tap and ready_to_go():
-			accept_event()
+		if not tap:
+			return
+		accept_event()
+		if pages.size() > 1 and skip_rect().has_point(event.position):
 			shape.end_ending()
+		else:
+			next()
+
+	func skip_rect() -> Rect2:
+		var vs := get_viewport_rect().size
+		var sm := vs.y < 520.0
+		var w := 74.0 if not sm else 60.0
+		return Rect2(Vector2(vs.x - w - 12.0, 10.0), Vector2(w, 30.0 if not sm else 26.0))
+
+	## Where the words of a page end (tests: it must fit above the prompt).
+	func words_bottom(vs: Vector2, pg := -1) -> float:
+		var p: Dictionary = pages[page if pg < 0 else pg]
+		var font := ThemeDB.fallback_font
+		var sm := vs.y < 520.0
+		var rr := minf(vs.y * 0.15, 90.0)
+		var y := vs.y * 0.3 + rr + (46.0 if not sm else 34.0)
+		var fs := 17 if not sm else 15
+		for l in p["lines"]:
+			y += UI.text_height(font, String(l), vs.x - 48.0, fs) + (8.0 if not sm else 5.0)
+		return y + (30.0 if not sm else 24.0)
 
 	func _draw() -> void:
 		var vs := get_viewport_rect().size
 		var font := ThemeDB.fallback_font
-		var a := clampf(t / 1.0, 0.0, 1.0)
-		draw_rect(Rect2(Vector2.ZERO, vs), Color(0.01, 0.008, 0.02, 0.96 * a))
-		# Six guardians' sigils in a ring: each tower's colour, lit one by one.
+		var sm := vs.y < 520.0
+		var a := clampf(clock / 1.0, 0.0, 1.0)
+		var pa := clampf(t / 0.6, 0.0, 1.0)
+		draw_rect(Rect2(Vector2.ZERO, vs), Color(0.01, 0.008, 0.02, a))  # (opaque once in: nothing of the summit behind the words)
 		var c := Vector2(vs.x * 0.5, vs.y * 0.3)
 		var rr := minf(vs.y * 0.15, 90.0)
-		var order: Array = shape.Towers.ORDER
-		for i in order.size():
-			var tw: Dictionary = shape.Towers.TOWERS[order[i]]
-			var col: Color = shape.Essence.color(String(tw.get("essence", "air")))
-			var lit := clampf((t - 0.3 - i * 0.15) / 0.4, 0.0, 1.0)
-			var at := c + Vector2.from_angle(-PI * 0.5 + TAU * i / float(order.size())) * rr
-			draw_circle(at, 13.0, Color(col, 0.18 * lit))
-			draw_circle(at, 7.0, Color(col.lightened(0.2), 0.85 * lit))
-			draw_arc(at, 13.0, 0.0, TAU, 24, Color(col, 0.6 * lit), 1.5, true)
-			draw_line(c, at, Color(col, 0.25 * lit), 1.0, true)
-		draw_circle(c, 5.0, Color(UI.GOLD, a))
-		var ty := c.y - rr - 40.0
-		UI.draw_label(self, Vector2(0, maxf(ty, 44.0)), String(shape.ENDING["title"]), 34, Color(UI.GOLD, a), HORIZONTAL_ALIGNMENT_CENTER, vs.x, 6)
-		var ly := c.y + rr + 46.0
-		var lines: Array = shape.ENDING["lines"]
-		for i in lines.size():
+		var p: Dictionary = pages[page]
+		var scene := String(p.get("scene", "ring"))
+		if scene == "ring":
+			# Six guardians' sigils in a ring: each tower's colour, lit one by one.
+			var order: Array = shape.Towers.ORDER
+			for i in order.size():
+				var tw: Dictionary = shape.Towers.TOWERS[order[i]]
+				var col: Color = shape.Essence.color(String(tw.get("essence", "air")))
+				var lit := clampf((t - 0.3 - i * 0.15) / 0.4, 0.0, 1.0)
+				var at := c + Vector2.from_angle(-PI * 0.5 + TAU * i / float(order.size())) * rr
+				draw_circle(at, 13.0, Color(col, 0.18 * lit))
+				draw_circle(at, 7.0, Color(col.lightened(0.2), 0.85 * lit))
+				draw_arc(at, 13.0, 0.0, TAU, 24, Color(col, 0.6 * lit), 1.5, true)
+				draw_line(c, at, Color(col, 0.25 * lit), 1.0, true)
+			draw_circle(c, 5.0, Color(UI.GOLD, a))
+		else:
+			shape.Story.draw_scene(self, scene, c, rr, t, pa, shape.main.profile)
+		var ty := c.y - rr - (40.0 if not sm else 30.0)
+		UI.draw_label(self, Vector2(0, maxf(ty, 40.0 if not sm else 32.0)), String(p.get("title", "")), 34 if not sm else 26, Color(UI.GOLD, pa), HORIZONTAL_ALIGNMENT_CENTER, vs.x, 6)
+		var ly := c.y + rr + (46.0 if not sm else 34.0)
+		var fs := 17 if not sm else 15
+		var ls: Array = p["lines"]
+		for i in ls.size():
 			var la := clampf((t - 1.0 - i * 0.6) / 0.5, 0.0, 1.0)
-			draw_string(font, Vector2(24, ly), String(lines[i]), HORIZONTAL_ALIGNMENT_CENTER, vs.x - 48.0, 17, Color(UI.TEXT, la))
-			ly += 26.0
-		var after := String(shape.ENDING["after"])
-		draw_string(font, Vector2(24, ly + 8.0), after, HORIZONTAL_ALIGNMENT_CENTER, vs.x - 48.0, 15, Color(UI.DIM, clampf((t - 1.0 - lines.size() * 0.6) / 0.5, 0.0, 1.0)))
+			var h := UI.text_height(font, String(ls[i]), vs.x - 48.0, fs)
+			UI.draw_text_lines(self, font, Vector2(24, ly), String(ls[i]), HORIZONTAL_ALIGNMENT_CENTER, vs.x - 48.0, fs, -1, Color(UI.TEXT, la))
+			ly += h + (8.0 if not sm else 5.0)
+		if last():
+			var after := String(shape.ENDING["after"])
+			draw_string(font, Vector2(24, ly + 8.0), after, HORIZONTAL_ALIGNMENT_CENTER, vs.x - 48.0, 15 if not sm else 13, Color(UI.DIM, clampf((t - 1.0 - ls.size() * 0.6) / 0.5, 0.0, 1.0)))
+		# Page dots, and Skip.
+		if pages.size() > 1:
+			for i in pages.size():
+				draw_circle(Vector2(24.0 + i * 14.0, vs.y - (27.0 if not sm else 19.0)), 3.0, Color(UI.GOLD, 0.9 if i == page else 0.3))
+			var sr := skip_rect()
+			draw_style_box(UI.panel(), sr)
+			var mm = shape.main
+			var label: String = String(shape.Story.TEXT["ending_skip"]) + ("" if mm.touch_active or mm.pad_active else " (Esc)")
+			UI.draw_text(self, font, Vector2(sr.position.x, sr.position.y + sr.size.y * 0.5 + 5.0), label, HORIZONTAL_ALIGNMENT_CENTER, sr.size.x, 13 if not sm else 12, UI.DIM)
 		if ready_to_go():
 			var m = shape.main
-			var pulse := 0.5 + 0.5 * sin(t * 4.0)
+			var pulse := 0.5 + 0.5 * sin(clock * 4.0)
 			var how: String = "Tap" if m.touch_active else (shape.Controls.pad_text("Press {a}", m.pad_ps) if m.pad_active else "Press Enter or click")
-			draw_string(font, Vector2(0, vs.y - 30.0), how + " " + String(shape.ENDING["go_on"]), HORIZONTAL_ALIGNMENT_CENTER, vs.x, 15, Color(UI.DIM, 0.5 + 0.5 * pulse))
+			var what := String(shape.ENDING["go_on"]) if last() else String(shape.Story.TEXT["ending_go_on"])
+			draw_string(font, Vector2(0, vs.y - (22.0 if not sm else 14.0)), how + " " + what, HORIZONTAL_ALIGNMENT_CENTER, vs.x, 15 if not sm else 13, Color(UI.DIM, 0.5 + 0.5 * pulse))
 
 
 # --- drawing -----------------------------------------------------------------------------

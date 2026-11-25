@@ -137,6 +137,10 @@ static var LINES := {
 ##   first_guardian   the first tower's guardian beaten (main.gd on_enemy_killed)
 ##   three_guardians  the third tower's guardian beaten: the Makers' plea is coming
 ##   final            arriving at the summit of the last tower whose guardian stands
+## And the story's scenes (story_scenes.gd), once each:
+##   plea_stop / plea_go / plea_silent   after the Makers' plea, by the answer
+##   plea_broken      a guardian beaten after telling the Makers you'd stop
+##   after_ascend / after_fight          after the ending, by the choice
 static var STORY := {
 	"train": {"marked": "There you are. Don't look for me in the window; you won't find me. Climb, come back, climb again. I'll keep you alive.", "unbound": ""},
 	"before_regard": {"marked": "The guardian will look at you soon. It will offer you a mark. Everyone takes it. You don't have to be everyone.", "unbound": ""},
@@ -148,6 +152,16 @@ static var STORY := {
 		"unbound": "They're afraid of you. Good. Don't let them see that you're afraid of them."},
 	"final": {"marked": "Whatever they offer you up there, ask what it cost them. Then ask what it cost me.",
 		"unbound": "This is where I couldn't go. You can. Finish it."},
+	"plea_stop": {"marked": "You told them you'd stop. They believed you. I didn't. Climb when you're ready.",
+		"unbound": "You told them you'd stop. They want to believe it. Let them."},
+	"plea_go": {"marked": "You said no to them. Do you know how long it's been since anyone did?",
+		"unbound": "Good. They're afraid now. Fear makes them careless."},
+	"plea_silent": {"marked": "Silence. Clever. They can't hold you to it.", "unbound": ""},
+	"plea_broken": {"marked": "Another guardian. You told them you'd stop. They noticed. So did I.", "unbound": ""},
+	"after_ascend": {"marked": "So you're one of them now. I hope it's lighter than it looks. It isn't.",
+		"unbound": "One of them. My army, gone over. Keep them honest, will you?"},
+	"after_fight": {"marked": "It's begun. Hear that? The world, remembering how to crack. Stay close.",
+		"unbound": "It's begun. You and me and six blades. The wells are ours now. Everyone's."},
 }
 
 ## The Archive's groups, in order: [id, name].
@@ -291,6 +305,22 @@ static var TIPS: Dictionary = RuneArtistName.named(OutfitterName.named({
 	"barrier_maker": {"group": "tower", "name": "A Maker's confrontation",
 		"tip": "One of them came for you. Answer it. Carefully.",
 		"more": "A Maker confronts a climber, marked or Unbound, who keeps slipping past the stairs' barriers. Choose an answer (left and right and confirm, its number, or a tap). Keep the rules and it lets you go; defy it and it takes half the essence you carry. Its words are not written yet."},
+	# The story's scenes (story_scenes.gd).
+	"story_regard": {"group": "tower", "name": "The Makers at the Regard",
+		"tip": "Three of them, at the edge of sight. The Makers. They came to look at you. They don't usually come.",
+		"more": "At your first Regard, after the guardian's glimpse of the fracture, the three Makers showed themselves for a moment: the Maker of Marks (the eye, pale cyan), the Maker of Towers (the trowel, amber) and the Maker of Creatures (the paw, rose). They made the marks, the towers and the monsters, and they watch every climb. A press skips it. You'll meet them properly later, if you climb far enough."},
+	"story_plea": {"group": "tower", "name": "The Makers' plea",
+		"tip": "They asked you to stop. Whatever you said, nothing is locked. They'll just remember.",
+		"more": "When the third tower's guardian falls, three wells run wild, and after that summit all three Makers meet you together. They ask you to stop. Answer with a card: I'll stop, I'll go on, or Tell me what you were (they tell their story, and the card becomes Say nothing). Each answer moves how interested each Maker is in you, and I'll have a word on it afterwards. Saying you'll stop never stops you: every tower stays open. They only remember. Ask me: The Makers' plea?"},
+	"story_final": {"group": "tower", "name": "The final meeting",
+		"tip": "You walked away from them. They'll wait at your next summit. So will I.",
+		"more": "Once all six guardians have fallen, after the summit the Makers meet you one last time, and they see me. Choose: Ascend (become a Maker, holding Making and Unmaking together; if you're Sworn, you take your own Maker's place), Fight (my war, with the Summit Blades: the wells stay wild), or Not yet (they wait for another summit). Ascend and Fight ask for a second press. Then the ending, and you play on. Ask me: The last choice?"},
+	"story_ascend": {"group": "tower", "name": "Ascended",
+		"tip": "A Maker, still climbing. The cities will bow, or hide. You keep everything you had.",
+		"more": "You chose to ascend at the final meeting. Your title shows under your name when no other title is worn. Nobles, diners and other climbers greet you as what you are now. Three small lights turn over your head. Everything else is as it was: the same climber, every tower open."},
+	"story_fight": {"group": "tower", "name": "The Breaker",
+		"tip": "The war's begun. The wells stay wild, all six. Everyone will feel it.",
+		"more": "You chose to fight at the final meeting. Every tower stays wild. Your title, the Breaker, shows under your name when no other title is worn, and the cities talk about the world cracking. Sparks of the six essences rise off you. Everything else is as it was: the same climber, every tower open."},
 	"ending": {"group": "tower", "name": "The ending",
 		"tip": "All six guardians. I wrote it all down. Keep going, if you like.",
 		"more": "Once all six towers' guardians have been beaten, the ending plays after the last summit. Then the same climber plays on: every tower stays open, and everything you have stays yours."},

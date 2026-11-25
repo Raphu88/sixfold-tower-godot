@@ -507,7 +507,17 @@ func _ready() -> void:
 func can_show() -> bool:
 	return main != null and main.player != null and not main.menu_open() and not main.title_showing() \
 		and not main.choosing_tower and main.fade < 0.05 \
-		and not (main.get("makers") != null and main.makers.quiet())  # (a Maker near: the Entity goes quiet)
+		and not (main.get("makers") != null and main.makers.quiet()) \
+		and not _story_on()  # (a Maker near: the Entity goes quiet)
+
+
+## The Makers' council or their moment at the Regard is showing (story_scenes.gd): the Entity waits.
+func _story_on() -> bool:
+	var cs = main.get("climb_shape")
+	if cs != null and is_instance_valid(cs) and cs.story_view != null and is_instance_valid(cs.story_view):
+		return true
+	var rg = main.get("regard")
+	return rg is Dictionary and load("res://scripts/story_scenes.gd").regard_active(rg)
 
 
 ## The sphere lingers while you play: not over the card screens, the Regard
