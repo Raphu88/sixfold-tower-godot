@@ -514,21 +514,23 @@ MUSIC = {
     #                Without it the end crossfades into the start.
     #   "fade": 0    the recording already loops seamlessly: kept whole
     #   "q"          the ogg's quality (libvorbis -q:a; default 4). Music is
-    #                most of the web build's sound, so the soft tracks use 2.
+    #                most of the web build's sound, so the tracks use 1.
+    #   "mono"       mixed down to one channel (half the size; the owner
+    #                asked to shrink the music for the phone).
     # The music director (scripts/music.gd) picks which one plays where.
     # Menus, the train and stations, and a climb's calm rooms: "Fantasy:
     # Rising Moon" (RandomMind), whole, its reverb tail into its soft start.
-    "menu": {"src": "music/Rising_Moon_0.mp3", "fade": 6.0, "end": 218.0, "q": 2},
+    "menu": {"src": "music/Rising_Moon_0.mp3", "fade": 6.0, "end": 218.0, "q": 1, "mono": True},
     # Story moments: "Frost in the Northern Winter" (Kaiser). It opens with
     # seven slow tolls, one every 3 s; the seventh (18-21 s) is cut, so the
     # story opens with exactly six, then the pads, which loop (from 26 s in
     # the built track) and never bring the tolls back.
     "story": {"src": "music/01_frost_in_the_northern_winter.flac", "fade": 4.0, "cuts": [[17.9, 20.9]], "end": 136.0,
-              "loop_from": 26.0, "q": 2},
+              "loop_from": 26.0, "q": 1, "mono": True},
     # A climb's danger (dens, crypts, guard posts, lock-ins, a fight, a horde)
     # and the guardian: "Great Labyrinth" (MintoDog), made to loop: 118 bars
     # of 3/4 at 160 bpm, kept whole so the loop stays on the beat.
-    "climb_intense": {"src": "music/great_labyrinth_bpm160.flac", "fade": 0.0, "q": 3},
+    "climb_intense": {"src": "music/great_labyrinth_bpm160.flac", "fade": 0.0, "q": 1, "mono": True},
     "ambience": {"src": "music/dark_cavern_ambient_001.ogg", "fade": 6.0, "tempo": 1.0},
 }
 
@@ -785,8 +787,10 @@ def build_music(src_root, name, spec):
     looped = np.tanh(looped * 1.05) / 1.05
     pcm = (np.clip(looped, -1, 1) * 32000).astype("<i2").tobytes()
     path = os.path.join(OUT_MUSIC, name + ".ogg")
-    subprocess.run(["ffmpeg", "-v", "error", "-y", "-f", "s16le", "-ar", str(sr), "-ac", "2", "-i", "-",
-                    "-c:a", "libvorbis", "-q:a", str(spec.get("q", 4)), path], input=pcm, check=True)
+    enc = ["-c:a", "libvorbis", "-q:a", str(spec.get("q", 4))]
+    if spec.get("mono", False):
+        enc = ["-ac", "1"] + enc  # (mixed down to one channel: half the size; background music on a phone)
+    subprocess.run(["ffmpeg", "-v", "error", "-y", "-f", "s16le", "-ar", str(sr), "-ac", "2", "-i", "-"] + enc + [path], input=pcm, check=True)
     _music_import(path, loop_offset)
     return "res://assets/audio/music/%s.ogg" % name
 
