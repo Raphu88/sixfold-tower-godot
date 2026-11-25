@@ -23,7 +23,9 @@ extends RefCounted
 ##   if       when the choice shows: on_train, in_play, marked, unbound,
 ##            sworn_known (one of the Sworn, a Maker met, or saved by one),
 ##            climbed (on the train after a climb), logged (events to tell),
-##            grown (marked, or Unbound: forcing works on either)
+##            grown (marked, or Unbound: forcing works on either),
+##            story_plea (the Makers' plea seen or due), story_final (all
+##            six guardians beaten, or the final meeting seen)
 ##   leave    choosing it ends the talk
 ##   act      ...and then does this: "tour:station" or "tour:train" (the
 ##            Entity's tour, tour.gd)
@@ -77,7 +79,7 @@ static var DIALOGUE: Dictionary = RuneArtistName.named(OutfitterName.named({
 	# to "how"'s choices.
 	"how": {"ask": "How do things work here?",
 		"lines": ["Which part? I'll keep it short.", "Ask. The rules are simpler than they look. Mostly."],
-		"choices": ["how_controls", "how_start", "how_grace", "how_training", "how_stamina", "how_essence", "how_marks", "how_burns", "how_new_mark", "how_part_fills", "how_dodge", "how_synergies", "how_renown", "how_travel", "how_titles", "how_contracts", "how_tourney", "how_manager", "how_climb", "how_first_mark", "how_mark_seal", "how_barrier", "how_fall", "how_belt", "how_wheel", "how_states", "how_handy", "how_charms", "how_workshop", "how_offhand", "how_item_pool", "how_gear", "how_summit", "how_deeds", "how_bags", "how_shop", "how_exchange", "how_ward", "how_secret", "how_portals", "how_aura", "how_vessel", "how_unbound", "how_passing", "how_nodes", "how_sealing", "how_drain", "how_sworn", "how_unbound_words", "how_unbound_techniques", "how_bestiary", "how_guardians", "how_wild", "how_rivals", "how_dining", "how_bets", "how_duels", "how_glows", "how_ways_down", "how_foes", "start", "bye"]},
+		"choices": ["how_controls", "how_start", "how_grace", "how_training", "how_stamina", "how_essence", "how_marks", "how_burns", "how_new_mark", "how_part_fills", "how_dodge", "how_synergies", "how_renown", "how_travel", "how_titles", "how_contracts", "how_tourney", "how_manager", "how_climb", "how_first_mark", "how_mark_seal", "how_barrier", "how_fall", "how_belt", "how_wheel", "how_states", "how_handy", "how_charms", "how_workshop", "how_offhand", "how_item_pool", "how_gear", "how_summit", "how_deeds", "how_bags", "how_shop", "how_exchange", "how_ward", "how_secret", "how_portals", "how_aura", "how_vessel", "how_unbound", "how_passing", "how_nodes", "how_sealing", "how_drain", "how_sworn", "how_unbound_words", "how_unbound_techniques", "how_bestiary", "how_guardians", "how_wild", "how_rivals", "how_dining", "how_bets", "how_duels", "how_glows", "how_ways_down", "how_foes", "how_plea", "how_final", "start", "bye"]},
 	"how_controls": {"ask": "What are the controls?", "fact": "controls",
 		"lines": ["{controls_how}", "{controls_list}", "Press H any time to show or hide this list in the corner of the screen. Settings & Controls lets you change any key."],
 		"choices": ["how", "bye"]},
@@ -268,6 +270,12 @@ static var DIALOGUE: Dictionary = RuneArtistName.named(OutfitterName.named({
 	"how_guardians": {"ask": "Do the guardians know each other?",
 		"lines": ["They do. Six towers, six guardians, and they talk when one of them falls. I can't tell you what they say; I don't hear it all. If the next one seems to know you before you've met, ask around. Climbers on the train and on the stairs hear more than I do, and the Noble hears everything."],
 		"choices": ["how_bestiary", "how", "bye"]},
+	"how_plea": {"ask": "The Makers' plea?", "if": "story_plea",
+		"lines": ["When the third guardian falls, three wells run wild, and the Makers meet you together after that summit. They ask you to stop. Three cards: I'll stop, I'll go on, or Tell me what you were; they tell it, and that card becomes Say nothing. Hover a card, or tap it once, and I'll tell you what I think of it. Stopping locks nothing: you can still climb, and they'll remember you said it. Each answer moves how each Maker sees you: the Maker of Marks likes order, the Maker of Creatures likes you going on, the Maker of Towers is torn."],
+		"choices": ["how_final", "how_sworn", "how", "bye"]},
+	"how_final": {"ask": "The last choice?", "if": "story_final",
+		"lines": ["When all six guardians have fallen, the Makers meet you after that summit, and for the first time they see me. Ascend: become a Maker, holding Making and Unmaking together; if you carry a Maker's secret bond, you take that Maker's place. Fight: my war, with the Summit Blades, and the wells stay wild. Or Not yet: they wait for your next summit. Ascend and Fight ask for a second press. Then the ending, a title, and you go on climbing as you are."],
+		"choices": ["how_plea", "how_wild", "how", "bye"]},
 	"how_wild": {"ask": "Wild towers?", "fact": "wild",
 		"lines": ["When a tower's guardian falls, its well runs wild. The tower stays open, but stranger. Every {storm_gap} seconds or so a storm gathers: rings light up on the floor, one under you, and strike {storm_warn} seconds later. Roll or step out; they strike monsters too, so lure them in. Its monsters have {wild_hp} and {wild_dmg}; its finds are a little richer, about {wild_essence} more essence from a kill and likelier gear. {wild_you} The engine's map marks every wild tower. {wild_count} Each one that runs wild loosens something in the world. Others will tell you more than I can."],
 		"choices": ["how_guardians", "how_burns", "how", "bye"]},
@@ -577,6 +585,14 @@ static func check(main, cond: String) -> bool:
 			return prof != null and (Sworn.is_sworn(prof) or load("res://scripts/makers.gd").has_met(prof) or (Unbound.is_on(prof) and int(Sworn.state(prof).get("rescued", 0)) > 0))
 		"climbed":
 			return bool(main.on_train) and prof != null and prof.climbs > 0
+		"story_plea":
+			# (the Makers' plea seen or due: story_scenes.gd)
+			var S = load("res://scripts/story_scenes.gd")
+			return prof != null and (S.state(prof).has("plea") or S.plea_due(prof))
+		"story_final":
+			# (all six guardians beaten, or the final meeting's choice made)
+			var S2 = load("res://scripts/story_scenes.gd")
+			return prof != null and (S2.choice(prof) != "" or prof.count("ending") > 0 or (main.has_method("guardians_beaten") and main.guardians_beaten() >= Towers.ORDER.size()))
 		"logged":
 			return not _log(main).is_empty()
 	return true

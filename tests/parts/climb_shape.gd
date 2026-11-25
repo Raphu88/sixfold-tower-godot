@@ -450,10 +450,9 @@ func _ending() -> void:
 	by.erase("chimera")
 	main.profile.record.erase("ending")
 	_check(not cs.ending_due(), "with one guardian left, no ending")
-	var placeholder := true
-	for l in CS.ENDING["lines"]:
-		placeholder = placeholder and String(l).begins_with("[Yours to write]")
-	_check(placeholder, "its words are placeholders for the owner, in a data table")
+	var Story = load("res://scripts/story_scenes.gd")
+	var written: bool = Story.ENDINGS.size() >= 6 and CS.ENDING["lines"].size() == 3 and not JSON.stringify(CS.ENDING).contains("[Yours to write]")
+	_check(written, "its words are in data tables for the owner (story_scenes.gd ENDINGS; the plain page here when the scenes are off)")
 
 
 # --- glimpses still come ----------------------------------------------------------------------

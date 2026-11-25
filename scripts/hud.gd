@@ -974,6 +974,11 @@ func _draw_regard(size: Vector2, font: Font) -> void:
 		# First, the guardian's glimpse of the last fracture (fracture.gd), skippable.
 		main.Fracture.draw(self, size, font, float(rg.get("gt", 0.0)), _say("Press Space, Enter or click", "Press {a}", "Tap") + " " + String(main.Fracture.TEXT["skip"]))
 		return
+	if main.StoryScenes.regard_active(rg):
+		# Then, the first time, the three Makers show themselves (story_scenes.gd), skippable.
+		main.StoryScenes.draw_regard(self, size, font, float(rg.get("mt", 0.0)), bool(rg.get("refused", false)),
+			_say("Press Space, Enter or click", "Press {a}", "Tap") + " " + String(main.StoryScenes.TEXT["regard_skip"]), main.profile)
+		return
 	if rg.get("refused", false):
 		_draw_refused(size, font)
 		return

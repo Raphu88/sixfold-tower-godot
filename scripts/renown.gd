@@ -528,9 +528,13 @@ static func title_name(id: String) -> String:
 	return String(TITLES.get(id, {}).get("name", ""))
 
 
-## The title worn, by name ("" for none).
+## The title worn, by name ("" for none). With none worn, the title the
+## story's ending gave, if any (story_scenes.gd TITLES: the Seventh Maker,
+## the Breaker...).
 static func worn_title(profile) -> String:
 	var id := worn_id(profile)
+	if id == "" and profile != null:
+		return load("res://scripts/story_scenes.gd").title_of(profile)
 	return title_name(id) if id != "" else ""
 
 
