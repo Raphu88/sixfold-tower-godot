@@ -29,7 +29,8 @@ extends RefCounted
 ## item_pool.gd, the rule every essence item follows) and refilled exactly
 ## as a charm's charge is: in the tower from the inventory, with essence you
 ## carry; on the train at the workshop bench's Charms counter, with crystals
-## of its kind. Nothing refills on its own. Holding the off-hand button
+## of its kind; dry, with none carried, the tower seeps a use back, slowly
+## (item_pool.gd REGEN). Holding the off-hand button
 ## powers the next use (a wand casts at once, powered: item_pool.gd POWER).
 ##
 ## The pieces themselves (names, slots, colours, how common) are gear.gd
@@ -87,7 +88,7 @@ static var TEXT: Dictionary = OutfitterName.named({
 	"two_hands": "Put away while a two-handed weapon or a bow is in hand",
 	"pool": "Essence pool · %d of %d uses",
 	"pool_line": "%s: %s",
-	"pool_refill": "Used first; dry, a use draws on the essence you carry. Spent uses come back only when you filter essence in (%d a use): the inventory in the tower, or the workshop bench's Charms counter.",
+	"pool_refill": "Used first; dry, a use draws on the essence you carry. Spent uses come back when you filter essence in (%d a use): the inventory in the tower, or the workshop bench's Charms counter. Carry none, and the tower seeps a use back, slowly.",
 	"pool_full": "Its pool is full.",
 	"blocked": "Blocked",
 	"guard_broken": "Guard broken",
@@ -212,6 +213,7 @@ static func card_lines(g) -> Array:
 	if String(d.get("use", "")) != "wand":
 		out.append([TEXT["pool_line"] % [pw.get("name", ""), pw.get("desc", "")], col])
 	out.append([TEXT["pool_full"] if full else TEXT["pool_refill"] % int(pw.get("refill", 0)), Color(0.8, 0.78, 0.7)])
+	out.append([ItemPool.regen_line(g), Color(0.72, 0.7, 0.66)])
 	return out
 
 

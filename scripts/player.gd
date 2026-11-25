@@ -1316,6 +1316,7 @@ func _try_action(action: String, input: Vector2) -> bool:
 
 func _tick_timers(delta: float) -> void:
 	Offhand.tick(self, delta)
+	ItemPool.regen_tick(main, self, delta)  # (a dry essence item that can't fire otherwise: the tower's slow trickle)
 	blade_cd = maxf(0.0, blade_cd - delta)
 	roll_cd -= delta
 	iframes -= delta

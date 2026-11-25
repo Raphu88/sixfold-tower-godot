@@ -535,7 +535,7 @@ func _draw() -> void:
 			if not shown.is_empty():
 				Offhand.Gear.draw_icon(self, shown, c + Vector2(0, -4), r * 0.95, Offhand.Gear.color(shown))  # (the wand, or the weapon to power; its pool under it)
 				var pb := Draw.Batch.new()
-				ItemPool.bar_into(pb, Rect2(c + Vector2(-r * 0.55, r * 0.42), Vector2(r * 1.1, 3.0)), shown)
+				ItemPool.bar_into(pb, Rect2(c + Vector2(-r * 0.55, r * 0.42), Vector2(r * 1.1, 3.0)), shown, ItemPool.regenerating(p.main, shown))  # (a faint pulse while the tower seeps a use back)
 				pb.flush(self)
 			draw_string(font, c + Vector2(-r, r * 0.8), label, HORIZONTAL_ALIGNMENT_CENTER, r * 2.0, 13, Color(col, 0.95))
 			continue

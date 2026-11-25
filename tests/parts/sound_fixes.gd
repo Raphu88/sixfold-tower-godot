@@ -1,37 +1,22 @@
 extends RefCounted
-## Sound fixes from the owner's listening: the music is slowed (a
-## time-stretch in tools/build_audio.py, MUSIC "tempo"), so its loop is
-## longer by that much and still loops cleanly; fire's sound ("burn", which
+## Sound fixes from the owner's listening: fire's sound ("burn", which
 ## rang like a slot machine when it played many times a second) is a soft
 ## crackle in several takes, and it plays at most once a quarter second
-## (audio.gd GAP_MS) however many things call for it. Run by smoke_test.gd
+## (audio.gd GAP_MS) however many things call for it. (The music, once
+## slowed here, was replaced: tests/parts/music.gd.) Run by smoke_test.gd
 ## (_part_tests).
-
-const Bank := preload("res://scripts/sound_bank.gd")
-
-## The music's loop before it was slowed (seconds), and how much slower it is now.
-const MUSIC_WAS := 80.0
-const TEMPO := 0.85
 
 var t
 
 
 func run(smoke) -> void:
 	t = smoke
-	print("sound fixes: slower music, a fire crackle kept from rattling")
-	_music()
+	print("sound fixes: a fire crackle kept from rattling")
 	await _fire()
 
 
 func _check(cond: bool, what: String) -> void:
 	t._check(cond, what)
-
-
-func _music() -> void:
-	var s = load(String(Bank.MUSIC["music"]))
-	var length: float = s.get_length() if s != null else 0.0
-	_check(absf(length - MUSIC_WAS / TEMPO) < 0.2, "the music is slowed to %d%%: its loop is %.1f s (was %.1f)" % [int(TEMPO * 100.0), length, MUSIC_WAS])
-	_check(s != null and bool(s.get("loop")), "...and it still loops")
 
 
 func _fire() -> void:

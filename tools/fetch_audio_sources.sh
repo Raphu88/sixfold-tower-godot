@@ -39,7 +39,9 @@ get_zip kenney_interface kenney_interfaceSounds.zip  # Kenney: Interface Sounds
 get_7z medieval_textures medieval_sfx_textures_1_of_2.7z  # Still North Media: Medieval Weapon Textures
 get_7z medieval_textures medieval_sfx_textures_2_of_2.7z
 get_file independent_hits hit.mp3                    # Independent.nu: 37 hits/punches
-get_file music evil_temple.ogg                       # HaelDB: Evil temple Ambiance loop
+get_file music Rising_Moon_0.mp3                     # RandomMind: Fantasy: Rising Moon (menus, calm rooms)
+get_file music 01_frost_in_the_northern_winter.flac  # Kaiser: Frost in the Northern Winter (story moments)
+get_file music great_labyrinth_bpm160.flac           # MintoDog: Great Labyrinth (a climb's danger, the guardian)
 get_file music dark_cavern_ambient_001.ogg           # Paul Wortmann: Dark Cavern Ambient
 
 # --- monsters, the train, the bench, puzzles, the Makers, bonds and towers ---

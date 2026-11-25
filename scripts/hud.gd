@@ -445,8 +445,11 @@ func _draw_core() -> void:
 	var wrec = p.weapon_rec() if p.weapon != "fists" else {}
 	var pool_lines: Array = []
 	if ItemPool.has_pool(wrec):
-		ItemPool.bar_into(wb, Rect2(wr.position + Vector2(12, 3), Vector2(SLOT - 16, 3)), wrec)  # (clear of the slot's key number)
+		var seeping: bool = ItemPool.regenerating(main, wrec)
+		ItemPool.bar_into(wb, Rect2(wr.position + Vector2(12, 3), Vector2(SLOT - 16, 3)), wrec, seeping)  # (clear of the slot's key number; a faint pulse while the tower seeps a use back)
 		pool_lines.append(ItemPool.TEXT["pool"] % [ItemPool.left(wrec), ItemPool.cap(wrec)])
+		if seeping:
+			pool_lines.append(ItemPool.TEXT["hud_regen"] % int(round(ItemPool.regen_share(wrec) * 100.0)))
 		if ItemPool.primed_for(p, wrec):
 			var pc := ItemPool.bar_color(wrec)
 			for e in [[wr.position, Vector2(wr.end.x, wr.position.y)], [Vector2(wr.end.x, wr.position.y), wr.end], [wr.end, Vector2(wr.position.x, wr.end.y)], [Vector2(wr.position.x, wr.end.y), wr.position]]:

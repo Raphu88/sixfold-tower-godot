@@ -5,6 +5,9 @@ extends RefCounted
 ## essence in to refill it (the inventory, not while a monster is after you;
 ## the bench with crystals) and to power it (holding the off-hand button);
 ## heirlooms and a new climb don't refill it; old saves' pieces are full;
+## the tower's slow trickle (a dry item that can't fire otherwise seeps a
+## use back in a tower, quicker in its own kind's, never past one use, not
+## on the train, arena or practice room; the order pool, carried, tower);
 ## the bars drawn (HUD, slots, touch); the phone's Off-hand button; the
 ## Entity's words; no banned words. Also the intro's line about boarding.
 ## Run by smoke_test.gd (_part_tests); `t` is the smoke test.
@@ -21,6 +24,8 @@ const Talk := preload("res://scripts/entity_talk.gd")
 const Help := preload("res://scripts/entity_help.gd")
 const Registry := preload("res://scripts/data_registry.gd")
 const NewStart := preload("res://scripts/new_start.gd")
+const Towers := preload("res://scripts/towers.gd")
+const Wild := preload("res://scripts/wild_towers.gd")
 
 const BANNED := ["attunement", "spire", "trial", "judgment", "mana"]
 
@@ -39,6 +44,7 @@ func run(smoke) -> void:
 	await _pistol()
 	await _filtering()
 	await _power()
+	await _regen()
 	_bench_and_heirloom()
 	_old_saves()
 	await _bars()
@@ -408,6 +414,122 @@ func _power() -> void:
 	await t._frames(1)
 
 
+# --- the tower's trickle (REGEN) -----------------------------------------------------------
+
+## The tower whose essence is `kind` (`own`), or the first whose essence isn't.
+func _tower_of(kind: String, own: bool) -> String:
+	for id in Towers.ORDER:
+		if (String(Towers.TOWERS[id]["essence"]) == kind) == own:
+			return id
+	return ""
+
+
+## Ticks the trickle `secs` seconds, a second at a time.
+func _seep(p, secs: int) -> void:
+	for i in secs:
+		Pool.regen_tick(_main(), p, 1.0)
+
+
+func _regen() -> void:
+	var m = _main()
+	var p = await _fresh_player()
+	var had_tower: String = m.tower
+	var had_train: bool = m.on_train
+	var had_record: Dictionary = m.profile.record.duplicate(true)
+	var crystals0 = m.profile.crystals.duplicate(true)
+	m.profile.record["beasts_by"] = {}
+	p.take_gear(G.make("sword", "fine", ["edges"]))
+	p._equip("sword")
+	var g: Dictionary = p.gear["melee"]
+	var per := float(Pool.per_use(g))
+	var secs := float(Pool.REGEN["seconds"])
+	_check(per * secs >= 30.0 and per * secs <= 45.0, "a 3-essence use seeps back in 30 to 45 seconds in its own tower (%.0f s)" % (per * secs))
+	# The order: its own pool, then the essence you carry, then the tower.
+	m.tower = _tower_of("blade", true)
+	m.run_essence = {"blade": 10.0}
+	_check(not Pool.regenerating(m, g), "a full pool doesn't seep")
+	g["charge"] = 0
+	_check(not Pool.regenerating(m, g) and Pool.can_use(m, g), "dry, but you carry essence: that comes first, nothing seeps")
+	_seep(p, 60)
+	_check(Pool.left(g) == 0 and Pool.regen_share(g) == 0.0, "...a minute on, still nothing from the tower")
+	m.run_essence = {}
+	_check(Pool.regenerating(m, g), "dry and nothing carried: the tower seeps into it")
+	# In its own kind's tower.
+	_seep(p, int(per * secs) - 1)
+	_check(Pool.left(g) == 0 and Pool.regen_share(g) > 0.9, "almost a use back after %d s in its own tower (%.2f)" % [int(per * secs) - 1, Pool.regen_share(g)])
+	_seep(p, 1)
+	_check(Pool.left(g) == 1 and not g.has("regen"), "one use back after %d s" % int(per * secs))
+	_seep(p, 600)
+	_check(Pool.left(g) == 1, "one use back, it waits until that's spent: never past one use, never past full")
+	_check(Pool.draw(m, g) == "pool" and Pool.left(g) == 0, "...the use it seeped back is spent from its pool")
+	# Elsewhere: twice as slow.
+	m.tower = _tower_of("blade", false)
+	_seep(p, int(per * secs))
+	_check(Pool.left(g) == 0 and absf(Pool.regen_share(g) - 0.5) < 0.02, "in a tower of another essence, half as quick (%.2f of a use)" % Pool.regen_share(g))
+	_seep(p, int(per * secs))
+	_check(Pool.left(g) == 1, "...a use back after %d s" % int(per * secs * float(Pool.REGEN["other"])))
+	_check(m.run_essence.is_empty() and m.profile.crystals == crystals0, "it makes no carried essence and no crystals")
+	# A wild tower: a little quicker.
+	if Wild.enabled():
+		var plain := Pool.regen_seconds(m, g)
+		m.profile.record["beasts_by"] = {m.tower: 1}
+		_check(Pool.regen_seconds(m, g) < plain, "a wild tower seeps a little quicker (%.1f s an essence, not %.1f)" % [Pool.regen_seconds(m, g), plain])
+		m.profile.record["beasts_by"] = {}
+	# Not on the train, in the arena or the practice room.
+	g["charge"] = 0
+	g.erase("regen")
+	m.on_train = true
+	_seep(p, 120)
+	_check(Pool.regen_share(g) == 0.0 and Pool.left(g) == 0 and not Pool.regenerating(m, g), "nothing seeps on the train")
+	m.on_train = had_train
+	for place in ["arena", "practice"]:
+		var obj = m.get(place)
+		if obj == null or not is_instance_valid(obj):
+			continue
+		var was_on: bool = obj.on
+		obj.on = true
+		_seep(p, 120)
+		_check(Pool.regen_share(g) == 0.0 and Pool.left(g) == 0, "nothing seeps in the %s" % place)
+		obj.on = was_on
+	# The climber's own tick seeps it (player.gd).
+	m.tower = _tower_of("blade", true)
+	p._tick_timers(6.0)
+	_check(absf(float(g.get("regen", 0.0)) - 6.0 / secs) < 0.01, "the climber's tick lets the tower seep in (%.2f essence)" % float(g.get("regen", 0.0)))
+	# Charms too.
+	p.take_gear(G.make("ashen_knot"))
+	var charm: Dictionary = p.gear["charm"]
+	charm["charge"] = 0
+	_check(Pool.regenerating(m, charm), "a spent charm seeps too")
+	# The bars, the cards and the hover say so.
+	var b = D.Batch.new()
+	Pool.bar_into(b, Rect2(0, 0, 30, 3), g, true)
+	var lit = D.Batch.new()
+	Pool.bar_into(lit, Rect2(0, 0, 30, 3), G.make("sword", "fine", ["edges"]))
+	_check(b.pts.size() > lit.pts.size(), "its bar shows the seeping use (a faint fill and a pulse)")
+	var lines: Array = G.trait_lines(g).map(func(l): return String(l[0]))
+	var tname := String(Towers.TOWERS[_tower_of("blade", true)]["name"]).replace("The ", "the ")
+	_check(lines.any(func(l): return l.begins_with("Regenerates slowly from the tower") and l.contains(tname)), "an enchanted weapon's card: regenerates slowly from the tower, faster in %s %s" % [tname, lines])
+	_check(C.charge_lines(charm).any(func(l): return String(l).begins_with("Regenerates slowly from the tower")), "a charm's card says it too")
+	var wand := G.make("cinder_wand")
+	wand["charge"] = 2
+	_check(O.card_lines(wand).any(func(l): return String(l[0]).begins_with("Regenerates slowly from the tower")), "a wand's card says it too")
+	await t._frames(3)
+	var tip: Array = m.hud.tips.filter(func(x): return x[2] is Array and x[2].any(func(l): return String(l).begins_with("Seeping back from the tower")))
+	_check(tip.size() == 1, "the HUD's weapon slot says it's seeping back, on hover")
+	var slot = load("res://scripts/menu.gd").Slot.new()
+	slot.kind = "gear"
+	slot.rec = g
+	slot.set_meta("slot", "pack:0")
+	var help: String = Help.explain(m.menu, slot)
+	slot.free()
+	_check(help.contains("trickle from the tower"), "hover help on its slot names the three sources: %s" % help)
+	_check(Entity.TIPS.has("item_pool_regen") and String(Talk.DIALOGUE["how_item_pool"]["lines"][0]).contains("the tower seeps"), "the Entity explains the trickle, and Items and their essence? names the three sources")
+	m.tower = had_tower
+	m.profile.record = had_record
+	m.run_essence = {}
+	await t._frames(1)
+
+
 # --- the bench, heirlooms, a new climb, old saves --------------------------------------------
 
 func _bench_and_heirloom() -> void:
@@ -490,7 +612,7 @@ func _touch() -> void:
 
 
 func _words() -> void:
-	for id in ["item_pool", "item_pool_empty", "item_power"]:
+	for id in ["item_pool", "item_pool_empty", "item_power", "item_pool_regen"]:
 		_check(Entity.TIPS.has(id) and String(Entity.TIPS[id].get("tip", "")) != "" and String(Entity.TIPS[id].get("more", "")) != "", "the Entity explains it: %s" % id)
 	_check(Talk.DIALOGUE.has("how_item_pool") and String(Talk.DIALOGUE["how_item_pool"]["ask"]) == "Items and their essence?" and "how_item_pool" in Talk.DIALOGUE["how"]["choices"],
 		"\"Items and their essence?\" under How do things work here?")
@@ -498,14 +620,15 @@ func _words() -> void:
 	var tables: Array = []
 	for sec in Registry.SECTIONS:
 		tables.append_array(sec.get("tables", []))
-	_check(["item_pool/TEXT", "item_pool/EDGE", "item_pool/WEAPON", "item_pool/POWER"].all(func(x): return tables.has(x)), "the pools' tables are in the Data editor")
+	_check(["item_pool/TEXT", "item_pool/EDGE", "item_pool/WEAPON", "item_pool/POWER", "item_pool/REGEN"].all(func(x): return tables.has(x)), "the pools' tables are in the Data editor")
 	var words: Array = []
 	words.append_array(Pool.TEXT.values())
 	for k in Pool.EDGE:
 		words.append_array([Pool.EDGE[k]["name"], Pool.EDGE[k]["desc"]])
-	for id in ["item_pool", "item_pool_empty", "item_power"]:
+	for id in ["item_pool", "item_pool_empty", "item_power", "item_pool_regen"]:
 		words.append_array([Entity.TIPS[id]["tip"], Entity.TIPS[id]["more"]])
 	words.append_array(Talk.DIALOGUE["how_item_pool"]["lines"])
+	words.append_array([C.TEXT["charge_empty"], O.TEXT["pool_refill"]])
 	words.append_array([Help.HELP["feed_item"], C.TEXT["charge_empty"], O.TEXT["pool_refill"], O.TEXT["no_pool"]])
 	var bad: Array = []
 	for w in words:
