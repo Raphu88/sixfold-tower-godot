@@ -49,13 +49,14 @@ const Notices := preload("res://scripts/notices.gd")
 const Flow := preload("res://scripts/essence_flow.gd")
 const Combat := preload("res://scripts/combat.gd")
 const OutfitterName := preload("res://scripts/outfitter_name.gd")
+const RuneArtistName := preload("res://scripts/rune_artist_name.gd")
 
 ## A line that starts with this is a story slot not written yet (hidden).
 const STORY_TAG := "[Yours to write]"
 ## At most this many choices show at once (Goodbye among them).
 const MAX_CHOICES := 5
 
-static var DIALOGUE: Dictionary = OutfitterName.named({
+static var DIALOGUE: Dictionary = RuneArtistName.named(OutfitterName.named({
 	"start": {"ask": "Something else.",
 		"lines": [
 			"Yes? I was counting.",
@@ -145,10 +146,10 @@ static var DIALOGUE: Dictionary = OutfitterName.named({
 		"choices": ["how_climb", "how_ward", "how", "bye"]},
 	# Training and tournaments (training.gd, tournaments.gd).
 	"how_grace": {"ask": "The Noble's Grace and my first tournament?", "fact": "training",
-		"lines": ["Every climber needs the Noble's Grace before a tower will have them. A new climber earns it at home: the {lessons} lessons of basic training at the gym, then one tournament of {rounds} rounds, monsters and then a champion fighter. The Grace comes win or lose. Each round won adds a reward: a Healing Vial, a recall scroll, then a Fine piece of the kind you fought with most; no damage at all, and a tincture of each essence too. {grace_line}"],
+		"lines": ["Every climber needs the Noble's Grace before a tower will have them. A new climber earns it at home: basic training at the gym, one session of {steps} short steps, then one tournament of {rounds} rounds, monsters and then a champion fighter. The Grace comes win or lose. Each round won adds a reward: a Healing Vial, a recall scroll, then a Fine piece of the kind you fought with most; no damage at all, and a tincture of each essence too. {grace_line}"],
 		"choices": ["how_training", "how_manager", "how", "bye"]},
 	"how_training": {"ask": "Basic, advanced and mark training?", "fact": "training",
-		"lines": ["Basic training: {lessons} lessons on moving, attacking and parrying, any time, free. Its essence, and your first tournament's, goes into your body only, {quarter} of the usual: it shows which part you use most, so where your first mark will be. Advanced training opens in {tiers} tiers with the titles the Noble grants you; mark training with your first mark, against dummies, summoned creatures and human rivals. Each try costs a few crystals of the essence that fits it, and pays {half} of the usual essence."],
+		"lines": ["Basic training: one session of {steps} steps, every move in a row: walking, jumping, rolling, striking and the finisher, swapping to the bow and its full draw, the off-hand and its power, parrying on the glint, blocking, the belt and its wheel. Each step waits for you; I hint if you're stuck, and if you leave, your place is kept. Any time, free. Its essence, and your first tournament's, goes into your body only, {quarter} of the usual: it shows which part you use most, so where your first mark will be. Advanced training opens in {tiers} tiers with the titles the Noble grants you; mark training with your first mark, against dummies, summoned creatures and human rivals. Each try costs a few crystals of the essence that fits it, and pays {half} of the usual essence."],
 		"choices": ["how_grace", "how_manager", "how", "bye"]},
 	"how_manager": {"ask": "Who is the Tournament Manager?", "fact": "training",
 		"lines": ["After your first, tournaments belong to {manager}, who moves round the six stations, a stop after each of your climbs. Each place has its own arena: pillars, hazards, the creatures of the first round, and rivals whose marks lean to its tower. Entry costs a fee. A win pays renown, crystals, essence ({half} of the usual), a Healing Vial anywhere, and the first win of a higher bracket at each place, a prize found only there. {manager_line}"],
@@ -174,7 +175,7 @@ static var DIALOGUE: Dictionary = OutfitterName.named({
 	"how_charms": {"ask": "How do charms work?", "fact": "rules",
 		"lines": ["You wear one charm, in its slot under the others. It's never used up: its gift is on while you wear it. Some hold a charge that fires by itself when its moment comes. Spent, it stays spent until you feed it essence: at the workshop bench with crystals of its kind, or in the tower from the inventory with essence you haven't banked. The Workshop crafts them (with the Rune Artist's mark you craft them yourself; without it, {artist} does it for you); {outfitter} sells {charm_shop}; vaults and secret rooms sometimes hold one."],
 		"choices": ["how_workshop", "how_bags", "how", "bye"]},
-	"how_workshop": {"ask": "The Workshop and its Rune Artist?", "fact": "rules",
+	"how_workshop": {"ask": "The Workshop and {rune_artist}, its Rune Artist?", "fact": "rules",
 		"lines": ["The Workshop's bench has a counter for each kind of work. Brewing, breaking down, tinctures and refilling charms are anyone's. The rest is crafting: tempering, swapping a trait, joining two pieces, a lasting rune, a recall scroll, a vessel, a new charm. With the Rune Artist's mark you craft it yourself with your own essence, and brew for less. Without the mark, {artist} at the bench crafts it for you. You bring the same crystals a Rune Artist would use, plus {artist_premium} on top for the craft, and {artist_work} when a full vessel does the work. Every card says who crafts and what the price is made of."],
 		"choices": ["how_charms", "how_exchange", "how", "bye"]},
 	"how_offhand": {"ask": "How does the off-hand work?",
@@ -199,7 +200,7 @@ static var DIALOGUE: Dictionary = OutfitterName.named({
 		"lines": ["His stock follows your rank: that's the trunk of his upgrade tree. Higher up: more on his rail (up to {rail_most}, all shown at once), more kinds on the shelf (up to {kinds_most}), more Fine and Rare pieces, pistols and crossbows from {gun_rank}, now and then a named piece or a relic. It's new every visit. The title you wear tilts his rail, and some titles take a little off. The rest you buy on his tree. Never a plain sword or shortbow: he gives those to climbers who come back from a fall without one, and won't buy them back. Everyday goods, everything on his shelf but tinctures, take crystals of any kind, your fullest first; gear and charms want their own kind."],
 		"choices": ["how_shop_tree", "how_exchange", "how_renown", "how_gift", "how", "bye"]},
 	"how_exchange": {"ask": "Crystals I can't use, and the Exchange?", "fact": "rules",
-		"lines": ["First, spend them: everyday goods on {outfitter}'s shelf, the vials, tonics, bombs and scrolls, take crystals of any kind, the kinds you hold most of first. Gear, charms and the bench's work want their own kind. For those there's the Workshop's Exchange: choose a crystal to give, then on its card the kind to get and how much, {x_steps} at a time or All. The Rune Artist recasts every {x_give} you give into {x_get} of the kind you chose, whole lots only: {x_lost} is lost in the working, so the kinds keep their worth. A trade of {x_big} or more asks first. Nothing bought with any kind sells back for more than it cost, so don't look for a way round it. I did."],
+		"lines": ["First, spend them: everyday goods on {outfitter}'s shelf, the vials, tonics, bombs and scrolls, take crystals of any kind, the kinds you hold most of first. Gear, charms and the bench's work want their own kind. For those there's the Workshop's Exchange: choose a crystal to give, then on its card the kind to get and how much, {x_steps} at a time or All. {rune_artist}, the Rune Artist, recasts every {x_give} you give into {x_get} of the kind you chose, whole lots only: {x_lost} is lost in the working, so the kinds keep their worth. A trade of {x_big} or more asks first. Nothing bought with any kind sells back for more than it cost, so don't look for a way round it. I did."],
 		"choices": ["how_shop", "how_workshop", "how", "bye"]},
 	"how_shop_tree": {"ask": "How does his upgrade tree work?", "fact": "rules",
 		"lines": ["Your rank is the trunk; four branches grow from it: Prices, Stock, Gifts, Info. A node opens at its rank once the one below it is yours; {tree_titled} also need a title from the Noble. Buy it with crystals of any kind and it's yours for good; there are {tree_total} in all. Discounts from the tree and your worn title stop at {tree_cap} off. Choose a node and its card says what it does. On a wide screen the Upgrades sign under {outfitter} folds the tree away, to give him room, or opens it again; the car remembers which."],
@@ -333,7 +334,7 @@ static var DIALOGUE: Dictionary = OutfitterName.named({
 		"choices": ["start", "bye"]},
 	# --- leaving --------------------------------------------------------------------------
 	"bye": {"ask": "Goodbye.", "leave": true},
-})
+}))
 
 ## Hints for "What should I do next?", in the order they're thought of: the
 ## first that applies is said, the next one if you ask again. {blanks} as
@@ -348,7 +349,7 @@ static var HINTS: Dictionary = OutfitterName.named({
 	"afford_rack": "You can afford {piece} on {outfitter}'s rack, and it beats yours.",
 	"stash_full": "Your stash is full. Sell to {outfitter}, or break pieces down at the Workshop.",
 	"title_ready": "The Noble at a station would grant you a title: {title}. Read what it gives.",
-	"lessons": "A station's Training has {n} short lessons you haven't done. Each is a minute, and I talk you through it.",
+	"lessons": "A station's Training has basic training, one session you haven't finished: {n} short steps left, and I talk you through each.",
 	"mark_close": "{mark} feels nearly deep enough for step {step}. Cast it, and bank at a stair.",
 	"climb": "Choose a tower at the Engine and pull the lever. Your best: floor {best}, in {tower}.",
 	"climb_play": "Up. The stair is somewhere on this floor.",
@@ -1012,9 +1013,9 @@ static func hints(main) -> Array:
 		var offer: Array = R.on_offer(prof)
 		if not offer.is_empty():
 			out.append(fill(String(HINTS["title_ready"]), {"title": R.title_name(String(offer[0]))}))
-		var left: Array = load("res://scripts/stations.gd").lessons_left(prof)
-		if not left.is_empty() and int(prof.climbs) >= 1:
-			out.append(fill(String(HINTS["lessons"]), {"n": left.size()}))
+		var left: int = load("res://scripts/tutorial.gd").steps_left(prof)  # (basic training, one session)
+		if left > 0 and int(prof.climbs) >= 1:
+			out.append(fill(String(HINTS["lessons"]), {"n": left}))
 	# The mark nearest its next step.
 	var close := {}
 	for part in prof.bonds:

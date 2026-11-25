@@ -253,7 +253,7 @@ func _travel(main) -> void:
 	var ids: Array = menu.rail.buttons.map(func(b): return b.id)
 	t._check(Stations.stops(menu.station_page.station).all(func(s): return ids.has(s)) and ids.has("leave_station") and not ids.has("engine"), "the rail lists the station's stops and the way back (%s)" % [ids])
 	t._check(int(Renown.state(main.profile)["visits"]) == visits + 1 and Renown.on_offer(main.profile).has("newcomer"), "the stop is counted (the Newcomer's title is ready at the Noble)")
-	t._check(menu.station_page.stop == "gym" and String(menu.station_page.picks.get("gym", "")) == "lesson:" + String(Stations.LESSON_ORDER[0]), "it opens on Training, on the first lesson not yet done")
+	t._check(menu.station_page.stop == "gym" and String(menu.station_page.picks.get("gym", "")) == "basics:basics", "it opens on Training, on basic training (one session) while it isn't done")
 	t._check(String(menu.train_page.tips.get(Train.HOME, "")).contains(Renown.opens(Renown.rank(main.profile))[0]) and Renown.unseen_rank(main.profile) < 0, "the rank reached on the climb is said at the top of your car, with what it opens")
 	menu.rail_pressed("arena")
 	await t._frames(2)
@@ -284,108 +284,48 @@ func _travel(main) -> void:
 	t._check(menu.page == "station" and menu.station_page.stop == "gym", "go_station opens a stop directly")
 
 
-## Every lesson, run in the arena, is done and remembered; one skipped; the set pays once.
+## Basic training, one session in the arena (its steps in detail:
+## tutorial.gd's test): begun from its card, run step after step to the end
+## without leaving, remembered, the set's renown paid once.
 func _lessons(main) -> void:
 	var prof = main.profile
 	var menu = main.menu
 	var arena = main.arena
 	var station: String = menu.station_page.station
 	Renown.state(prof)["lessons"] = {}
+	Renown.state(prof).erase("tutorial")
 	var pts0 := Renown.points(prof)
-	var order: Array = Stations.LESSON_ORDER.duplicate()
-	var skipped: String = order.pop_back()
-	for id in order:
-		var d: Dictionary = Stations.LESSONS[id]
-		var why: String = arena.start(Stations.event("lesson", id, station))
-		await t._frames(3)
-		var p = main.player
-		t._check(why == "" and arena.on and not main.on_train and not menu.is_open() and p.is_physics_processing(), "%s: the lesson begins in the arena" % id)
-		t._check(main.hud.status_chips().any(func(c): return String(c.get("id", "")) == "arena" and String(c.get("text", "")).begins_with(String(d["name"]))), "%s: the line at the top says what to do" % id)
-		match String(d["kind"]):
-			"run":
-				for at in arena.posts.duplicate():
-					p.global_position = at
-					await t.physics_frame
-					await t.physics_frame
-			"roll":
-				for i in int(d["need"]):
-					p.roll_t = 0.3
-					await t.physics_frame
-					await t.physics_frame
-					p.roll_t = 0.0
-					await t.physics_frame
-					await t.physics_frame
-			"jump":
-				for i in int(d["need"]):
-					p.jump_t = 0.3
-					await t.physics_frame
-					await t.physics_frame
-					p.jump_t = 0.0
-					await t.physics_frame
-					await t.physics_frame
-			"strike", "shoot":
-				t._check(arena.dummies.size() == int(d.get("dummies", 2)), "%s: its dummies stand ready" % id)
-				var was: String = p.weapon
-				p.weapon = "shortbow" if String(d["kind"]) == "shoot" else "sword"
-				for i in int(d["need"]):
-					arena.dummies[i % arena.dummies.size()].take_hit(1.0, Vector2.ZERO)
-				await t.physics_frame
-				await t.physics_frame
-				await t.physics_frame
-				p.weapon = was
-			"parry":
-				for i in int(d["need"]):
-					p.on_parry.emit(null, false)
-			"belt":
-				t._check(p.item_count("tonic") >= 1, "belt: its items are put on the belt")
-				p.item_sel = "draught" if p.item_count("draught") > 0 else "tonic"
-				p.use_item()
-			"cast":
-				p.spells_cast += 1
-				await t.physics_frame
-				await t.physics_frame
-				arena.dummies[0].take_hit(1.0, Vector2.ZERO)
-			"cure":
-				t._check(float(p.states.get(String(d["state"]), 0.0)) > 0.0, "cure: the state is on you")
-				p.item_sel = "tonic"
-				p.use_item()
-			"wall":
-				var cr = main.cracks
-				t._check(cr.list.size() == 1 and main.is_solid(cr._centre(arena.WALL_CELL)), "wall: a cracked wall, solid until broken")
-				cr.crumble(cr.list[0])
-			"ward":
-				var ob = main.objective
-				t._check(ob.kind == "braziers" and ob.pieces.size() == int(d["pieces"]) and main.hud.goal_line() != "", "ward: the floor's task, with its line at the top (%s)" % main.hud.goal_line())
-				for pc in ob.pieces:
-					ob._piece_done(pc)
-		await _wait_done(main)
-		t._check(Stations.lesson_state(prof, id) == 1, "%s: done, and remembered" % id)
-		t._check(menu.page == "station" and menu.station_page.stop == "gym" and not menu.station_page.lines.is_empty() and main.on_train, "...and it's back at Training, the result on its card")
-	t._check(Renown.points(prof) == pts0, "no renown until the whole set is done")
-	# A lesson can be skipped from its card; the set then pays.
 	menu.go_station(station, "gym")
 	await t._frames(2)
-	var tile: Array = _station_buttons(menu, "pick", "lesson:" + skipped)
+	var tile: Array = _station_buttons(menu, "pick", "basics:basics")
+	t._check(tile.size() == 1, "Training has basic training as one tile")
 	if tile.size() == 1:
 		tile[0].pressed.emit()
 		await t._frames(1)
-	var skip: Array = _station_buttons(menu, "station_do", "skip")
-	t._check(skip.size() == 1, "a lesson not done has Skip on its card")
-	if skip.size() == 1:
-		skip[0].pressed.emit()
-		await t._frames(2)
-	t._check(Stations.lesson_state(prof, skipped) == 2 and Stations.lessons_done(prof) and Renown.points(prof) == pts0 + Stations.LESSON_REWARD, "skipped is remembered too, and the finished set pays %d renown once" % Stations.LESSON_REWARD)
-	Stations.finish_lesson(prof, skipped, 1)
+	var begin: Array = _station_buttons(menu, "station_do", "begin")
+	t._check(begin.size() == 1 and _station_buttons(menu, "station_do", "skip").size() == 1, "its card has Begin, and Skip for a climber not held to the Grace")
+	if begin.size() == 1:
+		begin[0].pressed.emit()
+	await t._frames(3)
+	var p = main.player
+	t._check(arena.on and arena.tut != null and not main.on_train and not menu.is_open() and p.is_physics_processing(), "basic training begins in the arena")
+	t._check(main.hud.status_chips().any(func(c): return String(c.get("id", "")) == "arena" and String(c.get("text", "")).begins_with(String(arena.Tutorial.TEXT["name"]))), "the line at the top says the step and what to do")
+	p.iframes = 999.0
+	var stayed := true
+	for k in arena.Tutorial.count():
+		if arena.tut != null and arena.on and not arena.done:
+			arena.tut._step_done(p)
+			await t.physics_frame
+			stayed = stayed and (arena.on and not menu.is_open() or arena.done)
+	t._check(stayed, "...and runs every step in the one sitting")
+	await _wait_done(main)
+	p.iframes = 0.0
+	t._check(Stations.LESSON_ORDER.all(func(id): return Stations.lesson_state(prof, id) == 1) and Stations.lessons_done(prof), "done, and remembered")
+	t._check(menu.page == "station" and menu.station_page.stop == "gym" and not menu.station_page.lines.is_empty() and main.on_train, "...and it's back at Training, the result on its card")
+	t._check(Renown.points(prof) == pts0 + Stations.LESSON_REWARD, "the finished set pays %d renown once" % Stations.LESSON_REWARD)
+	Stations.finish_lesson(prof, "move", 1)
 	t._check(Renown.points(prof) == pts0 + Stations.LESSON_REWARD, "...only once")
 	t._check(Renown.on_offer(prof).has("trainee"), "the Trainee's title is ready at the Noble")
-	# A lesson lost: time runs out, nothing is marked.
-	Renown.state(prof)["lessons"].erase("move")
-	arena.start(Stations.event("lesson", "move", station))
-	await t._frames(2)
-	arena.t = float(Stations.LESSONS["move"]["time"])
-	await _wait_done(main)
-	t._check(Stations.lesson_state(prof, "move") == 0 and menu.page == "station", "a lesson not finished in time isn't marked done")
-	Stations.finish_lesson(prof, "move", 1)
 
 
 ## A medal drill: its fee, its medal; an extra drill only for a title with Training's benefit.

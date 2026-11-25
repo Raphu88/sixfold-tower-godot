@@ -353,6 +353,8 @@ static func take_power(p, g) -> float:
 	if not primed_for(p, g):
 		return 1.0
 	p.item_power = {}
+	if "powered_uses" in p:
+		p.powered_uses += 1  # (basic training watches for it: tutorial.gd)
 	return float(POWER["mult"])
 
 

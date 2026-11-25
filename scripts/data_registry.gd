@@ -32,6 +32,7 @@ extends RefCounted
 ## numbers are kept within bounds, and words keep their %d / %s blanks.
 
 const TestRun := preload("res://scripts/test_run.gd")
+const RuneArtistName := preload("res://scripts/rune_artist_name.gd")  # (her name in the tables' names)
 const PROJECT_PATH := "res://data/overrides.json"
 const LOCAL_PATH := "user://overrides.json"
 const FORMAT := 1
@@ -108,7 +109,7 @@ const SECTIONS := [
 		"names": {"THEMES": "Rooms", "NEEDS": "What's handy in each tower (why)", "TEXT": "What's handy: words"}},
 	{"id": "train_words", "group": "words", "name": "The train and store", "when": "page",
 		"tables": ["train/TEXT", "train/OUTFITTER", "bench/TEXT", "bench/ARTIST", "bench/EXCHANGE_TEXT", "vessel/TEXT", "loadout_page/TEXT", "stash_page/STASH_TEXT", "storage_view/TEXT", "basic_gift/TEXT"], "kinds": ["text"],
-		"names": {"TEXT": "Words", "STASH_TEXT": "The stash screen", "EXCHANGE_TEXT": "The Exchange (Workshop)"}},
+		"names": {"TEXT": "Words", "STASH_TEXT": "The stash screen", "EXCHANGE_TEXT": "The Exchange (Workshop)", "ARTIST": RuneArtistName.NAME + ", the Rune Artist: her words"}},
 	{"id": "climb_words", "group": "words", "name": "The climb: wings, finds, mirrors", "when": "live",
 		"tables": ["wings/TEXT", "lost/TEXT", "mirror/TEXT", "proving/TEXT", "doors/LOCK_TEXT", "puzzle/TEXT", "traps/KINDS", "traps/FIRE_FED", "main/FALL_TEXT"], "kinds": ["text"],
 		"names": {"KINDS": "Traps"}},
@@ -205,11 +206,11 @@ const SECTIONS := [
 		"names": {"NOBLE": "The Noble (a placeholder name)", "LINES": "What the Noble says", "TEXT": "Words", "KINDS": "Contracts: their kinds", "ITEMS": "Things to retrieve"}},
 	{"id": "training_words", "group": "words", "name": "Training, the Grace and the Tournament Manager", "when": "page",
 		"tables": ["training/GRACE", "training/CHAMPION", "training/TIERS", "training/ADVANCED", "training/MARK", "training/TEXT",
-			"tournaments/MANAGER", "tournaments/LINES", "tournaments/LOCATIONS", "tournaments/TEXT"], "kinds": ["text"],
-		"skip": ["kind", "give", "state", "tips", "essence", "partner", "layout", "hazard", "creatures", "starter", "prize", "foes"],
+			"tutorial/STEPS", "tutorial/TEXT", "tournaments/MANAGER", "tournaments/LINES", "tournaments/LOCATIONS", "tournaments/TEXT"], "kinds": ["text"],
+		"skip": ["kind", "give", "state", "tips", "essence", "partner", "layout", "hazard", "creatures", "starter", "prize", "foes", "lend", "dummies", "id", "hold"],
 		"names": {"GRACE": "The Noble's Grace", "CHAMPION": "The first tournament's champion (a placeholder name)", "TIERS": "Advanced training's tiers",
 			"ADVANCED": "Advanced training", "MARK": "Mark training", "TEXT": "Words", "MANAGER": "The Tournament Manager (a placeholder name)",
-			"LINES": "What the Tournament Manager says", "LOCATIONS": "The Manager's locations"}},
+			"LINES": "What the Tournament Manager says", "LOCATIONS": "The Manager's locations", "STEPS": "Basic training's steps, in one session (the Entity's word, its hint, the line at the top)"}},
 	{"id": "shop_words", "group": "words", "name": "The shop's variety", "when": "page",
 		"tables": ["shop/TEXT", "shop/TITLE_STOCK"], "kinds": ["text"],
 		"skip": ["tilt", "item", "kind", "pool", "rank", "count", "short"],
@@ -287,7 +288,7 @@ const SECTIONS := [
 		"names": {"DATA": "Walk bob, swings, rolls, hurt, heal, foes' breath and dissolve, the beasts' entrance and slow beat, screen shake, numbers, menus, the world"}},
 	{"id": "bench_numbers", "group": "numbers", "name": "Workshop and vessel", "when": "live",
 		"tables": ["bench/BREW", "bench/TEMPER", "bench/TEMPER_RARITY", "bench/TEMPER_DENSITY", "bench/INSCRIBE", "bench/PREMIUM", "bench/EXCHANGE", "bench/EXCHANGE_STEPS", "vessel/BREW", "vessel/RAW", "vessel/CORE", "gear/CORE_RUNES"], "kinds": ["number"],
-		"names": {"EXCHANGE": "The Exchange: give this much, get that much; a trade this big asks first", "EXCHANGE_STEPS": "The Exchange's quick steps", "BREW": "Brewing costs", "TEMPER": "Tempering costs", "RAW": "Vessel: raw essence (share caught at a stair, raw essence a tincture takes)", "CORE": "Vessel: a core rune lasts (floors)", "CORE_RUNES": "Core runes", "PREMIUM": "The Rune Artist's premium (share of the materials; a fee for vessel work)"}},
+		"names": {"EXCHANGE": "The Exchange: give this much, get that much; a trade this big asks first", "EXCHANGE_STEPS": "The Exchange's quick steps", "BREW": "Brewing costs", "TEMPER": "Tempering costs", "RAW": "Vessel: raw essence (share caught at a stair, raw essence a tincture takes)", "CORE": "Vessel: a core rune lasts (floors)", "CORE_RUNES": "Core runes", "PREMIUM": RuneArtistName.NAME + "'s premium, the Rune Artist's (share of the materials; a fee for vessel work)"}},
 	{"id": "rewards", "group": "numbers", "name": "Wings, rewards and the Proving", "when": "floor",
 		"tables": ["wings/REWARD", "wings/WAVES", "wings/SECRET", "wings/FAIL_MODES", "vaults/RULES", "portals/RULES", "floors/SECRET_CONTENTS", "proving/PRIZE", "proving/CAST_DOWN", "mirror/ROOM", "mirror/PRIZE"], "kinds": ["number"],
 		"names": {"ROOM": "Mirror rooms", "PRIZE": "Prizes"}},
@@ -369,13 +370,14 @@ const SECTIONS := [
 			"SOCIAL": "Titles' benefits: numbers", "FARE": "Train fare: crystals of any kind a stop"}},
 	{"id": "training_numbers", "group": "numbers", "name": "Training, the Grace and the Tournament Manager", "when": "page",
 		"tables": ["training/RATES", "training/USUAL", "training/SOAK_SHARE", "training/FIRST", "training/REWARDS", "training/TIERS", "training/ADVANCED", "training/MARK",
-			"tournaments/ROTATION", "tournaments/BRACKET_CREATURES", "tournaments/ADVANCED_FROM", "tournaments/HAZARD", "tournaments/LAYOUTS"], "kinds": ["number"],
+			"tutorial/STEPS", "tutorial/HINT_AFTER", "tutorial/HINT_AGAIN", "tutorial/STEP_ESSENCE", "tournaments/ROTATION", "tournaments/BRACKET_CREATURES", "tournaments/ADVANCED_FROM", "tournaments/HAZARD", "tournaments/LAYOUTS"], "kinds": ["number"],
 		"skip": ["foes", "tips", "give"],
 		"names": {"RATES": "Training's essence: share of the usual, body only or not", "USUAL": "The usual essence of a lesson, and of a round won",
 			"SOAK_SHARE": "Of what each body part did in training, the share kept toward the first mark", "FIRST": "The first tournament: rounds, toughness, renown",
 			"REWARDS": "The first tournament's rewards (rounds won)", "TIERS": "Advanced training's tiers: title rank, fee, renown", "ADVANCED": "Advanced training: time and how many",
 			"MARK": "Mark training: time and how many", "ROTATION": "Where the Tournament Manager goes (every so many climbs)", "BRACKET_CREATURES": "Creatures in a bracket's first round",
-			"ADVANCED_FROM": "A location's prize comes with this bracket and up", "HAZARD": "Hazards: how many, how far in", "LAYOUTS": "The arenas' pillars"}},
+			"STEPS": "Basic training's steps: how many of each", "HINT_AFTER": "Basic training: seconds on a step before the Entity's hint", "HINT_AGAIN": "...and between hints after that",
+			"STEP_ESSENCE": "Basic training: the usual essence a step done gives", "ADVANCED_FROM": "A location's prize comes with this bracket and up", "HAZARD": "Hazards: how many, how far in", "LAYOUTS": "The arenas' pillars"}},
 	{"id": "contracts_numbers", "group": "numbers", "name": "Contracts", "when": "page",
 		"tables": ["contracts/KINDS", "contracts/RULES", "contracts/ASK"], "kinds": ["number"],
 		"names": {"KINDS": "Contracts: renown and crystals each pays", "RULES": "Contracts: offers, floors, how many"}},

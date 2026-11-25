@@ -63,7 +63,7 @@ func _counts() -> void:
 	var lists := {
 		"puzzle kinds": Catalog.TYPES.size(), "floor tasks": Objectives.KINDS.size(), "shared floor tasks": shared.size(), "towers' own floor tasks": own.size(),
 		"room themes": Themes.THEMES.size(), "renown ranks": Renown.RANKS.size(), "what each rank opens": Renown.RANK_OPENS.size(),
-		"medal drills": Stations.DRILLS.size(), "drills in order": Stations.DRILL_ORDER.size(), "basic lessons": Stations.LESSON_ORDER.size(),
+		"medal drills": Stations.DRILLS.size(), "drills in order": Stations.DRILL_ORDER.size(), "basic lessons": Stations.LESSON_ORDER.size(), "basic training steps": load("res://scripts/tutorial.gd").STEPS.size(),
 		"advanced lessons": Training.ADVANCED_ORDER.size(), "mark lessons": Training.MARK_ORDER.size(), "advanced tiers": Training.TIERS.size(),
 		"tournament brackets": Stations.BRACKETS.size(), "titles": Renown.TITLES.size(), "titles in order": Renown.TITLE_ORDER.size(),
 		"camp cards": int(Items.CAMP_CARDS), "synergies": Synergies.SYNERGIES.size(),

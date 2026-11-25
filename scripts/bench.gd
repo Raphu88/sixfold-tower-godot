@@ -44,6 +44,7 @@ const Gear := preload("res://scripts/gear.gd")
 const Items := preload("res://scripts/items.gd")
 const Essence := preload("res://scripts/essence.gd")
 const OutfitterName := preload("res://scripts/outfitter_name.gd")
+const RuneArtistName := preload("res://scripts/rune_artist_name.gd")
 const Train := preload("res://scripts/train.gd")
 const Charms := preload("res://scripts/charms.gd")
 
@@ -63,10 +64,10 @@ const COUNTERS := [
 const CRAFTED := ["temper", "retrait", "join", "inscribe", "recall", "vessel", "charm"]
 
 ## The Rune Artist who works the workshop's bench for those without the
-## mark: a placeholder name (the story will name them), how the counters
-## say it, and what they say.
+## mark: Rayne (she/her; her name is in rune_artist_name.gd), how the
+## counters say it, and what she says.
 static var ARTIST := {
-	"name": "(The Rune Artist)",
+	"name": RuneArtistName.NAME,
 	"greeting": "Bring me the essence and I'll craft what your marks can't. My hands cost a little on top.",
 	"lines": ["Temper, retrait, join, a lasting rune, a charm: bring the crystals.", "The materials are yours. The craft is mine, and so is the premium.", "Mind the slate. The runes on it bite."],
 	"marked": "A Rune Artist yourself. The bench is yours: I'll keep out of your light.",
@@ -109,8 +110,8 @@ const JOIN := 30
 ## Inscribe: a lasting rune for this.
 static var INSCRIBE := {"iron": 25}
 
-## The words of the bench.
-static var TEXT := {
+## The words of the bench. ({rune_artist} is her name: rune_artist_name.gd.)
+static var TEXT: Dictionary = RuneArtistName.named({
 	"title": "The bench",
 	"rune_artist": "Rune Artist",
 	"notes": {
@@ -123,8 +124,8 @@ static var TEXT := {
 		"recall": "Bind a recall scroll for your next climb: read it in the tower to leave safely, keeping everything. You carry one.",
 		"vessel": "Brew a vessel that keeps essence raw, or work a full vessel of core essence into a piece: a core rune, one rank past +3, or a deep rune.",
 		"tincture": "Craft a tincture from crystals of its kind. Drink it to send its essence where you choose: one mark, or an unmarked body part.",
-		"exchange": "Trade crystals of one kind for another. The Rune Artist recasts them, and some is lost in the working.",
-		"charm": "Refill a charm's spent charge, an off-hand piece's pool or an enchanted weapon's (every essence item's own pool), with crystals of its kind (anyone). New charms are crafted here too: by you with the Rune Artist's mark, else by the workshop's Rune Artist."
+		"exchange": "Trade crystals of one kind for another. {rune_artist}, the Rune Artist, recasts them, and some is lost in the working.",
+		"charm": "Refill a charm's spent charge, an off-hand piece's pool or an enchanted weapon's (every essence item's own pool), with crystals of its kind (anyone). New charms are crafted here too: by you with the Rune Artist's mark, else by {rune_artist}, the workshop's Rune Artist."
 	},
 	"where_wear": "You'll wear it when you set off.",
 	"heirlooms": "Heirlooms",
@@ -176,7 +177,7 @@ static var TEXT := {
 	"inscribed": "Inscribed: %s on %s",
 	"replaces_rune": "A new rune replaces the one on it.",
 	"scroll_carry": "You carry one recall scroll at a time.",
-}
+})
 
 
 # --- who crafts -------------------------------------------------------------------------
@@ -223,7 +224,7 @@ static func work_fee(profile, kind: String) -> Dictionary:
 
 
 ## Who crafts this and what it costs, in one line: "You craft it with your
-## own essence: 20 Blade." or "(The Rune Artist) crafts it for you: 20 Blade
+## own essence: 20 Blade." or "Rayne crafts it for you: 20 Blade
 ## materials + 10 Blade premium." `cost` is the materials; `fee` a work fee
 ## (for work that takes no crystals).
 static func crafter_line(profile, cost: Dictionary, fee := {}) -> String:
@@ -772,8 +773,9 @@ static func craft(profile, id: String) -> String:
 static var EXCHANGE := {"give": 3, "get": 2, "big": 60}
 ## The amount's quick steps on the card (an "All" button sits beside them).
 static var EXCHANGE_STEPS := [3, 30]
-## The exchange's words. ({outfitter} is his name: outfitter_name.gd.)
-static var EXCHANGE_TEXT: Dictionary = OutfitterName.named({
+## The exchange's words. ({outfitter} is his name: outfitter_name.gd;
+## {rune_artist} hers: rune_artist_name.gd.)
+static var EXCHANGE_TEXT: Dictionary = RuneArtistName.named(OutfitterName.named({
 	"title": "The Exchange",
 	"give_head": "Give: choose a crystal",
 	"get_head": "Get",
@@ -783,7 +785,7 @@ static var EXCHANGE_TEXT: Dictionary = OutfitterName.named({
 	"rate": "Every %d given becomes %d of the kind you choose: the rest is lost in the recasting.",
 	"preview": "Give %d %s, get %d %s",
 	"trade": "Trade",
-	"ask": "Give %d %s for %d %s? The Rune Artist recasts it, and what's lost in the working is gone for good.",
+	"ask": "Give %d %s for %d %s? {rune_artist} recasts it, and what's lost in the working is gone for good.",
 	"done": "Traded: %d %s for %d %s",
 	"none": "no %s crystal to give",
 	"short": "needs %d more %s",
@@ -791,7 +793,7 @@ static var EXCHANGE_TEXT: Dictionary = OutfitterName.named({
 	"lots": "trades go in lots of %d",
 	"how": "Everyday goods on {outfitter}'s shelf take any kind already; the Exchange is for the rest.",
 	"artist": "Bring me a crystal you can't use. I'll recast it, but the working eats some of it.",
-})
+}))
 
 
 ## What giving `amount` essence makes (whole lots only: the rest isn't used).

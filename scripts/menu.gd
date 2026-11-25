@@ -1898,7 +1898,8 @@ func _page_pause() -> void:
 		_header(Train.TEXT["title"], "", "Menu")
 	elif fighting:
 		var duel: bool = String(main.arena.ev.get("type", "")) == "duel"  # (a duel from the Dining car: dining.gd)
-		_header(String(main.arena.ev.get("name", "")), String(main.Dining.TEXT["pause_note"]) if duel else Stations.TEXT["pause_note"], Stations.TEXT["paused"])
+		var basics: bool = String(main.arena.ev.get("type", "")) == "basics"  # (basic training's one session: tutorial.gd)
+		_header(String(main.arena.ev.get("name", "")), String(main.Dining.TEXT["pause_note"]) if duel else (String(main.arena.Tutorial.TEXT["pause_note"]) if basics else Stations.TEXT["pause_note"]), Stations.TEXT["paused"])
 	elif practicing:
 		_header(main.practice.TEXT["paused"], main.practice.TEXT["pause_note"], "Paused")
 	else:
@@ -1926,7 +1927,8 @@ func _page_pause() -> void:
 	_gap(4)
 	var row := _grid(2)
 	if fighting:
-		var gb := _button(String(main.Dining.TEXT["give_up"]) if String(main.arena.ev.get("type", "")) == "duel" else Stations.TEXT["give_up"], main.arena.give_up, row)
+		var ft := String(main.arena.ev.get("type", ""))
+		var gb := _button(String(main.Dining.TEXT["give_up"]) if ft == "duel" else (String(main.arena.Tutorial.TEXT["leave"]) if ft == "basics" else Stations.TEXT["give_up"]), main.arena.give_up, row)
 		gb.set_meta("give_up", true)
 		_primary(gb)
 	elif practicing:
