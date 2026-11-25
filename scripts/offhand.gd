@@ -19,8 +19,13 @@ extends RefCounted
 ##           stick pressed in on a controller, the Off-hand button on a
 ##           phone) casts its small essence power from the wand's own pool.
 ## Two-handed weapons (TWO_HANDS: the greatsword, war hammer and spear) and
-## bows and crossbows need both hands: while one is in hand the off-hand is
-## put away (its traits still count, like any worn piece's).
+## bows and crossbows (the sling too, a bow by kind) need both hands: while
+## one is in hand the off-hand is put away (its traits still count, like any
+## worn piece's): no off-hand strike, no block, no wand (ready_use is ""),
+## and it isn't drawn in the hand. One-handed weapons, pistols and the fists
+## leave it free. The HUD shows it as a coin at the weapon slot's corner,
+## dimmed and struck through while it's put away, its card saying why; the
+## first time it happens in a climb the Entity explains (tip "two_hands").
 ##
 ## ENCHANTED off-hand pieces (the Ember Dirk, the Tide Ward and every wand)
 ## have their OWN ESSENCE POOL for their power: a few uses (gear.gd PIECES
@@ -93,7 +98,9 @@ static var TEXT: Dictionary = OutfitterName.named({
 	"blocked": "Blocked",
 	"guard_broken": "Guard broken",
 	"no_pool": "%s: its pool is dry, and you carry too little essence",
-	"put_away": "Off-hand put away",
+	"put_away": "Off-hand put away: both hands are busy",
+	"hud_away": "Put away: your %s needs both hands. Swap to a one-handed weapon or your fists to use it.",
+	"hud_ready": "Ready: the weapon in your hand leaves this hand free.",
 	"no_wand": "No wand in your off-hand",
 	"stat_strike": "Off-hand strike", "stat_guard": "Block", "stat_guard_sta": "Block stamina", "stat_uses": "Pool uses",
 	"empty": "Your off-hand: a second one-handed weapon (an extra strike in your chains), a shield (hold parry to block) or a wand (a small power from its own pool). Slain monsters, vaults and {outfitter} have them.",
@@ -453,6 +460,10 @@ static func tick(p, delta: float) -> void:
 	p.off_cd = maxf(0.0, p.off_cd - delta)
 	p.off_flash = maxf(0.0, p.off_flash - delta)
 	p.guard_on = guarding(p)
+	# The first time a two-handed weapon puts a worn off-hand away: the Entity says why.
+	if not p.has_meta("two_told") and not piece(p).is_empty() and two_handed(String(p.weapon)) and p.main != null and p.main.get("player") == p and not bool(p.main.get("on_train")):
+		p.set_meta("two_told", true)
+		p.main.tip("two_hands")
 	# The first time an off-hand piece is worn in a climb: the Entity explains it.
 	if not p.has_meta("off_told") and not piece(p).is_empty() and p.main != null and p.main.get("player") == p and not bool(p.main.get("on_train")):
 		p.set_meta("off_told", true)

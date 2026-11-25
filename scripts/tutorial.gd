@@ -12,30 +12,46 @@ extends RefCounted
 ##
 ## The steps (STEPS, in order) cover the climber's whole basic moveset:
 ## walking (posts), jumping (one while moving), rolling (an archer's arrows
-## pass through), striking, the combo's finisher, swapping weapons, the bow's
-## full draw, the off-hand (a lent wand: tap it), powering an item (hold the
-## off-hand button), parrying on the glint (a soft knight whose blows glint
-## first), blocking (a lent shield: hold parry), and the belt (the wheel,
-## then an item used). Each step's "kind" is what it watches for:
+## pass through), then the weapons in the owner's order, MELEE -> UNARMED ->
+## RANGED -> OFF-HAND: striking and the combo's finisher with the melee
+## weapon, swapping to the fists for a blow or two, swapping to the ranged
+## weapon (whatever it is: a bow's or sling's full draw, a crossbow's bolt or
+## a pistol's shot that lands), the off-hand (a lent wand: tap it, with the
+## melee weapon in hand, since bows, crossbows and two-handed weapons leave
+## no hand free: offhand.gd two_handed), powering an item (hold the off-hand
+## button); then parrying on the glint (a soft knight whose blows glint
+## first), blocking (a lent shield, an off-hand piece too: hold parry), and
+## the belt (the wheel, then an item used). Every past and loadout can do
+## it: a climber with no melee weapon is lent the basic sword, one with no
+## ranged weapon the basic bow, and from the off-hand step on a climber whose
+## melee weapon needs both hands (a war hammer, a greatsword, a spear) is
+## lent the basic sword in its place ("free_hand"). A step's words name the
+## climber's own weapons ({melee_w}, {ranged_w}, {two_w}: the lent sword's
+## place, {shots}: a pistol's) and can differ by them: "goal_gun",
+## "say_crossbow", "hint_lent"... (the ranged step: "sling", "crossbow" or
+## "gun", a bow the plain words; the off-hand steps: "lent").
+## Each step's "kind" is what it watches for:
 ##   posts    touch `posts` posts in order (the lit one next)
 ##   jump     jump `need` times, `moving` of them while moving
 ##   roll     roll `need` times
-##   strike   land `need` blows on the dummies with a melee weapon
-##   finisher land `need` finishers (a combo's last, heavy blow) on them
-##   swap     have the bow in hand
-##   shoot    land `need` full-draw shots on the far dummies
-##   wand     cast the off-hand wand `need` times (the off-hand needs a
-##            free hand: a bow puts it away)
+##   strike   land `need` blows on the dummies with the melee weapon
+##   finisher land `need` finishers (a combo's last, heavy blow) with it
+##   fists    land `need` blows with the fists
+##   ranged   land `need` shots with the ranged weapon: a bow or sling
+##            only at full draw, a crossbow or pistol any shot
+##   wand     cast the off-hand wand `need` times with a one-handed weapon
+##            (or the fists) in hand
 ##   power    use a powered item `need` times (hold the off-hand button)
 ##   parry    parry `need` blows
 ##   block    block `need` blows with the shield
 ##   belt     open the belt wheel, and use `need` items from the belt
 ## and what it sets up: "dummies" ("near" or "far"), "foes" (soft: "weak"
 ## times their usual blow), "lend" (an off-hand piece lent for the session:
-## nothing done in the arena is kept), "carry" (essence carried, to power
+## nothing done in the arena is kept), "free_hand" (a two-handed melee
+## weapon swapped for the lent sword), "carry" (essence carried, to power
 ## with), "hurt" (health set to this share, so a Healing Vial has work),
 ## "give" (items put on the belt) and "hold" (the weapon slot put in hand if
-## it isn't: resuming at the bow's step). "essence": the kind its essence is
+## it isn't: resuming at a melee step). "essence": the kind its essence is
 ## (STEP_ESSENCE of the usual amount a step done: training.gd RATES
 ## "basics", a quarter, into the body).
 ##
@@ -65,38 +81,49 @@ static var STEPS := [
 		"goal": "Roll with {roll}",
 		"say": "{roll} rolls you a short way, and nothing touches you while you roll: let the archer's arrows pass through you. A roll costs stamina, the green bar, which comes back when you rest. Roll under a closing gate, too.",
 		"hint": "Press {roll}. Move with {move} as you press it to roll that way."},
-	{"id": "strike", "name": "Striking", "kind": "strike", "need": 2, "dummies": "near", "essence": "blade",
-		"goal": "Strike a dummy with {attack}",
-		"say": "{attack} strikes with the weapon in your hand, toward where you aim: {aim}. Walk up to a dummy and strike it. A blow from behind hits harder.",
-		"hint": "Stand right next to a dummy, face it, and press {attack}."},
-	{"id": "finisher", "name": "Combos and the finisher", "kind": "finisher", "need": 1, "dummies": "near", "essence": "blade",
+	{"id": "strike", "name": "Striking", "kind": "strike", "need": 2, "dummies": "near", "hold": "melee", "essence": "blade",
+		"goal": "Strike a dummy with your {melee_w}: {attack}",
+		"say": "First your melee weapon, your {melee_w}. {attack} strikes with the weapon in your hand, toward where you aim: {aim}. Walk up to a dummy and strike it. A blow from behind hits harder.",
+		"hint": "Stand right next to a dummy, face it, and press {attack}. Your {melee_w} must be in your hand: swap to it with {weapon} if it isn't."},
+	{"id": "finisher", "name": "Combos and the finisher", "kind": "finisher", "need": 1, "dummies": "near", "hold": "melee", "essence": "blade",
 		"goal": "Keep pressing {attack}: land a finisher",
 		"say": "Press {attack} again as each blow lands and they chain into a combo. Its last blow, the finisher, hits hardest, knocks foes back and breaks guards and cracked walls. Each blow costs stamina: mashing runs you dry.",
-		"hint": "Stand by a dummy and press {attack} three times in a steady rhythm: the third blow is the finisher. Not too slow, or the chain starts again."},
-	{"id": "swap", "name": "Swapping weapons", "kind": "swap", "essence": "blade",
-		"goal": "Swap to your bow with {weapon}",
-		"say": "You carry your fists, a blade and a bow. {weapon} swaps between them. Swap to your bow.",
-		"hint": "Press {weapon} until the bow is in your hands."},
-	{"id": "shoot", "name": "The bow's full draw", "kind": "shoot", "need": 1, "dummies": "far", "hold": "ranged", "essence": "blade",
-		"goal": "Hold {attack} to draw, let go at full draw",
-		"say": "Hold {attack} to draw and let go to loose. Hold until the bow flashes: a full draw flies furthest and hits hardest. Land one on a far dummy.",
-		"hint": "Hold {attack} a moment longer, until a ring flashes at the bow, then let go while aiming at a far dummy."},
-	{"id": "offhand", "name": "The off-hand", "kind": "wand", "need": 1, "dummies": "near", "lend": "cinder_wand", "essence": "fire",
-		"goal": "Swap to your blade, then tap {offhand}",
-		"say": "Your off-hand holds a second blade, a shield or a wand. I've lent you a wand. A bow needs both hands, so swap back to your blade with {weapon}, then tap {offhand} to cast the wand.",
-		"hint": "A bow puts the off-hand away. Swap with {weapon} until your blade is out, then tap {offhand}."},
-	{"id": "power", "name": "Powering an item", "kind": "power", "need": 1, "dummies": "near", "lend": "cinder_wand", "carry": 12.0, "essence": "fire",
+		"hint": "Stand by a dummy with your {melee_w} and press {attack} three times in a steady rhythm: the third blow is the finisher. Not too slow, or the chain starts again."},
+	{"id": "fists", "name": "Fighting unarmed", "kind": "fists", "need": 2, "dummies": "near", "essence": "blade",
+		"goal": "Swap to your fists with {weapon}, then strike",
+		"say": "You carry three weapons: your fists, your {melee_w} and your {ranged_w}. {weapon} swaps between them. Swap to your fists and land two blows: quick, light, and never lost.",
+		"hint": "Press {weapon} until your fists are up (the slot at the top left shows what's in your hand), then strike a dummy with {attack}."},
+	{"id": "ranged", "name": "Your ranged weapon", "kind": "ranged", "need": 1, "dummies": "far", "essence": "blade",
+		"goal": "Swap to your {ranged_w}: hold {attack}, let go at full draw",
+		"say": "Now swap to your {ranged_w} with {weapon}. Hold {attack} to draw and let go to loose. Hold until the bow flashes: a full draw flies furthest and hits hardest. Land one on a far dummy.",
+		"hint": "Swap with {weapon} until your {ranged_w} is out. Hold {attack} until a ring flashes at the bow, then let go while aiming at a far dummy.",
+		"goal_sling": "Swap to your sling: hold {attack}, let go at a full whirl",
+		"say_sling": "Now swap to your sling with {weapon}. Hold {attack} to whirl it and let go to throw. Hold until it flashes: a full whirl flies furthest and rocks what it hits. Land one on a far dummy.",
+		"hint_sling": "Swap with {weapon} until your sling is out. Hold {attack} until a ring flashes, then let go while aiming at a far dummy.",
+		"goal_crossbow": "Swap to your crossbow, then fire it with {attack}",
+		"say_crossbow": "Now swap to your crossbow with {weapon}. No drawing: press {attack} and it fires a bolt at once, hard and fast. Then it reloads, and that can't be hurried, though you can walk meanwhile. Land a bolt on a far dummy.",
+		"hint_crossbow": "Swap with {weapon} until your crossbow is out, aim at a far dummy and press {attack}. After a shot, wait for the reload.",
+		"goal_gun": "Swap to your {ranged_w}, then fire it with {attack}",
+		"say_gun": "Now swap to your {ranged_w} with {weapon}. No drawing: press {attack} and it fires at once. It holds {shots}; once it's empty it reloads by itself while you walk slowly, and a roll or a swap starts the reload over. Land a shot on a far dummy.",
+		"hint_gun": "Swap with {weapon} until your {ranged_w} is out, aim at a far dummy and press {attack}. Empty, it reloads by itself: wait for it, and don't roll."},
+	{"id": "offhand", "name": "The off-hand", "kind": "wand", "need": 1, "dummies": "near", "lend": "cinder_wand", "free_hand": true, "essence": "fire",
+		"goal": "Swap to your {melee_w}, then tap {offhand}",
+		"say": "Your off-hand holds a second blade, a shield or a wand. I've lent you a wand. Bows, crossbows and two-handed weapons need both hands, so they leave the off-hand put away. Swap to your {melee_w} with {weapon}, then tap {offhand} to cast the wand.",
+		"hint": "Two-handed weapons and bows put the off-hand away. Swap with {weapon} until your {melee_w} is out, then tap {offhand}.",
+		"say_lent": "Your off-hand holds a second blade, a shield or a wand. I've lent you a wand. Bows, crossbows and two-handed weapons need both hands, and so does your {two_w}: I've lent you a {melee_w} for the rest of this session. Swap to it with {weapon}, then tap {offhand} to cast the wand.",
+		"hint_lent": "Your {two_w} needs both hands, so I lent you a {melee_w}. Swap with {weapon} until it's out, then tap {offhand}."},
+	{"id": "power", "name": "Powering an item", "kind": "power", "need": 1, "dummies": "near", "lend": "cinder_wand", "carry": 12.0, "hold": "melee", "free_hand": true, "essence": "fire",
 		"goal": "Hold {power} to power the wand",
 		"say": "Items with essence carry a pool of their own. Hold {power} and the essence you carry powers the next use: the wand casts at once, harder. I've given you a little essence to try it.",
-		"hint": "Keep {power} held for half a second, then let go."},
+		"hint": "Keep {power} held for half a second, then let go. Your {melee_w} must be in your hand: a bow or a two-handed weapon leaves no hand for the wand."},
 	{"id": "parry", "name": "Parrying on the glint", "kind": "parry", "need": 2, "foes": ["knight"], "weak": 0.2, "essence": "iron",
 		"goal": "Press {parry} as the blow glints",
 		"say": "Every blow glints a moment before it lands. Press {parry} on the glint: no damage, the attacker reels, and you get stamina back. A beat after the flash is a perfect parry. Then strike while it reels: a riposte hits far harder.",
 		"hint": "Watch the knight: a white star flashes just before its blow. Press {parry} right then, not before."},
-	{"id": "block", "name": "Blocking with a shield", "kind": "block", "need": 1, "foes": ["knight"], "weak": 0.2, "lend": "buckler", "essence": "iron",
+	{"id": "block", "name": "Blocking with a shield", "kind": "block", "need": 1, "foes": ["knight"], "weak": 0.2, "lend": "buckler", "hold": "melee", "free_hand": true, "essence": "iron",
 		"goal": "Block a blow by {block}",
-		"say": "I've swapped the wand for a shield. Keep {parry} held after the glint and you block: blows from in front hurt far less, each costing stamina. A parry is still the better answer.",
-		"hint": "Face the knight and keep {parry} held down as its blow lands."},
+		"say": "I've swapped the wand for a shield: a shield is an off-hand piece too, so it needs a free hand. Keep {parry} held after the glint and you block: blows from in front hurt far less, each costing stamina. A parry is still the better answer.",
+		"hint": "Face the knight and keep {parry} held down as its blow lands. Hold your {melee_w} or your fists: a bow or a two-handed weapon puts the shield away."},
 	{"id": "belt", "name": "The belt and its wheel", "kind": "belt", "need": 1, "hurt": 0.6, "give": ["draught", "stamina"], "lend": "buckler", "essence": "water",
 		"goal": "Hold {item} for the wheel, then use an item",
 		"say": "Your belt holds vials and the like. Tap {item} to use the one shown. Hold {item} and the wheel opens, time slows: point at another and let go to choose it. Open the wheel, choose the Healing Vial, then drink it.",
@@ -111,7 +138,7 @@ static var HINT_AGAIN := 30.0
 static var STEP_ESSENCE := 6.0
 ## The first-time tips the session covers: marked told once it's done, so
 ## the Entity doesn't repeat them in a climb.
-static var TIPS := ["move", "glint", "offhand", "item_power", "belt", "belt_wheel"]
+static var TIPS := ["move", "glint", "offhand", "two_hands", "item_power", "belt", "belt_wheel"]
 
 static var TEXT := {
 	"name": "Basic training",
@@ -144,7 +171,9 @@ static var TEXT := {
 	"result_left": "Basic training: stopped before step %d of %d (%s). Resume it at the gym.",
 	"done_title": "Basic training done",
 	"done_line": "Every move learned",
-	"end_say": "That's every move: walk, jump, roll, strike, finish, shoot, the off-hand, parry, block and the belt. The rest you'll learn by doing.",
+	"end_say": "That's every move: walk, jump, roll, strike, finish, fists, your ranged weapon, the off-hand, parry, block and the belt. The rest you'll learn by doing.",
+	"shots_one": "one shot",
+	"shots_many": "%d shots",
 	"end_say_closed": "That's every move. Next, your first tournament at the tournament grounds: the Noble's Grace comes win or lose.",
 }
 
@@ -279,6 +308,8 @@ var _base := 0  # a counter's value as the step began (parries, blocks, powered 
 var _dummies := ""  # what's laid out now
 var _foes: Array = []
 var _lent := ""
+var lent_weapons: Array = []  # the weapon slots lent a basic piece for the session ("melee", "ranged")
+var two_w := ""  # the two-handed melee weapon the lent sword stands in for, from the off-hand step on
 var _keep := {}  # what's put back afterward (tests run it outside a scene)
 
 
@@ -287,7 +318,15 @@ func begin(a, from := 0) -> void:
 	arena = a
 	main = a.main
 	var p = main.player
-	_keep = {"offhand": p.gear.get("offhand", {}).duplicate(true), "items": p.items.duplicate(), "essence": main.run_essence.duplicate(), "item_sel": p.item_sel}
+	_keep = {"offhand": p.gear.get("offhand", {}).duplicate(true), "items": p.items.duplicate(), "essence": main.run_essence.duplicate(), "item_sel": p.item_sel,
+		"melee": p.gear.get("melee", {}).duplicate(true), "ranged": p.gear.get("ranged", {}).duplicate(true), "weapon": String(p.weapon)}
+	# Every past can do every step: an empty weapon slot is lent the basic piece.
+	for slot in ["melee", "ranged"]:
+		if p.gear_id(slot) == "":
+			p.gear[slot] = load("res://scripts/basic_gift.gd").piece(slot)
+			lent_weapons.append(slot)
+	if not lent_weapons.is_empty():
+		p.refresh_gear()
 	_enter(clampi(from, 0, count() - 1))
 
 
@@ -308,6 +347,8 @@ func _enter(k: int) -> void:
 	_lay_dummies(String(d.get("dummies", "")))
 	_set_foes(d.get("foes", []), float(d.get("weak", 1.0)))
 	_lend(String(d.get("lend", "")))
+	if bool(d.get("free_hand", false)):
+		_free_hand(p)
 	arena.posts.clear()
 	arena.post = 0
 	if String(d.get("kind", "")) == "posts":
@@ -341,7 +382,7 @@ func _enter(k: int) -> void:
 		"wand":
 			_was = float(p.off_cd) > 0.0
 	arena.queue_redraw()
-	main.GuideScript.say_text(String(d.get("say", "")), true)  # (the Entity says how, as it begins)
+	main.GuideScript.say_text(words(d, "say"), true)  # (the Entity says how, as it begins)
 
 
 ## Each frame (arena.gd): watches for the step's action; done, the next.
@@ -358,7 +399,7 @@ func tick(delta: float, p) -> void:
 		return
 	if t >= next_hint:
 		next_hint = t + HINT_AGAIN
-		main.GuideScript.say_text(String(d.get("hint", "")), true)
+		main.GuideScript.say_text(words(d, "hint"), true)
 
 
 func _check(d: Dictionary, p) -> bool:
@@ -382,27 +423,29 @@ func _check(d: Dictionary, p) -> bool:
 				n += 1
 			_was = now
 			return n >= need
-		"strike", "finisher", "shoot":
+		"strike", "finisher", "fists", "ranged":
 			var total := _dummy_hits()
 			if total > _hits:
-				var ranged := _ranged(p)
+				var slot := _slot(p)
 				match String(d["kind"]):
 					"strike":
-						if not ranged:
+						if slot == "melee":
 							n += total - _hits
 					"finisher":
-						if not ranged and bool(p.swing.get("heavy", false)):
+						if slot == "melee" and bool(p.swing.get("heavy", false)):
 							n += 1
-					"shoot":
-						if ranged and bool(p.last_draw_full):
+					"fists":
+						if slot == "fists":
+							n += total - _hits
+					"ranged":
+						# (a bow or sling at full draw; a crossbow's bolt or a pistol's shot, any that lands)
+						if slot == "ranged" and (String(p.wkind()) != "bow" or bool(p.last_draw_full)):
 							n += 1
 				_hits = total
 			return n >= need
-		"swap":
-			return _ranged(p) and String(_weapons().WEAPONS.get(String(p.weapon), {}).get("kind", "")) == "bow"
 		"wand":
 			var cd: bool = float(p.off_cd) > 0.0
-			if cd and not _was and String(load("res://scripts/offhand.gd").ready_use(p)) == "wand":
+			if cd and not _was and String(load("res://scripts/offhand.gd").ready_use(p)) == "wand" and _slot(p) != "ranged":
 				n += 1
 			_was = cd
 			return n >= need
@@ -442,7 +485,7 @@ func hud_text() -> String:
 	var d := step()
 	if d.is_empty():
 		return String(TEXT["done_title"])
-	var goal := String(d.get("goal", ""))
+	var goal := words(d, "goal")
 	var need := int(d.get("need", 0))
 	match String(d.get("kind", "")):
 		"posts":
@@ -461,7 +504,63 @@ func reached() -> int:
 # --- what each step sets up ---------------------------------------------------------------------
 
 func _ranged(p) -> bool:
-	return String(_weapons().WEAPONS.get(String(p.weapon), {}).get("slot", "")) == "ranged"
+	return _slot(p) == "ranged"
+
+
+## Where the weapon in hand is carried: "fists", "melee" or "ranged".
+func _slot(p) -> String:
+	return String(_weapons().WEAPONS.get(String(p.weapon), {}).get("slot", ""))
+
+
+# --- the words: the climber's own weapons ----------------------------------------------------
+
+## A step's words (field "goal", "say" or "hint") for this climber: the
+## variant for their weapons if the step has one, the weapons named.
+func words(d: Dictionary, field: String) -> String:
+	var p = main.player if main != null else null
+	var melee := String(p.gear_id("melee")) if p != null else ""
+	var ranged := String(p.gear_id("ranged")) if p != null else ""
+	return fill_words(pick_words(d, field, variant_for(d, ranged, two_w)), melee, ranged, two_w)
+
+
+## Which words a step uses for these weapons: "sling", "crossbow" or "gun"
+## on the ranged step (a bow: ""), "lent" on a free-hand step when a
+## two-handed melee weapon was swapped for the lent sword.
+static func variant_for(d: Dictionary, ranged: String, two := "") -> String:
+	match String(d.get("kind", "")):
+		"ranged":
+			var w: Dictionary = _weapons().WEAPONS.get(ranged, {})
+			if bool(w.get("stone", false)):
+				return "sling"
+			match String(w.get("kind", "")):
+				"crossbow":
+					return "crossbow"
+				"gun":
+					return "gun"
+	if bool(d.get("free_hand", false)) and two != "":
+		return "lent"
+	return ""
+
+
+## The field's words for a variant (the plain words when it has none).
+static func pick_words(d: Dictionary, field: String, variant: String) -> String:
+	if variant != "" and d.has(field + "_" + variant):
+		return String(d[field + "_" + variant])
+	return String(d.get(field, ""))
+
+
+## Names the weapons in a step's words: {melee_w}, {ranged_w}, {two_w} and a
+## pistol's {shots} (keys and pronouns are filled after, by the Entity).
+static func fill_words(text: String, melee: String, ranged: String, two := "") -> String:
+	var W = _weapons()
+	var name_of := func(id: String, fallback: String) -> String:
+		return String(W.WEAPONS.get(id, W.WEAPONS[fallback])["name"]).to_lower()
+	text = text.replace("{melee_w}", name_of.call(melee, W.START_MELEE))
+	text = text.replace("{ranged_w}", name_of.call(ranged, W.START_RANGED))
+	text = text.replace("{two_w}", name_of.call(two, "greatsword"))
+	var shots := int(W.WEAPONS.get(ranged, {}).get("shots", 1))
+	text = text.replace("{shots}", String(TEXT["shots_one"]) if shots <= 1 else String(TEXT["shots_many"]) % shots)
+	return text
 
 
 static func _weapons():
@@ -538,6 +637,24 @@ func _refill_foes(delta: float, _d: Dictionary) -> void:
 		arena._spawn(String(_foes[have % _foes.size()]), arena._spot(), true)
 
 
+## A free hand for the off-hand steps: a melee weapon that needs both hands
+## (offhand.gd two_handed) gives way to the basic sword, lent for the rest of
+## the session (put back afterward).
+func _free_hand(p) -> void:
+	var Offhand = load("res://scripts/offhand.gd")
+	var id := String(p.gear_id("melee"))
+	if id == "" or not Offhand.two_handed(id):
+		return
+	two_w = id
+	p.gear["melee"] = load("res://scripts/basic_gift.gd").piece("melee")
+	if not lent_weapons.has("melee"):
+		lent_weapons.append("melee")
+	if String(p.weapon) == id:
+		p.pending_weapon = String(p.gear_id("melee"))  # (the hammer in hand gives way to the sword once free)
+	p.refresh_gear()
+	main.sfx("equip_sword", 1.0, -6.0, 0.0)
+
+
 ## An off-hand piece lent for the session ("" keeps what's lent).
 func _lend(id: String) -> void:
 	if id == "" or id == _lent:
@@ -570,6 +687,18 @@ func restore() -> void:
 		return
 	var p = main.player
 	p.gear["offhand"] = _keep["offhand"]
+	for slot in ["melee", "ranged"]:
+		var g: Dictionary = _keep.get(slot, {})
+		if g.is_empty():
+			p.gear.erase(slot)
+		else:
+			p.gear[slot] = g
+	var was := String(_keep.get("weapon", "fists"))
+	p.weapon = was if p.slots().has(was) else (p.gear_id("melee") if p.gear_id("melee") != "" else "fists")
+	p.pending_weapon = ""
+	p.drawing = false
+	if String(p.wkind()) == "melee":
+		p.swing = p.wdata()["combo"][0]
 	p.items = _keep["items"]
 	p.item_sel = String(_keep["item_sel"])
 	main.run_essence = _keep["essence"]

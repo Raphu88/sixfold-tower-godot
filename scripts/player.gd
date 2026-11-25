@@ -30,6 +30,7 @@ const Wheel := preload("res://scripts/wheel.gd")
 const Offhand := preload("res://scripts/offhand.gd")  # (the off-hand: a second weapon, a shield or a wand)
 const ItemPool := preload("res://scripts/item_pool.gd")  # (every essence item's own pool, filtering and power)
 const SummitBlades := preload("res://scripts/summit_blades.gd")  # (a Summit Blade at your hip)
+const StoryScenes := preload("res://scripts/story_scenes.gd")  # (after the ending: how the climber looks)
 ## Damage multiplier for striking a foe from behind.
 var BACKSTAB_MULT: float:
 	get: return float(Combat.CLIMBER["backstab"])
@@ -3496,6 +3497,7 @@ func _draw() -> void:
 		if item_count("vessel") > 0:
 			load("res://scripts/vessel.gd").draw_on_climber(self, t)  # (at the hip, glowing with what it holds)
 		SummitBlades.draw_on_climber(self, t)  # (a Summit Blade at the hip, or a found one carried on the back)
+		StoryScenes.draw_on_climber(self, main.profile, t)  # (after the ending: an Ascended's three lights, a Breaker's sparks)
 	if overlay != null:
 		overlay.queue_redraw()
 

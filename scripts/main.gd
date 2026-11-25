@@ -81,6 +81,7 @@ const InscriptionsScript := preload("res://scripts/inscriptions.gd")
 const GlimpsesScript := preload("res://scripts/glimpses.gd")
 const ClimbShapeScript := preload("res://scripts/climb_shape.gd")
 const Fracture := preload("res://scripts/fracture.gd")  # (the Regard's glimpse of the last fracture)
+const StoryScenes := preload("res://scripts/story_scenes.gd")  # (the Makers at the Regard, their plea, the final meeting)
 const MarkUse := preload("res://scripts/mark_use.gd")  # (marks grow by use, and burns)
 const Flow := preload("res://scripts/essence_flow.gd")
 const Forcing := preload("res://scripts/forcing.gd")  # (essence forced past full: strain, the burn ladder)
@@ -884,6 +885,11 @@ func _process(delta: float) -> void:
 			# The glimpse of the last fracture plays first (fracture.gd): a press skips it.
 			if Fracture.tick(regard, delta / maxf(Engine.time_scale, 0.01), _dismiss_pressed()):
 				tip("regard_glimpse")
+			return
+		if StoryScenes.regard_active(regard):
+			# Then the Makers show themselves, the first time (story_scenes.gd): a press skips it.
+			if StoryScenes.regard_tick(regard, delta / maxf(Engine.time_scale, 0.01), _dismiss_pressed()):
+				tip("story_regard")
 			return
 		regard["t"] += delta / maxf(Engine.time_scale, 0.01)
 		if regard_done() and _dismiss_pressed():
@@ -3378,6 +3384,7 @@ func _begin_regard(fell: bool) -> void:
 		"exit": not fell, "floor": climb_shape.reached(), "strength": float(regard_mark.get("strength", 1.0))}
 	if not fell and not regard["refused"]:
 		Fracture.start(regard)  # (reached: first a glimpse of the last fracture, then the guardian's eye and its charge)
+	StoryScenes.start_regard(regard, profile)  # (a climber's first Regard: the three Makers show themselves, after the glimpse)
 	GuideScript.moment("regard", "regard")
 	if fell and float(regard["strength"]) < 1.0:
 		tip("death_mark")  # (its strength by the floor reached: climb_shape.gd DEATH_MARK)
@@ -3404,11 +3411,12 @@ func overlay_showing() -> bool:
 
 
 func regard_done() -> bool:
-	return not regard.is_empty() and regard["t"] > 3.0 and not Fracture.active(regard)
+	return not regard.is_empty() and regard["t"] > 3.0 and not Fracture.active(regard) and not StoryScenes.regard_active(regard)
 
 
 func end_regard() -> void:
 	Fracture.finish(regard)  # (the glimpse, if it still played, is over)
+	StoryScenes.regard_finish(regard)  # (and the Makers with it)
 	if unbound != null and unbound.ask_at_regard():
 		return  # (first: accept the mark, or refuse it)
 	if not regard.is_empty():
@@ -4639,6 +4647,7 @@ func on_enemy_killed(e) -> void:
 			story("first_guardian")
 		elif beaten == 3:
 			story("three_guardians")
+		StoryScenes.on_guardian(self, beaten)  # (the third brings the Makers' plea after the summit: story_scenes.gd)
 		_beast_piece(e)
 	# Overcharge: a charged foe's death throws lightning to everything near it.
 	if e.overcharge_t > 0.0:

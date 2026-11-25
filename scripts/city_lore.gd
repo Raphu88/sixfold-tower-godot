@@ -193,6 +193,9 @@ static func aura_step(prof) -> int:
 ## and aura step ("" with no aura, or when the roll falls to their usual
 ## words: AURA_CHANCE; `chance` for tests).
 static func aura_line(prof, who: String, chance := -1.0) -> String:
+	var after: String = load("res://scripts/story_scenes.gd").greeting(prof, who, chance)
+	if after != "":
+		return after  # (after the ending: greeted by what the climber chose, story_scenes.gd GREET)
 	var step := aura_step(prof)
 	if step <= 0:
 		return ""

@@ -137,6 +137,10 @@ static var LINES := {
 ##   first_guardian   the first tower's guardian beaten (main.gd on_enemy_killed)
 ##   three_guardians  the third tower's guardian beaten: the Makers' plea is coming
 ##   final            arriving at the summit of the last tower whose guardian stands
+## And the story's scenes (story_scenes.gd), once each:
+##   plea_stop / plea_go / plea_silent   after the Makers' plea, by the answer
+##   plea_broken      a guardian beaten after telling the Makers you'd stop
+##   after_ascend / after_fight          after the ending, by the choice
 static var STORY := {
 	"train": {"marked": "There you are. Don't look for me in the window; you won't find me. Climb, come back, climb again. I'll keep you alive.", "unbound": ""},
 	"before_regard": {"marked": "The guardian will look at you soon. It will offer you a mark. Everyone takes it. You don't have to be everyone.", "unbound": ""},
@@ -148,6 +152,16 @@ static var STORY := {
 		"unbound": "They're afraid of you. Good. Don't let them see that you're afraid of them."},
 	"final": {"marked": "Whatever they offer you up there, ask what it cost them. Then ask what it cost me.",
 		"unbound": "This is where I couldn't go. You can. Finish it."},
+	"plea_stop": {"marked": "You told them you'd stop. They believed you. I didn't. Climb when you're ready.",
+		"unbound": "You told them you'd stop. They want to believe it. Let them."},
+	"plea_go": {"marked": "You said no to them. Do you know how long it's been since anyone did?",
+		"unbound": "Good. They're afraid now. Fear makes them careless."},
+	"plea_silent": {"marked": "Silence. Clever. They can't hold you to it.", "unbound": ""},
+	"plea_broken": {"marked": "Another guardian. You told them you'd stop. They noticed. So did I.", "unbound": ""},
+	"after_ascend": {"marked": "So you're one of them now. I hope it's lighter than it looks. It isn't.",
+		"unbound": "One of them. My army, gone over. Keep them honest, will you?"},
+	"after_fight": {"marked": "It's begun. Hear that? The world, remembering how to crack. Stay close.",
+		"unbound": "It's begun. You and me and six blades. The wells are ours now. Everyone's."},
 }
 
 ## The Archive's groups, in order: [id, name].
@@ -291,6 +305,22 @@ static var TIPS: Dictionary = RuneArtistName.named(OutfitterName.named({
 	"barrier_maker": {"group": "tower", "name": "A Maker's confrontation",
 		"tip": "One of them came for you. Answer it. Carefully.",
 		"more": "A Maker confronts a climber, marked or Unbound, who keeps slipping past the stairs' barriers. Choose an answer (left and right and confirm, its number, or a tap). Keep the rules and it lets you go; defy it and it takes half the essence you carry. Its words are not written yet."},
+	# The story's scenes (story_scenes.gd).
+	"story_regard": {"group": "tower", "name": "The Makers at the Regard",
+		"tip": "Three of them, at the edge of sight. The Makers. They came to look at you. They don't usually come.",
+		"more": "At your first Regard, after the guardian's glimpse of the fracture, the three Makers showed themselves for a moment: the Maker of Marks (the eye, pale cyan), the Maker of Towers (the trowel, amber) and the Maker of Creatures (the paw, rose). They made the marks, the towers and the monsters, and they watch every climb. A press skips it. You'll meet them properly later, if you climb far enough."},
+	"story_plea": {"group": "tower", "name": "The Makers' plea",
+		"tip": "They asked you to stop. Whatever you said, nothing is locked. They'll just remember.",
+		"more": "When the third tower's guardian falls, three wells run wild, and after that summit all three Makers meet you together. They ask you to stop. Answer with a card: I'll stop, I'll go on, or Tell me what you were (they tell their story, and the card becomes Say nothing). Each answer moves how interested each Maker is in you, and I'll have a word on it afterwards. Saying you'll stop never stops you: every tower stays open. They only remember. Ask me: The Makers' plea?"},
+	"story_final": {"group": "tower", "name": "The final meeting",
+		"tip": "You walked away from them. They'll wait at your next summit. So will I.",
+		"more": "Once all six guardians have fallen, after the summit the Makers meet you one last time, and they see me. Choose: Ascend (become a Maker, holding Making and Unmaking together; if you're Sworn, you take your own Maker's place), Fight (my war, with the Summit Blades: the wells stay wild), or Not yet (they wait for another summit). Ascend and Fight ask for a second press. Then the ending, and you play on. Ask me: The last choice?"},
+	"story_ascend": {"group": "tower", "name": "Ascended",
+		"tip": "A Maker, still climbing. The cities will bow, or hide. You keep everything you had.",
+		"more": "You chose to ascend at the final meeting. Your title shows under your name when no other title is worn. Nobles, diners and other climbers greet you as what you are now. Three small lights turn over your head. Everything else is as it was: the same climber, every tower open."},
+	"story_fight": {"group": "tower", "name": "The Breaker",
+		"tip": "The war's begun. The wells stay wild, all six. Everyone will feel it.",
+		"more": "You chose to fight at the final meeting. Every tower stays wild. Your title, the Breaker, shows under your name when no other title is worn, and the cities talk about the world cracking. Sparks of the six essences rise off you. Everything else is as it was: the same climber, every tower open."},
 	"ending": {"group": "tower", "name": "The ending",
 		"tip": "All six guardians. I wrote it all down. Keep going, if you like.",
 		"more": "Once all six towers' guardians have been beaten, the ending plays after the last summit. Then the same climber plays on: every tower stays open, and everything you have stays yours."},
@@ -769,6 +799,9 @@ static var TIPS: Dictionary = RuneArtistName.named(OutfitterName.named({
 	"offhand": {"group": "gear", "name": "The off-hand",
 		"tip": "Something in your off hand. A blade adds a strike to your chains; a shield blocks while you hold {parry}; a wand casts with {offhand}.",
 		"more": "Your off-hand slot holds a second one-handed weapon, a shield or a wand. A second blade adds its own strike to your strike chains, just before the finisher. A shield blocks: hold {parry} past the parry's moment and blows from in front hurt much less, each costing stamina; with too little stamina the guard breaks and you stagger, and you walk slower while guarding. A clean parry is still better: it costs nothing and gives stamina back. A wand casts a small power with {offhand}. Enchanted off-hand pieces (the Ember Dirk, the Tide Ward and every wand) have their own essence pool for their power: a few uses, spent as it fires, refilled like a charm's charge (the inventory in the tower, with unbanked essence; the workshop bench on the train, with crystals). Two-handed weapons and bows need both hands: while one is out, the off-hand is put away."},
+	"two_hands": {"group": "gear", "name": "Two-handed weapons",
+		"tip": "That weapon needs both hands, so your off-hand is put away while it's out. Swap to a one-handed weapon or your fists to use it.",
+		"more": "Some weapons need both hands: the greatsword, the war hammer and the spear, and every bow, crossbow and sling. While one is in your hand your off-hand piece is put away: no off-hand strike, no shield block, no wand (its traits still count). Swords, daggers, axes, maces, canes, the rapier, the flail, pistols and your fists leave a hand free. The little coin at the corner of your weapon slot shows your off-hand: dimmed and struck through, it's put away. Swap with {weapon} and it's ready again."},
 	"summit_blade": {"group": "gear", "name": "Summit Blades",
 		"tip": "A Summit Blade, hidden here for whoever looked. Carry it to the summit and it's yours for good. Fall, and it goes back.",
 		"more": "One Summit Blade lies hidden in each tower, on one floor, in a quiet corner. You only see it up close, or by its faint glint now and then; a lead (found in a vault) shows its glint from afar and says which floor. Walk over it to take it up: it rides on your back. Reach the summit with it and it's bonded to you for good; fall, or leave another way, and it slips back to its hiding place. It isn't gear: it can't be sold or lost once bonded. You carry one bonded blade at your hip, and its power fires by itself: on a landed finisher, or a perfect parry. Between climbs, on the train, the book's Deeds ribbon (Summit Blades) awakens it a step with crystals of its tower's essence, one step between climbs, six steps in all."},
@@ -898,8 +931,8 @@ static var TIPS: Dictionary = RuneArtistName.named(OutfitterName.named({
 		"tip": "The towers are closed to you until the Noble grants you the Grace. Earn it here: basic training at the gym, then your first tournament.",
 		"more": "Every climber needs the Noble's Grace before entering a tower and taking a mark. A new climber earns it at their home station: first basic training at the gym (one session covering every way to move, attack and parry; it can't be skipped until the Grace is yours, unless you've made a climber on this device before), then one tournament of three rounds at the tournament grounds. The Grace comes win or lose. Until then the engine's lever is locked."},
 	"basic_training": {"group": "station", "name": "Basic training",
-		"tip": "One session, every move: walking, jumping, rolling, striking, shooting, the off-hand, parrying, blocking, the belt. I'll talk you through each step.",
-		"more": "Basic training is one session at the gym, twelve short steps in a row: walk to the posts, jump, roll, strike a dummy, land a combo's finisher, swap to your bow, loose a full draw, tap the off-hand (a lent wand), hold it to power the wand, parry a knight's blow on the glint, block one with a lent shield, and use the belt and its wheel. Each step waits until you do it; take too long and I'll give a hint. Nothing there can fell you. Leave from the pause menu and your place is kept: Resume at the gym, or Start over. Essence earned in training (and in your first tournament) goes into your body only, at a quarter of the usual amount: little, but it shows which body part you use most, and so where your first mark will appear. Go through it again any time; after the Grace (or if you've made a climber before) it can be skipped."},
+		"tip": "One session, every move: walking, jumping, rolling, your melee weapon, fists, your ranged weapon, the off-hand, parrying, blocking, the belt. I'll talk you through it.",
+		"more": "Basic training is one session at the gym, twelve short steps in a row: walk to the posts, jump, roll, strike a dummy with your melee weapon, land a combo's finisher, swap to your fists for a blow or two, swap to your ranged weapon and land a shot (a bow at full draw; a pistol or crossbow just fires), tap the off-hand (a lent wand) with your one-handed weapon out, since bows and two-handed weapons need both hands, hold it to power the wand, parry a knight's blow on the glint, block one with a lent shield, and use the belt and its wheel. Each step waits until you do it; take too long and I'll give a hint. Nothing there can fell you. Leave from the pause menu and your place is kept: Resume at the gym, or Start over. Essence earned in training (and in your first tournament) goes into your body only, at a quarter of the usual amount: little, but it shows which body part you use most, and so where your first mark will appear. Go through it again any time; after the Grace (or if you've made a climber before) it can be skipped."},
 	"first_tournament": {"group": "station", "name": "The first tournament",
 		"tip": "Your first tournament: two rounds of monsters, then a champion fighter. Nobody dies. The Grace is yours either way; each round you win adds a reward.",
 		"more": "The first tournament is three rounds at your home station's grounds: low-level monsters twice, then a human champion fighter with no marks. Between rounds your health is made whole; knocked down, you yield and it ends. Win or lose, the Noble grants you the Grace. Each round won adds a reward: one, a Healing Vial; two, a recall scroll; three, a Fine weapon or armour piece of the kind you fought with most. Take no damage at all and the Noble adds a tincture of each essence."},

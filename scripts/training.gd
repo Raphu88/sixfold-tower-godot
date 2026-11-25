@@ -9,9 +9,9 @@ extends RefCounted
 ## depart refuses) until the Noble grants them THE GRACE. To earn it:
 ##   basic training  ONE SESSION at the gym (tutorial.gd): twelve steps in
 ##                   one sitting, every way to move, attack and parry
-##                   (walking, jumping, rolling, striking, the finisher,
-##                   swapping, the bow's full draw, the off-hand and its
-##                   power, parrying, blocking, the belt). Left part way, it
+##                   (walking, jumping, rolling, the melee weapon and its
+##                   finisher, the fists, the ranged weapon, the off-hand
+##                   and its power, parrying, blocking, the belt). Left part way, it
 ##                   resumes where you stopped. Skippable only after the Grace,
 ##                   or by a player who made a climber before on this device.
 ##   the first       FIRST: one tournament of three rounds at the home
