@@ -110,7 +110,7 @@ static var CLIMB := {"floor": 1, "best": 2, "beast": 20}
 ## What a worn title does is in titles.gd SOCIAL.
 static var TITLES := {
 	"newcomer": {"name": "the Newcomer", "rank": 0, "deed": "Stop at a station.", "rule": "visits", "n": 1},
-	"trainee": {"name": "the Trainee", "rank": 0, "deed": "Finish the Training basics at a station.", "rule": "lessons", "n": 0},
+	"trainee": {"name": "the Trainee", "rank": 0, "deed": "Finish the Training basics at a station (skipping them forfeits this title).", "rule": "lessons_played", "n": 0},
 	"contender": {"name": "the Contender", "rank": 1, "deed": "Win the Novice Bracket of a tournament.", "rule": "tier", "n": 1},
 	"beastfeller": {"name": "Beastfeller", "rank": 1, "deed": "Fell a tower's beast.", "rule": "beasts", "n": 1},
 	"shieldmate": {"name": "Shieldmate", "rank": 1, "deed": "Team up with another climber.", "rule": "rivals", "of": "teamed", "n": 1},
@@ -499,6 +499,8 @@ static func deed_done(profile, t: Dictionary) -> bool:
 			return profile.count("beasts") >= n
 		"lessons":
 			return load("res://scripts/stations.gd").lessons_done(profile)
+		"lessons_played":  # (the Trainee: finished, not skipped: tutorial.gd earned_title)
+			return load("res://scripts/tutorial.gd").earned_title(profile)
 		"drills":
 			return r["drills"].values().filter(func(v): return int(v) > 0).size() >= n
 		"golds":

@@ -132,6 +132,9 @@ static var TEXT := {
 	"again": "Go through it again",
 	"skip": "Skip it: I know this",
 	"skipped": "Basic training skipped",
+	"skip_warn": "Skip basic training? You won't be able to earn the Trainee title (it's only for finishing it). The lessons count as done, so the tournaments and the Grace open as usual.",
+	"skip_confirm": "Skip it",
+	"no_title": "No Trainee title: it's earned by finishing basic training, not skipping it.",
 	"hud": "%s  ·  Step %d of %d  ·  %s",
 	"count": "%d of %d",
 	"step_done": "Step done",
@@ -218,7 +221,7 @@ static func skip(profile) -> Array:
 		return [Tr.TEXT["no_skip"]]
 	var S = load("res://scripts/stations.gd")
 	state(profile)["skipped"] = true
-	var lines: Array = [TEXT["skipped"]]
+	var lines: Array = [TEXT["skipped"], TEXT["no_title"]]
 	for id in S.LESSON_ORDER:
 		if S.lesson_state(profile, id) == 0:
 			lines.append_array(S.finish_lesson(profile, id, 2))
@@ -573,3 +576,18 @@ func restore() -> void:
 	p.item_power = {}
 	p.refresh_gear()
 	_keep = {}
+
+
+## The Trainee title is earned only by finishing basic training, not by
+## skipping it (the owner's rule: an experienced player may skip, at the
+## cost of the title). Old saves that finished the six lessons count.
+static func earned_title(profile) -> bool:
+	if profile == null:
+		return false
+	var s := state(profile)
+	if bool(s["done"]):
+		return true
+	if bool(s["skipped"]):
+		return false
+	var S = load("res://scripts/stations.gd")
+	return S.LESSON_ORDER.all(func(id): return not S.LESSONS.has(id) or S.lesson_state(profile, id) == 1)

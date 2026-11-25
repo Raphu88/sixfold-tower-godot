@@ -436,10 +436,9 @@ func _bye() -> void:
 
 
 ## A seated climber: drawn behind a laid table in their own look and gear
-## (rivals.gd look_of, appearance.gd draw_front), their marks glowing on
-## them in their bonds' colours (brighter with each step), a lamp on the
-## cloth, a plate and a glass, their marks as small gems on the brass name
-## plate. Drawn to the size the tables give it (bigger when few sit down).
+## (rivals.gd look_of, appearance.gd draw_front), a lamp on the cloth, a
+## plate and a glass, their name on a brass plate (no marks or glow drawn on
+## them: the owner's choice; the placard still names their marks). Drawn to the size the tables give it (bigger when few sit down).
 ## Gilt-edged when you're talking with them; a cold one sits in a cooler light.
 class Diner extends Button:
 	const UI := preload("res://scripts/ui.gd")
@@ -493,23 +492,12 @@ class Diner extends Button:
 		var warm := Color(1.0, 0.78, 0.45) if mood != "cold" else Color(0.65, 0.75, 0.95)
 		Art.light(b, lamp + Vector2(0, -12.0 * z), Vector2(s.x * 0.6, s.y * 0.45), Color(warm, 0.16 if lit else 0.1))
 		b.flush(self)
-		# The climber, from the waist up, behind the table; their marks
-		# glowing on them in their bonds' colours (brighter with each step).
+		# The climber, from the waist up, behind the table (no marks drawn on them: the owner's choice).
 		var k := figure_scale()
 		draw_set_transform(Vector2(s.x * 0.42, table_y + 6.0 * k), 0.0, Vector2(k, k))
 		var fb := UI.Draw.Batch.new()
 		fb.contact(Vector2(0, -2.0), 54.0, 0.3, 0.3)
 		Appearance.draw_front(fb, look)
-		for mk in marks:
-			var at: Vector2 = SPOTS.get(mk[0], Vector2.ZERO)
-			if at.y > 0.0:
-				continue  # (under the table)
-			var step := clampi(int(mk[2]), 1, 5)
-			UI.glow_into(fb, at, 20.0 + 5.0 * step, mk[1], 1.8 + 0.5 * step)
-			fb.dot(at, 6.0, Color(UI.OUTLINE, 0.9))
-			fb.dot(at, 4.8, Color(mk[1]).darkened(0.2))
-			fb.dot(at, 2.6, Color(mk[1]).lightened(0.35))
-			fb.dot(at + Vector2(-1.2, -1.2), 1.4, Color(1, 1, 1, 0.8))
 		fb.flush(self)
 		draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
 		var t := UI.Draw.Batch.new()
@@ -536,21 +524,15 @@ class Diner extends Button:
 		t.polygon(PackedVector2Array([sh + Vector2(-5, -4) * z, sh + Vector2(5, -4) * z, sh + Vector2(8, 4) * z, sh + Vector2(-8, 4) * z]), Color(0.75, 0.32, 0.25) if mood != "cold" else Color(0.35, 0.45, 0.6))
 		t.rect(Rect2(sh + Vector2(-8, 4) * z, Vector2(16, 1.2) * z), Art.GILT)
 		Art.light(t, sh + Vector2(0, 6) * z, Vector2(14, 8) * z, Color(warm, 0.35))
-		# The brass name plate, their marks as gems on it.
+		# The brass name plate.
 		var pr := Rect2(4.0, s.y - plate_h - 2.0, s.x - 8.0, plate_h)
 		t.rect(pr.grow(1.0), Art.OUTLINE)
 		Art.vgrad(t, pr, Art.GILT.darkened(0.15) if lit else Art.GILT.darkened(0.45), Art.GILT.darkened(0.6))
 		var gr := plate_h * 0.16
-		var gx := pr.end.x - gr * 2.2
-		for c in cols:
-			t.circle(Vector2(gx, pr.get_center().y), gr + 0.8, Art.OUTLINE, 10)
-			t.circle(Vector2(gx, pr.get_center().y), gr, c, 10)
-			t.circle(Vector2(gx - gr * 0.3, pr.get_center().y - gr * 0.3), gr * 0.35, Color(1, 1, 1, 0.5), 6)
-			gx -= gr * 2.4
 		if lit:
 			var edge := Rect2(Vector2.ZERO, s).grow(-1.0)
 			t.path(PackedVector2Array([edge.position, Vector2(edge.end.x, edge.position.y), edge.end, Vector2(edge.position.x, edge.end.y)]), Color(UI.GILT, 0.9 if on else 0.55), 1.6, true)
 		t.flush(self)
 		var f := UI.font("display")
-		var room := pr.size.x - 10.0 - gr * 2.4 * cols.size()
+		var room := pr.size.x - 10.0
 		UI.draw_text(self, f, Vector2(pr.position.x + 5.0, pr.end.y - plate_h * 0.25), String(rec.get("name", "")), HORIZONTAL_ALIGNMENT_LEFT, room, int(plate_h * 0.8), Color(0.12, 0.08, 0.05) if lit else Color(0.98, 0.9, 0.7))

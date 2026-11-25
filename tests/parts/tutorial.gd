@@ -359,7 +359,11 @@ func _skip(main) -> void:
 	if skip.size() == 1:
 		skip[0].pressed.emit()
 	await t._frames(2)
+	t._check(menu.asking() and menu.pop.text_l.text.contains("Trainee") and not Tutorial.passed(prof), "Skip asks first, warning that it forfeits the Trainee title")
+	await t._confirm(true)
+	await t._frames(2)
 	t._check(Tutorial.passed(prof) and bool(Tutorial.state(prof)["skipped"]) and Stations.lessons_done(prof), "skipped: behind the climber, the old parts marked")
+	t._check(not Tutorial.earned_title(prof) and not Renown.grantable(prof, "trainee"), "...but no Trainee title: it's earned by finishing, not skipping")
 	t._check(Renown.points(prof) == pts + Stations.LESSON_REWARD, "...the set's renown paid (once: it was cleared for this check)")
 	t._check(_buttons(menu, "station_do", "begin").size() == 1, "...and it can still be gone through")
 
