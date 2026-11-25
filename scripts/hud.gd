@@ -43,6 +43,7 @@ const Anim := preload("res://scripts/anim.gd")
 const Reactions := preload("res://scripts/reactions.gd")
 const Combat := preload("res://scripts/combat.gd")  # (fatigue's words on the stamina bar)
 const ItemPool := preload("res://scripts/item_pool.gd")  # (the weapon in hand's own essence pool: a small flat bar)
+const Offhand := preload("res://scripts/offhand.gd")  # (the off-hand piece: a coin at the weapon slot's corner, dimmed while both hands are busy)
 ## Where each part sits (Arrange mode moves them): every block below is drawn
 ## where it always was, under its element's transform (layout.gd).
 const Layout := preload("res://scripts/layout.gd")
@@ -277,7 +278,7 @@ func _core_signature() -> Array:
 	var s := [true, hud_scale, get_viewport_rect().size, Layout.version, main.touch_active, main.pad_active, main.pad_ps,
 		int(ceil(p.hp)), int(round(p.max_health())), p.max_hp, int(p.sta), p.max_sta, int(p.fatigue), p.poison_t > 0.0,
 		snappedf(hp_trail, 0.004), snappedf(sta_trail, 0.01), int(ceil(p.barrier_hp)),
-		p.weapon, snappedf(p.reload_t, 0.05) if p.wkind() in ["crossbow", "gun"] else 0.0, p.ammo_left() if p.wkind() == "gun" else -1,
+		p.weapon, Gear.base_id(p.gear.get("offhand", {})), snappedf(p.reload_t, 0.05) if p.wkind() in ["crossbow", "gun"] else 0.0, p.ammo_left() if p.wkind() == "gun" else -1,
 		ItemPool.left(p.weapon_rec()) if p.weapon != "fists" else -1, p.item_power.duplicate(), p.gun_magic() if p.wkind() == "gun" else "",
 		p.selected_item(), p.item_count(p.selected_item()) if p.selected_item() != "" else 0,
 		main.profile.path, main.profile.flow_step(), int(main.profile.flow),
@@ -435,7 +436,7 @@ func _draw_core() -> void:
 		var loaded: int = p.ammo_left()
 		var magic: String = p.gun_magic()
 		var lit: Color = Essence.color(magic) if magic != "" else Color(1.0, 0.86, 0.5)
-		var pw := (SLOT - 8.0) / maxf(float(shots), 1.0)
+		var pw := (SLOT - (20.0 if not Offhand.piece(p).is_empty() else 8.0)) / maxf(float(shots), 1.0)  # (clear of the off-hand's coin)
 		for i in shots:
 			var pc := Vector2(wr.position.x + 4.0 + pw * (i + 0.5), wr.end.y - 3.5)
 			wb.dot(pc, minf(2.6, pw * 0.42) + 0.8, UI.OUTLINE)
@@ -457,6 +458,23 @@ func _draw_core() -> void:
 			pool_lines.append(ItemPool.TEXT["hud_power"])
 		else:
 			pool_lines.append(ItemPool.TEXT["pool_dry"] if ItemPool.left(wrec) <= 0 else ItemPool.TEXT["hud_hold"] % "the off-hand button")
+	# The off-hand piece worn: a small coin at the slot's corner, dimmed and
+	# struck through while the weapon in hand needs both hands (offhand.gd
+	# two_handed: it's put away). Its own card on hover says why.
+	var oh := Offhand.piece(p)
+	if not oh.is_empty():
+		var oc := wr.end - Vector2(5, 4)  # (clear of the item slot beside it)
+		var away := Offhand.two_handed(String(p.weapon))
+		var oa := 0.42 if away else 1.0
+		wb.dot(oc, 7.6, Color(UI.OUTLINE, 0.9))
+		wb.dot(oc, 6.4, Color(UI.STONE, oa))
+		UI.ring_into(wb, oc, 6.4, 1.0, Color(UI.GILT, 0.8 * oa))
+		Gear.icon_into(wb, oh, oc, 4.8, Color(Gear.color(oh), oa))
+		if away:
+			wb.line(oc + Vector2(-4.5, 4.5), oc + Vector2(4.5, -4.5), Color(UI.BAD, 0.9), 1.6)
+		var oh_lines: Array = Offhand.use_lines(oh).slice(0, 1)
+		oh_lines.append(String(Offhand.TEXT["hud_away"]) % String(p.wdata()["name"]).to_lower() if away else String(Offhand.TEXT["hud_ready"]))
+		tips.append([wx * Rect2(oc - Vector2(8, 8), Vector2(16, 16)), String(Offhand.TEXT["where"]) + ": " + Gear.display(oh), oh_lines])  # (before the weapon's card: the coin wins)
 	tips.append([wx * wr, Gear.display(p.weapon), pool_lines + _gear_tip(p.weapon, maxi(slot_i, 0))])
 	c.draw_set_transform_matrix(unit * wx)
 	wb.flush(c)
