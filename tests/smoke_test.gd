@@ -4521,7 +4521,7 @@ func _spell_tests() -> void:
 	await _confirm(true)
 	await _frames(2)
 	_check(main.profile.bonds.is_empty() and not main.profile.regarded, "Confirm starts a new climber: no marks")
-	_check(main.menu.page == "intro", "...who meets the introduction first (then a name, a look and the questions)")
+	_check(main.menu.page == "create_name", "...who goes straight to a name (then a look and the questions; the opening was before the title)")
 	_begin_start()  # (Begin: the game runs on)
 	Engine.remove_meta("sixfold_title_seen")
 	await _frames(1)
@@ -9826,13 +9826,10 @@ func _appearance_tests() -> void:
 	for key in A.OPTIONS:
 		sizes_ok = sizes_ok and A.index_of(key, A.DEFAULTS[key]) >= 0
 	_check(sizes_ok, "the options are data: 6 skin presets, 6 cloak colours, 18 hair styles, 12 builds, each default among them")
-	# New climber: the introduction, the name, then the creation page, before the first climb.
+	# New climber: the name, then the creation page, before the first climb.
 	main.new_climber()
-	await _until(func(): return menu.page == "intro", 2.0)
-	_check(menu.page == "intro" and not prof.created, "New climber opens the introduction before the first climb")
-	StartPages._end_intro(menu)
-	await _frames(2)
-	_check(menu.page == "create_name" and menu.backdrop.visible, "...then the name (over the title's sky)")
+	await _until(func(): return menu.page == "create_name", 2.0)
+	_check(menu.page == "create_name" and not prof.created and menu.backdrop.visible, "New climber opens the name before the first climb (over the title's sky)")
 	menu.open("create")
 	await _frames(2)
 	_check(menu.page == "create" and not prof.created and menu.backdrop.visible, "...then the creation page (over the title's sky)")
@@ -9946,7 +9943,7 @@ func _appearance_tests() -> void:
 	_check(_menu_button(NewStart.TEXT["continue"]) == null, "the very first launch: no Continue, only New Climber")
 	_menu_button(NewStart.TEXT["new_climber"]).pressed.emit()
 	await _frames(2)
-	_check(menu.page == "intro", "the very first launch: New Climber on the title opens the introduction")
+	_check(menu.page == "create_name", "the very first launch: New Climber on the title opens the name (the opening played before the title)")
 	_begin_start()
 	await _frames(2)
 	_check(menu.page == "" and prof.created, "...and Begin there starts the climb")
@@ -12972,8 +12969,8 @@ func _climber_slot_tests() -> void:
 	menu.scroll.ensure_control_visible(cards[4])
 	await _frames(2)
 	await _tap_at(cards[4].get_global_rect().get_center())
-	await _until(func(): return menu.page == "intro", 1.0)
-	_check(S.current() == 5 and menu.page == "intro" and not main.profile.created and main.profile.bonds.is_empty() and main.profile.crystals.is_empty(), "a tap on an empty slot starts a new climber there: the introduction")
+	await _until(func(): return menu.page == "create_name", 1.0)
+	_check(S.current() == 5 and menu.page == "create_name" and not main.profile.created and main.profile.bonds.is_empty() and main.profile.crystals.is_empty(), "a tap on an empty slot starts a new climber there: the name")
 	main.profile.saving = true  # (tests: let this climber save, into its test slot)
 	_begin_start()
 	main.profile.saving = false

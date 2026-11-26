@@ -3,11 +3,15 @@ extends RefCounted
 ## "quiz"; the look between them is appearance_page.gd's "create"), built
 ## with menu.gd's own helpers so mouse, keys, controller and touch all work.
 ##
-##   New Climber (the title) -> intro -> create_name -> create -> quiz -> Begin
+##   (first launch) intro -> the title
+##   New Climber (the title) -> create_name -> create -> quiz -> Begin
 ##
-##   intro        a black screen: the Entity speaks new_start.gd INTRO, a line
-##                at a time (Next, Back; Skip once a climber has been made
-##                on this device)
+##   intro        the opening: the Entity speaks new_start.gd INTRO, a screen
+##                at a time, each over its own scene (opening.gd); Next (or a
+##                tap on the picture), Back, Skip; it ends on the title. It
+##                plays by itself only on a device's first launch
+##                (new_start.gd opening_due); the title's "The opening"
+##                button plays it again
 ##   create_name  the name (the Dice offers one) and pronouns (pronouns.gd),
 ##                with a line showing how others will speak of you
 ##   quiz         new_start.gd QUESTIONS, one at a time, then a summary of
@@ -59,13 +63,14 @@ static func new_climber(m) -> void:
 		m.open("climbers")
 		return
 	main.sfx("ui_confirm")
-	main.switch_climber(slot)  # (the game starts again in that slot, on the introduction)
+	main.switch_climber(slot)  # (the game starts again in that slot, on the name)
 
 
-## The start of a new climber: the introduction.
+## The start of a new climber: the name first (the opening isn't shown
+## again; the title's "The opening" plays it).
 static func begin_start(m) -> void:
 	reset()
-	m.open("intro")
+	m.open("create_name")
 
 
 ## Back a step (Esc, B, a Back button).
@@ -76,10 +81,9 @@ static func back(m) -> void:
 				line -= 1
 				m.open("intro")
 			else:
-				m.open("title")
+				_end_intro(m)
 		"create_name":
-			line = NewStart.INTRO.size() - 1
-			m.open("intro")
+			m.open("title")
 		"quiz":
 			if q > 0:
 				q -= 1
@@ -88,51 +92,72 @@ static func back(m) -> void:
 				m.open("create")
 
 
-# --- the introduction ------------------------------------------------------------
+# --- the opening ------------------------------------------------------------------
+
+## How the game opens (main.gd, a fresh start): the first launch on a device
+## plays the opening before the title (new_start.gd opening_due); later
+## launches go straight to the title.
+static func launch(m) -> void:
+	if NewStart.opening_due():
+		play_opening(m)
+	else:
+		m.open("title")
+
+
+## The opening from its first screen (the first launch, or the title's
+## "The opening"). It ends on the title.
+static func play_opening(m) -> void:
+	line = 0
+	m.open("intro")
+
 
 static func build_intro(m) -> void:
 	var main = m.main
 	var small: bool = m.compact()
 	var lines: Array = NewStart.INTRO
 	line = clampi(line, 0, lines.size() - 1)
-	m.backdrop.visible = false  # (a black screen: menu.gd open blacks out the shade)
-	# The first time, the Entity's tip on the introduction itself (kept in the Archive).
-	var told: String = main.tip_now("intro") if line == 0 else ""
+	m.backdrop.visible = false  # (the opening draws its own scene: opening.gd, under the words)
+	if m.opening != null:
+		m.opening.show_line(line)
+	var vw: float = m.get_viewport_rect().size.x
+	var wide := minf(vw - (24.0 if small else 80.0), 760.0)
+	# The first time, the Entity's tip on the opening itself (kept in the Archive).
+	var told: String = main.tip_now("intro") if line == 0 and main != null else ""
 	if told != "":
-		var tip: Label = m._label(Entity.fill_keys(told, _mode(main), main.pad_ps), 0.0, UI.FAINT)
+		var tip: Label = m._label(Entity.fill_keys(told, _mode(main), main.pad_ps), 0.0, UI.DIM)
 		tip.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		tip.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-		tip.custom_minimum_size.x = 300.0 if small else 520.0
-		tip.add_theme_font_size_override("font_size", 14)
+		tip.custom_minimum_size.x = wide
+		tip.add_theme_font_size_override("font_size", 13 if small else 14)
 		m.box.add_child(tip)
-	m._gap(6 if small else 30)
-	var said: Control = Entity.says(String(lines[line][1]), 48.0 if small else 70.0, String(Entity.TEXT["tag"]), false)
-	said.custom_minimum_size.x = 340.0 if small else 600.0
+	var said: Control = Entity.says(String(lines[line][1]), 38.0 if small else 54.0, String(Entity.TEXT["tag"]), false)
+	said.custom_minimum_size.x = wide
 	said.set_meta("intro_line", line)
 	m.box.add_child(said)
-	m._gap(4 if small else 14)
-	# Where you are: a dot for each line.
-	var dots: Label = m._label(" ".join(range(lines.size()).map(func(i): return "●" if i == line else "○")), 0.0, UI.DIM)
-	dots.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	m.box.add_child(dots)
-	m._gap(4)
+	# The buttons, with a dot for each screen between them.
 	var row := HBoxContainer.new()
 	row.alignment = BoxContainer.ALIGNMENT_CENTER
-	row.add_theme_constant_override("separation", 12)
+	row.add_theme_constant_override("separation", 10 if small else 14)
 	m.box.add_child(row)
+	var bw := 96.0 if small else 120.0
 	if line > 0:
 		var bk: Button = m._button(T["back"], back.bind(m), row)
 		bk.set_meta("help", "start:intro_back")
-		bk.custom_minimum_size.x = 120.0
-	if NewStart.can_skip_intro() and line < lines.size() - 1:
+		bk.custom_minimum_size.x = bw
+	var last := line >= lines.size() - 1
+	if not last:
 		var sk: Button = m._button(T["intro_skip"], _end_intro.bind(m), row)
 		sk.set_meta("help", "start:intro_skip")
-		sk.custom_minimum_size.x = 120.0
-	var last := line >= lines.size() - 1
+		sk.set_meta("intro_skip", true)
+		sk.custom_minimum_size.x = bw
+	var dots: Label = m._label(" ".join(range(lines.size()).map(func(i): return "●" if i == line else "○")), 0.0, UI.DIM)
+	dots.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	dots.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	row.add_child(dots)
 	var nx: Button = m._button(T["intro_go"] if last else T["intro_next"], _intro_next.bind(m), row)
 	nx.set_meta("help", "start:intro_go" if last else "start:intro_next")
 	nx.set_meta("intro_next", true)
-	nx.custom_minimum_size.x = 200.0 if last else 140.0
+	nx.custom_minimum_size.x = (150.0 if last else 120.0) if small else (180.0 if last else 140.0)
 	m._primary(nx)
 
 
@@ -144,9 +169,20 @@ static func _intro_next(m) -> void:
 	m.open("intro")
 
 
+## A click or tap on the opening's picture: the next screen.
+static func tap_scene(m) -> void:
+	if String(m.page) != "intro" or m.opening == null or not m.opening.can_tap():
+		return
+	m.main.sfx("ui_move")
+	_intro_next(m)
+
+
+## The opening's end (its last Continue, Skip, or Back from its first
+## screen): seen, and on to the title.
 static func _end_intro(m) -> void:
 	line = 0
-	m.open("create_name")
+	NewStart.note_opening_seen()
+	m.open("title")
 
 
 # --- the name and pronouns ---------------------------------------------------------

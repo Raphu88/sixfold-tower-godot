@@ -18,6 +18,7 @@ const MarkUse := preload("res://scripts/mark_use.gd")  # (marks grow by use: how
 const Towers := preload("res://scripts/towers.gd")
 const EnemyScript := preload("res://scripts/enemy.gd")
 const TitleScript := preload("res://scripts/title.gd")
+const OpeningScript := preload("res://scripts/opening.gd")  # (the opening's six illustrated screens, under the "intro" page)
 const Gear := preload("res://scripts/gear.gd")
 const Weapons := preload("res://scripts/weapons.gd")
 const Items := preload("res://scripts/items.gd")
@@ -151,6 +152,7 @@ var said_toast := ""
 var _said_toast_on := ""
 var backdrop: Control  # the title screen's drawing (title.gd), behind the title and its pages
 var shade: ColorRect
+var opening: Control  # the opening's scenes (opening.gd), behind the "intro" page's words
 var center: CenterContainer
 var fade: Tween
 var opened_from_title := false
@@ -266,6 +268,11 @@ func _ready() -> void:
 	station_view.hide()
 	add_child(station_view)
 	station_page = StationPage.new(self)
+	opening = OpeningScript.new()
+	opening.main = main
+	opening.hide()
+	opening.tapped.connect(func(): StartPages.tap_scene(self))  # (a click on the picture: the next screen)
+	add_child(opening)
 	tour = load("res://scripts/tour.gd").new(self)
 	look_page = AppearancePage.new(self, func(b, lk): BodyView._figure(b, lk))
 	shade = ColorRect.new()
@@ -488,6 +495,9 @@ func _tap(pos: Vector2) -> void:
 		if field != null:
 			data_page.tap_field(field)  # (a text box in the Data editor)
 			return
+	if b == null and page == "intro":
+		StartPages.tap_scene(self)  # (a tap on the opening's picture: the next screen)
+		return
 	if b == null or b.disabled:
 		return
 	_note_press(pos, b)
@@ -844,6 +854,17 @@ func _layout() -> void:
 		center.position = r.position
 		center.size = r.size
 		scroll.custom_minimum_size = Vector2(minf(300.0, r.size.x - 40.0), minf(_wanted_height(), r.size.y))
+	elif page == "intro":
+		# The opening: its words along the bottom, its scene above (opening.gd).
+		var edge := 6.0 if compact() else 22.0
+		var w := minf(800.0, s.x - 16.0)
+		if box.get_combined_minimum_size().x > w + 0.5:
+			Reflow.fit(box, w, s.y * 0.7)
+		var h := minf(_wanted_height(), s.y * 0.7)
+		scroll.custom_minimum_size = Vector2(w, h)
+		center.position = Vector2(0, s.y - h - edge)
+		center.size = Vector2(s.x, h)
+		opening.text_top = center.position.y - (4.0 if compact() else 10.0)
 	elif page != "":
 		# The rail down the left (in-game pages); the page sits in the rest.
 		var rw := 0.0
@@ -1151,7 +1172,8 @@ func open(which: String, direct := false) -> void:
 		station_view.look = st  # (each station's own colours and tower)
 		station_view.set_inset(RailScript.width_for(compact()) if rail_showing() else 0.0)
 	center.visible = which != "train"
-	shade.visible = which != "title" and which != "train"
+	shade.visible = which != "title" and which != "train" and which != "intro"  # (the opening draws its own dark band: opening.gd)
+	opening.visible = which == "intro"
 	shade.color = Color.BLACK if which == "intro" else UI.SHADE  # (the introduction: a black screen, start_pages.gd)
 	shade.color.a = 1.0 if which == "intro" else (0.6 if backdrop.visible else (0.62 if train_view.visible else (0.38 if stationed and which == "station" else (0.62 if stationed else UI.SHADE.a))))
 	if (which == "pause" or which == "train") and was_closed:
@@ -1224,6 +1246,8 @@ func open(which: String, direct := false) -> void:
 	if rail.visible and (on_rail or list.is_empty()):
 		rail.focus_current.call_deferred()
 		return
+	if which == "intro":
+		keep = -1  # (each screen of the opening starts on its Next: _first_focus)
 	if not list.is_empty():
 		var at: int = keep if keep >= 0 and keep < list.size() else first
 		if which == "train":
@@ -1265,6 +1289,8 @@ func _first_focus(which: String, list: Array) -> int:
 			first = station_page.first_focus(list)
 		elif which == "create" or which == "appearance":
 			first = maxi(0, list.find(look_page.first_focus))
+		elif which == "intro":
+			first = maxi(0, list.map(func(b): return b.has_meta("intro_next")).find(true))  # (Enter or A goes on)
 		elif which == "climbers":
 			# (on the current climber's card)
 			first = maxi(0, list.map(func(b): return b.get_meta("climber_slot", 0)).find(Slots.current()))
@@ -1833,6 +1859,10 @@ func _page_title() -> void:
 		cb.set_meta("climbers", true)
 		cb.set_meta("help", "start:climbers")
 		_title_button(cb)
+	var op := _button(NewStart.TEXT["opening"], StartPages.play_opening.bind(self))  # (the opening again: opening.gd)
+	op.set_meta("help", "start:opening")
+	op.set_meta("opening", true)
+	_title_button(op)
 	_title_button(_button("Settings", open.bind("settings")))
 	_title_button(_button("Dev tools", open.bind("dev")))
 	if prof.regarded:
@@ -4249,8 +4279,8 @@ func figure_into(b, look: Dictionary, bonds: Dictionary) -> void:
 		b.dot(BodyView.SPOTS[part], 6.0, Color(col.lightened(0.35), 0.9 * a))
 
 
-## A new climber's start (start_pages.gd): the Entity's introduction on a
-## black screen, the name and pronouns, and (after the look) the questionnaire.
+## The opening (start_pages.gd, drawn by opening.gd), and a new climber's
+## start: the name and pronouns, and (after the look) the questionnaire.
 func _page_intro() -> void:
 	StartPages.build_intro(self)
 

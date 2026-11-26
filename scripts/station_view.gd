@@ -147,7 +147,8 @@ func _draw() -> void:
 
 ## The station's own tower, near: a tall silhouette in the dusk, banded,
 ## with lit windows in its essence's colour and its torch burning on top.
-func _near_tower(b, base: Vector2, th: float, id: String, t: float) -> void:
+## (Static: the opening's towers use it too, opening.gd.)
+static func _near_tower(b, base: Vector2, th: float, id: String, t: float) -> void:
 	var tw := th * 0.2
 	var wc: Color = Essence.color(String(Towers.TOWERS[id].get("essence", "air")))
 	var torch: Color = Towers.TOWERS[id].get("torch", wc)
