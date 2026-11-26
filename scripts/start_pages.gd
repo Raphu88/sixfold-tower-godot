@@ -389,7 +389,7 @@ static func begin(m) -> void:
 		prof.last_tower = prof.home
 		main.tower = prof.home
 		main.open_train()
-		m.go_station(load("res://scripts/travel.gd").home(prof))
+		m.go_station(load("res://scripts/travel.gd").home(prof), "", "", [], false)  # (no whistle: no train brought them)
 
 
 static func _mode(main) -> String:

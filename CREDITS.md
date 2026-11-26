@@ -13,7 +13,6 @@ All sound effects and music are **CC0** (public domain), from [OpenGameArt.org](
 | [Fantasy: Rising Moon](https://opengameart.org/content/fantasy-rising-moon) | RandomMind | music: the title, the train and stations, and a climb's calm rooms (CC0) |
 | [Frost in the Northern Winter](https://opengameart.org/content/frost-in-the-northern-winter) | Kaiser (posted by The Oracle) | music: story moments (the introduction, the Regard, the Makers, the ending), cut to open with six tolls (CC0) |
 | [Great Labyrinth (Orchestral dungeon music)](https://opengameart.org/content/great-labyrinthorchestral-dungeon-music) | MintoDog | music: a climb's danger and the guardian's fight (CC0) |
-| [Dark Cavern Ambient](https://opengameart.org/content/dark-cavern-ambient) | Paul Wortmann | tower ambience |
 | [Medieval Sound Effects: Weapon Textures](https://opengameart.org/content/medieval-sound-effects-weapon-textures) | Still North Media (posted by MedicineStorm) | bow draw, nock and release, crossbow shot, reload and bolt, dagger and spear swings, blade draws |
 | [Fantasy Sound Effects (Tinysized SFX)](https://opengameart.org/content/fantasy-sound-effects-tinysized-sfx) | Vehicle (Jan Schupke) | dagger draw, pouch (pick-ups, inventory), spike trap scrape, gas hiss |
 | [Interface Sounds](https://opengameart.org/content/interface-sounds) | Kenney | menu clicks |
@@ -64,7 +63,6 @@ All sound effects and music are **CC0** (public domain), from [OpenGameArt.org](
 | [Sand spell](https://opengameart.org/content/sand-spell) | qubodup | sand spells |
 | [windy ambient noise](https://opengameart.org/content/windy-ambient-noise) | Some Weirdo | the Gryphon's, the Manticore's and the Firebird's ambience |
 | [Forest bird sounds](https://opengameart.org/content/forest-bird-sounds) | pauliuw | the Thornwild's ambience |
-| [Dripping water loop](https://opengameart.org/content/dripping-water-loop) | qubodup | the flooded halls' ambience |
 
 The game's sounds are built from these with `tools/build_audio.py`: layered, levelled, given a shared room reverb, and in a few cases mixed with a synthesised thump or string. Each tower's ambience is built the same way as a 40-second loop; the train's is one steady stretch of the Steam Train Interior recording, looped where the wheels' clatter lines up so the seam stays on the beat. `tools/fetch_audio_sources.sh` downloads the original packs.
 

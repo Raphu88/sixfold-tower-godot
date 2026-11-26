@@ -1061,7 +1061,7 @@ static func after_train(m) -> void:
 		m.menu.train_page.dining.lines = r.get("lines", [])
 		m.menu.open("train")
 		return
-	m.menu.go_station(String(r.get("station", "")), String(r.get("stop", "")), String(r.get("pick", "")), r.get("lines", []))
+	m.menu.go_station(String(r.get("station", "")), String(r.get("stop", "")), String(r.get("pick", "")), r.get("lines", []), false)  # (no whistle: the train never left)
 
 
 # --- in the room: the posts, and the line at the top -------------------------------------------

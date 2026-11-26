@@ -7059,7 +7059,7 @@ func _run() -> void:
 	main.audio.set_ambience("kraken", 0.01)
 	_check(main.audio.ambience_key == "ambience_kraken" and main.audio.ambience.playing, "each tower has its own ambience (the Kraken's: %s)" % main.audio.ambience_key)
 	main.audio.set_ambience("nowhere", 0.01)
-	_check(main.audio.ambience_key == "ambience", "anywhere else, the default ambience")
+	_check(main.audio.ambience_key == "" and not main.audio.Bank.MUSIC.has("ambience"), "anywhere else, no ambience (the old dripping cavern loop is gone)")
 	main.audio.set_ambience(amb_was.trim_prefix("ambience_"), 0.01)
 	for i in 12:  # a busy frame: the same hit a dozen times
 		main.audio.last_played.erase("hit")

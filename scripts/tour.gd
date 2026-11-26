@@ -145,7 +145,7 @@ func _go() -> void:
 		m.main.sfx("tip_chime", 1.15, -8.0, 0.03)
 	if which == "station":
 		if not m.at_station():
-			m.go_station(Travel.current(m.main.profile), String(s.get("stop", "")))
+			m.go_station(Travel.current(m.main.profile), String(s.get("stop", "")), "", [], false)  # (no whistle: a tour step, not an arrival)
 		_place()
 		m.open("station")
 		return
