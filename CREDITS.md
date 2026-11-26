@@ -1,6 +1,6 @@
 # Credits
 
-All sound effects and music are **CC0** (public domain) from [OpenGameArt.org](https://opengameart.org). Credit isn't required, but these creators deserve it:
+All sound effects and music are **CC0** (public domain), from [OpenGameArt.org](https://opengameart.org) and (the train's ambience) [Freesound](https://freesound.org). Credit isn't required, but these creators deserve it:
 
 | Pack | Author | Used for |
 | --- | --- | --- |
@@ -23,7 +23,7 @@ All sound effects and music are **CC0** (public domain) from [OpenGameArt.org](h
 | [40 CC0 water / splash / slime SFX](https://opengameart.org/content/40-cc0-water-splash-slime-sfx) | rubberduck | splashes, bubbles, slime (lurkers, the Kraken, water spells, brewing) |
 | [100 CC0 metal and wood SFX](https://opengameart.org/content/100-cc0-metal-and-wood-sfx) | rubberduck | shell knocks, metal hits, tools, the lever, the mirrors' creak |
 | [75 CC0 breaking / falling / hit sfx](https://opengameart.org/content/75-cc0-breaking-falling-hit-sfx) | rubberduck | glass breaking (flasks), rock breaking, metal falling |
-| [100 CC0 SFX #2](https://opengameart.org/content/100-cc0-sfx-2) | rubberduck | thunder, the train's doors and wheels, stones sliding, a switch |
+| [100 CC0 SFX #2](https://opengameart.org/content/100-cc0-sfx-2) | rubberduck | thunder, the train's doors, stones sliding, a switch |
 | [12 Coin Sound Effects](https://opengameart.org/content/12-coin-sound-effects) | StarNinjas | buying |
 | [Cave In](https://opengameart.org/content/cave-in) | StarNinjas | the rift, a puzzle's failure |
 | [Big scary troll sounds](https://opengameart.org/content/big-scary-troll-sounds) | Darsycho | the Manticore's and the Chimera's roars, the smith, the statues' voices |
@@ -42,7 +42,7 @@ All sound effects and music are **CC0** (public domain) from [OpenGameArt.org](h
 | [Steam whistle](https://opengameart.org/content/steam-whistle) | bart | the train's whistle |
 | [Steam release sounds](https://opengameart.org/content/steam-release-sounds) | bart | steam hisses (the whistle, cinders, smoke, poison) |
 | [Steam boiler sound loop](https://opengameart.org/content/steam-boiler-sound-loop) | bart | the forge's ambience |
-| [Steamboat Engine Sound](https://opengameart.org/content/steamboat-engine-sound) | Spring Spring | the train's engine |
+| [Steam Train Interior](https://freesound.org/people/allh/sounds/133099/) | allh (Freesound, CC0) | the train's ambience: inside a steam train's wooden carriage, the wheels clacking over the rail joints |
 | [Hammer on Anvil](https://opengameart.org/content/hammer-on-anvil) | themightyglider | crafting at the bench |
 | [Blacksmith's Hammer](https://opengameart.org/content/blacksmiths-hammer) | VishwaJai | crafting, the smith, iron spells, the forge |
 | [Dragon Flap](https://opengameart.org/content/dragon-flap-0) | VishwaJai | wingbeats (the Gryphon) |
@@ -66,7 +66,7 @@ All sound effects and music are **CC0** (public domain) from [OpenGameArt.org](h
 | [Forest bird sounds](https://opengameart.org/content/forest-bird-sounds) | pauliuw | the Thornwild's ambience |
 | [Dripping water loop](https://opengameart.org/content/dripping-water-loop) | qubodup | the flooded halls' ambience |
 
-The game's sounds are built from these with `tools/build_audio.py`: layered, levelled, given a shared room reverb, and in a few cases mixed with a synthesised thump or string. Each tower's ambience (and the train's, with a synthesised rumble and the wheels' clack) is built the same way as a 40-second loop. `tools/fetch_audio_sources.sh` downloads the original packs.
+The game's sounds are built from these with `tools/build_audio.py`: layered, levelled, given a shared room reverb, and in a few cases mixed with a synthesised thump or string. Each tower's ambience is built the same way as a 40-second loop; the train's is one steady stretch of the Steam Train Interior recording, looped where the wheels' clatter lines up so the seam stays on the beat. `tools/fetch_audio_sources.sh` downloads the original packs.
 
 ## Fonts
 

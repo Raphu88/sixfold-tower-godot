@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # Downloads the CC0 sound packs that tools/build_audio.py builds the game's
-# sounds from. Everything here is CC0 (public domain) from opengameart.org.
+# sounds from. Everything here is CC0 (public domain), from opengameart.org
+# and (the train) freesound.org.
 # The Medieval Weapon Textures pack comes as .7z: needs 7z, or `pip install py7zr`.
 # Usage: tools/fetch_audio_sources.sh [dir]   (default: .audio_sources)
 set -euo pipefail
@@ -26,6 +27,10 @@ get_7z() {  # name file (several archives may unpack into one folder)
 get_file() {  # name file
   mkdir -p "$1"
   [ -f "$1/$2" ] || curl -fsSL -o "$1/$2" "$BASE/$2"
+}
+get_url() {  # name file url (a file from elsewhere: Freesound's previews need no login)
+  mkdir -p "$1"
+  [ -f "$1/$2" ] || curl -fsSL -o "$1/$2" "$3"
 }
 
 get_zip kenney_rpg RPGsounds_Kenney.zip              # Kenney: 50 RPG Sound Effects
@@ -70,7 +75,6 @@ get_zip insect insect.zip                            # fvcalderan: Insect Sounds
 get_file whistle steam_whistle.wav                   # bart: Steam whistle
 get_zip steam steam_hisses.zip                       # bart: Steam release sounds
 get_file steam generator_loop.wav                    # bart: Steam boiler sound loop
-get_file steamboat steamboat_engine.wav              # Spring Spring: Steamboat Engine Sound
 get_file anvil forger.ogg                            # themightyglider: Hammer on Anvil
 get_file anvil blacksmithhammer.wav                  # VishwaJai: Blacksmith's Hammer
 get_file boil cooking_without_cover_01.ogg           # TinyWorlds: boiling water loops
@@ -96,4 +100,6 @@ get_7z forestbirds forest_birds.7z                   # pauliuw: Forest bird soun
 get_file drip atmosbasement.mp3_.flac                # qubodup: Dripping water loop
 get_file firecrackle fire-1.wav                      # AntumDeluge: Fire Crackling
 get_file flame flame.ogg                             # themightyglider: Catching fire
+# The train's ambience: allh, "Steam Train Interior" (freesound.org/s/133099, CC0)
+get_url freesound_train 133099_2404400-hq.mp3 https://cdn.freesound.org/previews/133/133099_2404400-hq.mp3
 echo "Sources ready in $DIR"

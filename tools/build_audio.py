@@ -494,10 +494,15 @@ AMBIENCE = {
     "chimera": {"beds": [("windy/windy_ambiance.ogg@120+44", -4, 0.8, 1400, 60)],
                 "scatter": [("forestbirds/Forest Birds/Forest Birds 2.wav", -18, 1.0, 6000, 400, 10), ("forestbirds/Forest Birds/Forest Birds 7.wav", -18, 0.95, 6000, 400, 12),
                             (SNARLS + "9.77+2.55", -26, 0.7, 1500, 100, 15), ("dog/dog/dog-growl.flac", -26, 0.8, 1500, 100, 17)]},
-    # The train: a deep rumble, the engine's chuff, wheels over rail joints.
-    "train": {"beds": [("synth:rumble", 0, 1.0, 140, 25), ("steamboat/steamboat_engine.wav", -12, 0.8, 1400, 60)],
-              "clack": (R2 + "sfx100v2_wood_hit_01.ogg", -14, 0.55, 2500, 150),
-              "scatter": [(AC + "vials-glass-rattle-03.wav", -30, 0.8, 5000, 300, 9)]},
+    # The train: a real recording from inside a steam train's wooden carriage
+    # (allh, "Steam Train Interior", CC0): the wheels clacking over the rail
+    # joints about every 0.68 s, the carriage's rumble. One steady stretch of
+    # it ("take": file, start, about how long), cut where the clatter lines
+    # up with the start again, so the seam stays on the beat. "clatter" lifts
+    # the clacks (dB) above the rumble, so they still read as a train under
+    # the music; "level" is the loop's loudness (the towers' are -21).
+    "train": {"take": ("freesound_train/133099_2404400-hq.mp3", 69.0, 40.0), "lp": 9000, "hp": 70,
+              "clatter": 5.0, "fade": 1.5, "level": -22},
 }
 
 MUSIC = {
@@ -814,23 +819,76 @@ def _music_import(path, loop_offset):
 
 
 def _amb_clip(src_root, src, pitch, lp, hp):
-    if src == "synth:rumble":  # brown noise: the train's low rumble
-        n = int((AMB_LEN + 8) * SR)
-        x = np.cumsum(np.random.uniform(-1, 1, n))
-        x -= np.convolve(x, np.ones(4000) / 4000, "same")  # (no drift)
-    else:
-        x = load_layer(src_root, src, pitch)
-    x = band(x, lp, hp)
+    x = band(load_layer(src_root, src, pitch), lp, hp)
     return x / (np.sqrt(np.mean(x[np.abs(x) > np.abs(x).max() * 0.05] ** 2)) + 1e-12)
+
+
+def _avg(x, n):
+    """Moving average over n samples (centred)."""
+    c = np.concatenate([[0.0], np.cumsum(x)])
+    i = np.arange(len(x))
+    lo, hi = np.clip(i - n // 2, 0, len(x)), np.clip(i + n - n // 2, 0, len(x))
+    return (c[hi] - c[lo]) / np.maximum(hi - lo, 1)
+
+
+def _clacks(x):
+    """How far the highs jump above their level around them, every 5 ms (in
+    dB): the wheels' clacks stand out as peaks."""
+    hi = band(x, None, 800)
+    fr = int(0.005 * SR)
+    e = 10 * np.log10(np.add.reduceat(hi ** 2, np.arange(0, len(hi) - fr, fr)) / fr + 1e-12)
+    return np.maximum(0, e - _avg(e, 100) - 3)
+
+
+def _amb_take(src_root, spec, fade):
+    """A long recording looped as it is: its take from `start`, about `length`
+    seconds (give or take one), cut where the clatter just after the cut
+    lines up best with the take's opening, so the crossfade into the start
+    keeps the wheels on the beat. Returns the take (with the fade's extra
+    after the cut) and the loop's length in samples."""
+    path, start, length = spec["take"]
+    x = band(decode_cached(os.path.join(src_root, path)), spec.get("lp"), spec.get("hp"))
+    fr, s, nf = int(0.005 * SR), int(start * SR), int(fade * SR)
+    need = s + int((length + 1) * SR) + nf
+    if len(x) < need:
+        sys.exit("ambience take %s is too short (%.1f s, needs %.1f)" % (path, len(x) / SR, need / SR))
+    env = _clacks(x[:need + fr])
+    w = nf // fr
+    head = env[s // fr:s // fr + w]
+    head = head - head.mean()
+    best, n = -2.0, int(length * SR)
+    for k in range(int((length - 1) * SR) // fr, int((length + 1) * SR) // fr):
+        seg = env[s // fr + k:s // fr + k + w]
+        seg = seg - seg.mean()
+        c = np.dot(head, seg) / (np.linalg.norm(head) * np.linalg.norm(seg) + 1e-12)
+        if c > best:
+            best, n = c, k * fr
+    return x[s:s + n + nf].copy(), n
+
+
+def _lift_clatter(x, db):
+    """Raises the sharp clacks in the highs by up to `db`, leaving the steady
+    rumble and hiss as they are (an expander on the band above 600 Hz)."""
+    hi = band(x, None, 600)
+    fast = np.sqrt(_avg(hi ** 2, int(0.004 * SR)))
+    slow = np.sqrt(_avg(hi ** 2, int(0.4 * SR)))
+    g = np.clip(fast / (slow + 1e-12), 1.0, 4.0) ** (db / 12.0)  # the full +db where a clack is 12 dB up
+    g = _avg(g, int(0.003 * SR))  # (no clicks)
+    return x + hi * (g - 1)
 
 
 def build_ambience(src_root, name, spec):
     """A seamless mono loop: beds looped to length, one-shots scattered, the
-    end crossfaded into the start. Small for the web build (mono, 32 kHz)."""
+    end crossfaded into the start. Small for the web build (mono, 32 kHz).
+    Or ("take") one long recording looped as it is: the train."""
     rng = np.random.default_rng(len(name) * 101)
-    fade = 3.0
+    fade = spec.get("fade", 3.0)
     n, nf = int(AMB_LEN * SR), int(fade * SR)
     out = np.zeros(n + nf)
+    if "take" in spec:
+        out, n = _amb_take(src_root, spec, fade)
+        if spec.get("clatter"):
+            out = _lift_clatter(out, spec["clatter"])
     for src, gain, pitch, lp, hp in spec.get("beds", []):
         x = _amb_clip(src_root, src, pitch, lp, hp) * 10 ** (gain / 20)
         pos = 0
@@ -842,20 +900,10 @@ def build_ambience(src_root, name, spec):
             end = min(len(out), pos + len(seg))
             out[pos:end] += seg[:end - pos]
             pos += len(seg) - xf
-    if "clack" in spec:  # wheels over rail joints: two clacks each second or so
-        src, gain, pitch, lp, hp = spec["clack"]
-        c = _amb_clip(src_root, src, pitch, lp, hp) * 10 ** (gain / 20)
-        t = 0.3
-        while t < AMB_LEN:
-            for dt, g in ((0.0, 1.0), (0.16, 0.7)):
-                at = int((t + dt) * SR)
-                end = min(len(out), at + len(c))
-                out[at:end] += c[:end - at] * g * rng.uniform(0.8, 1.1)
-            t += 1.15
     for src, gain, pitch, lp, hp, every in spec.get("scatter", []):
         x = _amb_clip(src_root, src, pitch, lp, hp)
         t = rng.uniform(0, every)
-        while t < AMB_LEN:
+        while t < n / SR:
             at = int(t * SR)
             g = 10 ** ((gain + rng.uniform(-4, 1)) / 20)
             seg = x * g
@@ -865,8 +913,11 @@ def build_ambience(src_root, name, spec):
     # Crossfade the tail into the head so it loops without a seam.
     ramp = np.linspace(0, 1, nf)
     looped = out[:n].copy()
-    looped[:nf] = out[n:n + nf] * (1 - ramp) + out[:nf] * ramp
-    looped *= 10 ** ((-21 - 20 * np.log10(np.sqrt(np.mean(looped ** 2)) + 1e-12)) / 20)
+    if "take" in spec:  # (one recording's two moments: an equal-power fade keeps the level)
+        looped[:nf] = out[n:n + nf] * np.cos(ramp * np.pi / 2) + out[:nf] * np.sin(ramp * np.pi / 2)
+    else:
+        looped[:nf] = out[n:n + nf] * (1 - ramp) + out[:nf] * ramp
+    looped *= 10 ** ((spec.get("level", -21) - 20 * np.log10(np.sqrt(np.mean(looped ** 2)) + 1e-12)) / 20)
     looped = np.tanh(looped * 1.05) / 1.05
     pcm = (np.clip(looped, -1, 1) * 32000).astype("<i2").tobytes()
     path = os.path.join(OUT_MUSIC, "ambience_%s.ogg" % name)
