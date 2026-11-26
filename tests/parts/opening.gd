@@ -157,6 +157,7 @@ func _screens() -> void:
 		Particles.level = level
 		var ok := true
 		var said := true
+		var layered := true
 		for i in 6:
 			StartPages.line = i
 			menu.open("intro")
@@ -167,6 +168,11 @@ func _screens() -> void:
 				view.queue_redraw()
 				await t._frames(2)
 				ok = ok and view.draws > before and view.line == i
+			# Painted in layers, which the slow camera moves at different
+			# speeds (the near ones more than the sky).
+			var near: Transform2D = view._cam(1.0)
+			var far: Transform2D = view._cam(0.1)
+			layered = layered and view.layers >= 3 and not near.is_equal_approx(far)
 			var bubble: Control = null
 			for c in menu.box.find_children("*", "Control", true, false):
 				if c.has_meta("intro_line"):
@@ -174,6 +180,7 @@ func _screens() -> void:
 			said = said and bubble != null and int(bubble.get_meta("intro_line")) == i and String(bubble.get_meta("entity_line", "")) == Pronouns.fill(String(NewStart.INTRO[i][1]))
 		_check(ok, "each of the six screens draws its scene, from the dark to its end (Effects %s)" % level)
 		_check(said, "...each with its own words, the Entity's (Effects %s)" % level)
+		_check(layered, "...each painted in layers that a slow camera moves at different speeds (Effects %s)" % level)
 	Particles.level = keep
 	# Each screen starts from the dark; a tap right after a change waits.
 	StartPages.line = 2
