@@ -2,12 +2,14 @@ extends RefCounted
 ## A new climber's start: everything between pressing New Climber and the
 ## first step into a tower, as data the owner can rewrite.
 ##
-##   1. The introduction (start_pages.gd "intro"): a black screen where the
-##      Entity speaks INTRO, one idea a line. Skippable once any climber has
-##      been made on this device (the settings file's "start" section, `made`).
-##   2. Character creation: the name and pronouns (start_pages.gd "create_name"),
+##   0. The opening (start_pages.gd "intro", drawn by opening.gd): the
+##      Entity speaks INTRO, one idea a screen, each screen with its own
+##      illustrated scene. It plays once on a device's first launch (no
+##      climber made yet: opening_due), before the title; the title's "The
+##      opening" button plays it again. New Climber doesn't show it.
+##   1. Character creation: the name and pronouns (start_pages.gd "create_name"),
 ##      then the look (appearance_page.gd "create").
-##   3. The questionnaire (start_pages.gd "quiz"): QUESTIONS, three of them.
+##   2. The questionnaire (start_pages.gd "quiz"): QUESTIONS, three of them.
 ##      apply() gives the answers' results: the starting weapon and armour
 ##      (kept as heirlooms, so every climb begins with them), the home tower
 ##      (profile.home: the starting tower and, with the stations, the home
@@ -26,10 +28,11 @@ const Towers := preload("res://scripts/towers.gd")
 const Renown := preload("res://scripts/renown.gd")
 const Pronouns := preload("res://scripts/pronouns.gd")
 
-## The introduction: what the Entity says on the black screen, in order, one
-## idea a line. [what it covers (for the owner), the line]. The owner's
-## approved words. (Screen 5 says "your home station": the intro comes
-## before the questions, so the home isn't chosen yet.)
+## The opening: what the Entity says, in order, one idea a screen (each
+## screen's scene is drawn by opening.gd). [what it covers (for the owner),
+## the line]. The owner's approved words. (Screen 5 says "your home
+## station": the opening comes before the questions, so the home isn't
+## chosen yet.)
 static var INTRO := [
 	["The world nearly unmade, and the six who held it",
 		"The Sixfold was nearly unmade once. People drew every essence at once, raw and unmeasured, until the world began to tear. Six of them held it together."],
@@ -129,10 +132,11 @@ static var TEXT := {
 	"pronoun_help": "Others will speak of you as {they} and {them}: \"{They} climb{s} well.\"",
 	"pronoun_example":"Others will say: \"{They} {are} climbing. I saw {them} on the stair; the mark is {theirs}.\"",
 	"next": "Next",
-	# The introduction.
+	# The opening (the illustrated introduction).
 	"intro_next": "Next",
 	"intro_skip": "Skip",
-	"intro_go": "Make your climber",
+	"intro_go": "Continue",
+	"opening": "The opening",
 	# The one-time clearing of old climbers.
 	"cleared": "A new start has come to the towers. Climbers made before it can't follow, so they were cleared, once. Your settings are kept. Make a new climber: it begins with the new start.",
 	"cleared_ok": "Understood",
@@ -169,9 +173,27 @@ static func note_made() -> void:
 	cfg.save(Slots.settings_path())
 
 
-## The intro can be skipped (a climber was made before on this device).
+## A climber was made before on this device. (The opening always offers
+## Skip now; this is kept for old callers.)
 static func can_skip_intro() -> bool:
 	return made() > 0
+
+
+## The opening plays before the title: the first launch on this device (it
+## was never seen, and no climber was ever made here or is kept here). A
+## returning player is never sent through it; the title's button replays it.
+static func opening_due() -> bool:
+	var cfg := _settings()
+	return not bool(cfg.get_value("start", "opening_seen", false)) and int(cfg.get_value("start", "made", 0)) == 0 and not Slots.any()
+
+
+## The opening has been seen (watched to its end, skipped or left).
+static func note_opening_seen() -> void:
+	var cfg := _settings()
+	if bool(cfg.get_value("start", "opening_seen", false)):
+		return
+	cfg.set_value("start", "opening_seen", true)
+	cfg.save(Slots.settings_path())
 
 
 ## Clears every climber made before the new start, once (a marker in the

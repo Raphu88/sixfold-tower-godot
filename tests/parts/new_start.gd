@@ -1,8 +1,9 @@
 extends RefCounted
 ## A new climber's start (new_start.gd, start_pages.gd, pronouns.gd): the
 ## one-time clearing of old climbers with its notice; the title showing
-## Continue above New Climber; the introduction's six lines, skippable only
-## once a climber has been made; the name and pronouns; the questionnaire's
+## Continue above New Climber; New Climber going straight to the name (the
+## opening plays before the title: tests/parts/opening.gd), the opening's
+## Skip; the name and pronouns; the questionnaire's
 ## results for every answer (gear kept as heirlooms, the home tower, crystals,
 ## titles, the Noble's contract, worn gear, renown a quarter faster until a
 ## first title); Begin starting the first climb in the home tower; pronouns
@@ -99,16 +100,16 @@ func _clearing() -> void:
 	DirAccess.remove_absolute(ProjectSettings.globalize_path(copy))
 	Slots.forget()
 	var was := NewStart.made()
-	_check(not NewStart.can_skip_intro() or was > 0, "the introduction can't be skipped before any climber is made")
+	_check(not NewStart.can_skip_intro() or was > 0, "no climber counted as made before any is")
 	NewStart.note_made()
-	_check(NewStart.made() == was + 1 and NewStart.can_skip_intro(), "once a climber has been made on this device, it can")
+	_check(NewStart.made() == was + 1 and NewStart.can_skip_intro(), "each climber made on this device is counted")
 
 
 # --- the questionnaire's results ---------------------------------------------------------
 
 func _results() -> void:
 	print("new start: the questionnaire's results")
-	_check(NewStart.QUESTIONS.size() == 3 and NewStart.INTRO.size() == 6, "three questions, six lines of introduction")
+	_check(NewStart.QUESTIONS.size() == 3 and NewStart.INTRO.size() == 6, "three questions, six screens of the opening")
 	_check(NewStart.answers(NewStart.QUESTIONS[1]).size() == Towers.ORDER.size(), "Where did you grow up? offers each of the six towers")
 	var want := {
 		"soldier": {"melee": "sword", "armor": "chain", "ranged": ""},
@@ -205,25 +206,15 @@ func _flow() -> void:
 	await t._frames(2)
 	words = _buttons(menu).map(func(b): return b.text)
 	_check(not words.has(NewStart.TEXT["continue"]) and words.has(NewStart.TEXT["new_climber"]), "...and only New Climber for an empty slot")
-	# The introduction: a black screen, six lines, no Skip before any climber is made.
+	# New Climber: straight to the name (the opening plays before the title,
+	# on a device's first launch: tests/parts/opening.gd).
 	var cfg := ConfigFile.new()
 	cfg.load(Slots.settings_path())
 	cfg.set_value("start", "made", 0)
 	cfg.save(Slots.settings_path())
 	StartPages.begin_start(menu)
 	await t._frames(2)
-	_check(menu.page == "intro" and menu.shade.color.r < 0.01 and menu.shade.color.a > 0.99 and not menu.backdrop.visible, "New Climber opens the introduction on a black screen")
-	var skip := false
-	var seen := 0
-	for i in 8:
-		if menu.page != "intro":
-			break
-		seen += 1
-		skip = skip or _buttons(menu).any(func(b): return b.text == NewStart.TEXT["intro_skip"])
-		var nx: Button = _button_with(menu, "intro_next")
-		nx.pressed.emit()
-		await t._frames(1)
-	_check(seen == 6 and not skip and menu.page == "create_name", "...six lines, one at a time, with no Skip for the first climber (%d lines)" % seen)
+	_check(menu.page == "create_name" and not menu.opening.visible, "New Climber goes straight to the name: the opening isn't shown again")
 	# The name and pronouns.
 	var she: Button = null
 	for b in _buttons(menu):
@@ -264,20 +255,19 @@ func _flow() -> void:
 	_check(prof.created and prof.home == "manticore" and main.tower == "manticore" and main.on_train and menu.page == "station" and menu.station_page.station == "manticore" and Tr.closed(prof),
 		"Begin makes the climber and takes them to their home station, the towers closed until the Noble's Grace (training.gd)")
 	_check(main.player.gear_id("melee") == "dagger" and main.player.gear_id("ranged") == "shortbow" and main.player.gear_id("armor") == "leather" and Gear.rarity(main.player.gear["armor"]) == "fine", "...dressed as a hunter born into it")
-	_check(NewStart.can_skip_intro(), "...and later climbers may skip the introduction")
+	_check(NewStart.can_skip_intro(), "...and counted as made on this device")
 	menu.station_page.station = ""  # (the rest of this part is the start's pages again)
 	main.on_train = false
 	menu.close()
 	await t._frames(1)
-	StartPages.begin_start(menu)
+	StartPages.play_opening(menu)
 	await t._frames(2)
-	_check(_buttons(menu).any(func(b): return b.text == NewStart.TEXT["intro_skip"]), "the introduction offers Skip once a climber has been made")
-	_button_with(menu, "intro_next")
+	_check(menu.page == "intro" and _buttons(menu).any(func(b): return b.text == NewStart.TEXT["intro_skip"]), "the opening offers Skip")
 	for b in _buttons(menu):
 		if b.text == NewStart.TEXT["intro_skip"]:
 			b.pressed.emit()
 	await t._frames(1)
-	_check(menu.page == "create_name", "...which goes straight to the name")
+	_check(menu.page == "title", "...which goes to the title")
 	# Every new button explains itself.
 	var lacking: Array = []
 	for pg in ["intro", "create_name", "quiz"]:
@@ -289,7 +279,7 @@ func _flow() -> void:
 	menu.open("title")
 	await t._frames(1)
 	for b in _buttons(menu):
-		if b.text in [NewStart.TEXT["continue"], NewStart.TEXT["new_climber"]] and Help.missing(b):
+		if b.text in [NewStart.TEXT["continue"], NewStart.TEXT["new_climber"], NewStart.TEXT["opening"]] and Help.missing(b):
 			lacking.append("title: " + b.text)
 	_check(lacking.is_empty(), "the Entity explains every new button (missing: %s)" % [lacking])
 	# The Entity: tips and a topic.

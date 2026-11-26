@@ -564,12 +564,13 @@ func _ready() -> void:
 		Engine.remove_meta("sixfold_climbers")
 		menu.open_climbers.call_deferred()
 	elif not Engine.has_meta("sixfold_test") and not Engine.has_meta("sixfold_title_seen"):
-		menu.open.call_deferred("title")
+		# The title (the very first launch on a device plays the opening
+		# first: start_pages.gd launch).
+		StartPages.launch.call_deferred(menu)
 	elif not profile.created and not Engine.has_meta("sixfold_test"):
-		# A new climber (a new slot, or Start over): the introduction, then
-		# the name, the look and the questions (start_pages.gd).
-		StartPages.reset()
-		menu.open.call_deferred("intro")
+		# A new climber (a new slot, or Start over): the name, the look and
+		# the questions (start_pages.gd; the opening isn't shown again).
+		StartPages.begin_start.call_deferred(menu)
 	elif on_train:
 		menu.open.call_deferred("train")
 		PracticeScript.after_train.call_deferred(self)  # (back from the practice room: its page again)

@@ -43,6 +43,11 @@ var _music_us := 0
 var ambience: AudioStreamPlayer
 var ambience_key := "ambience"  # which loop plays: "ambience", or "ambience_<tower>" / "ambience_train"
 var music_on := true
+## The opening's screens (opening.gd): the story track's toll they're on
+## (-1: none yet). Each screen plays one toll, then holds there (story_toll).
+var toll_at := -1
+## The story track's six tolls: one every this many seconds from its start.
+const TOLL_EVERY := 3.0
 
 
 func _ready() -> void:
@@ -120,6 +125,7 @@ func set_mood(new_mood: String, fade_time := -1.0) -> void:
 		return
 	var fade := Music.fade_time(mood, new_mood) if fade_time < 0.0 else fade_time
 	mood = new_mood
+	toll_at = -1  # (the opening's tolls start again with the story's next start)
 	var want: Dictionary = Music.MOODS[new_mood]
 	var name := String(want["track"])
 	for other in tracks:
@@ -206,6 +212,26 @@ func _track_volume(tr: Dictionary) -> void:
 		p.volume_db = -80.0
 	else:
 		p.volume_db = float(tr["db"]) + linear_to_db(share) + linear_to_db(music_level)
+
+
+## The opening's screen `i` (0..5) is showing (opening.gd calls this each
+## frame): the story track plays its toll `i` once, then waits, silent, for
+## the next screen; the sixth toll carries on into the pads. So the six
+## screens ring the six tolls, one each, however long each is read.
+func story_toll(i: int) -> void:
+	if mood != "story" or not tracks.has("story"):
+		return
+	var p: AudioStreamPlayer = tracks["story"]["player"]
+	if not p.playing and not p.stream_paused:
+		return
+	if toll_at != i:
+		toll_at = i
+		p.stream_paused = false
+		p.seek(TOLL_EVERY * float(i))
+		return
+	# (its ring has died away just before the next toll: it waits there)
+	if i < 5 and not p.stream_paused and p.get_playback_position() >= TOLL_EVERY * float(i + 1) - 0.08:
+		p.stream_paused = true
 
 
 ## The track heard now (the one fading in), or "".
