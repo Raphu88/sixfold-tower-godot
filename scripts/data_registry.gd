@@ -187,7 +187,7 @@ const SECTIONS := [
 		"tables": ["new_start/INTRO", "new_start/QUESTIONS", "new_start/TEXT", "pronouns/CHOICES", "pronouns/FORMS"], "kinds": ["text"],
 		"names": {"INTRO": "The opening's six screens (the story)", "QUESTIONS": "The questionnaire", "TEXT": "Words", "CHOICES": "Pronoun choices", "FORMS": "Pronoun words (he / she / they)"}},
 	{"id": "start_numbers", "group": "numbers", "name": "The opening and a new climber's start: timing, what each answer gives", "when": "page",
-		"tables": ["new_start/WHY", "opening/OPENING"], "kinds": ["number", "bool"], "names": {"WHY": "How you came to climb: crystals, renown boost", "OPENING": "The opening's pictures: fade, tap delay, redraws a second, drifting specks"}},
+		"tables": ["new_start/WHY", "opening/OPENING"], "kinds": ["number", "bool"], "names": {"WHY": "How you came to climb: crystals, renown boost", "OPENING": "The opening's pictures: fade, tap delay, redraws a second, drifting specks, camera push"}},
 	{"id": "rivals_words", "group": "words", "name": "Rival climbers", "when": "live",
 		"tables": ["rivals/TEXT", "rivals/NAMES", "rivals/LINES", "rival/RIVAL_TEXT"], "kinds": ["text"],
 		"names": {"TEXT": "Words", "NAMES": "Their names", "LINES": "What they say", "RIVAL_TEXT": "Words over them in a fight"}},
