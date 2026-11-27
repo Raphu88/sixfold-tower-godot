@@ -62,7 +62,7 @@ func _act(delta: float, dir: Vector2, dist: float, _p) -> void:
 			if ring_t <= 0.0 and dist < 460.0 and _others_near() > 0:
 				state = "lift"
 				state_t = float(RULES["lift"])
-				main.sfx("shop_bell", 0.45, -10.0)
+				main.sfx_at(global_position, "shop_bell", 0.45, -10.0)
 
 
 ## Monsters (not itself, not another bellringer, not a beast) the ring would reach.
@@ -79,7 +79,7 @@ func _ring() -> void:
 	var reach := float(RULES["reach"])
 	main.fx_ring(global_position, C_BELL, reach, 0.55, 4.0)
 	main.fx_ring(global_position, Color(1.0, 0.95, 0.75), reach * 0.6, 0.4, 2.0)
-	main.sfx("shop_bell", 0.6, 0.0)
+	main.sfx_at(global_position, "shop_bell", 0.6, 0.0)
 	main.light_flash(global_position, C_BELL, 1.2, 1.2, 0.3)
 	var any := false
 	for e in main.enemies():

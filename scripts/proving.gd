@@ -430,11 +430,11 @@ func choose(m: String) -> void:
 	lights.append(main.lighting.add_light(main.room_info[rooms["shadow"]]["rect"].get_center(), 160.0, SHADE, 0.35, 0.1))
 	if m == "lethal":
 		main.banner = {"title": TEXT["lethal_title"], "lines": [TEXT["lethal_chose"]], "t": 3.0}
-		main.sfx("warn_knight", 0.5, 0.0, 0.0)
+		main.sfx("on_guard", 0.8, 0.0, 0.0)
 		main.shake(5.0)
 	else:
 		main.banner = {"title": TEXT["chose_title"], "lines": [TEXT["chose"], TEXT["chose_safe"]], "t": 3.2}
-		main.sfx("warn_knight", 0.8, -4.0, 0.0)
+		main.sfx("on_guard", 1.0, -4.0, 0.0)
 	main.tip("proving")
 	labels.queue_redraw()
 
@@ -695,7 +695,7 @@ func spare() -> bool:
 	for e in main.enemies():
 		e.set_physics_process(false)
 	main.banner = {"title": TEXT["measure_title"], "lines": [TEXT["measure"]], "t": float(CAST_DOWN["pause"]) + 0.8}
-	main.sfx("warn_knight", 0.4, 0.0, 0.0)
+	main.sfx("on_guard", 0.75, 0.0, 0.0)
 	main.light_flash(p.global_position, SHADE, 2.0, 2.0, 0.6)
 	main.shake(6.0)
 	var tw := create_tween()

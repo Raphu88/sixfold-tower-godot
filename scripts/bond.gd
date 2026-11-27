@@ -536,7 +536,7 @@ func _chain(p) -> void:
 	main.fx_bolt(points, color())
 	for pt in points:
 		main.light_flash(pt, color(), 1.0, 1.4, 0.3)
-	main.sfx("zap")
+	main.sfx_at(points[-1], "zap")
 	main.hitstop(0.07)
 	main.shake(5.0)
 	var stun: float = stat("stun")
@@ -586,8 +586,8 @@ func call_bolt(p, target, sp: Dictionary) -> void:
 	main.fx_bolt([at + Vector2(randf_range(-30.0, 30.0), -240.0), at + Vector2(0, -40.0), at], color())
 	main.fx_ring(at, color(), 30.0, 0.3, 2.0)
 	main.light_flash(at, color(), 1.2, 1.6, 0.3)
-	main.sfx("zap", 0.8, -2.0)
-	main.sfx("thunder", 1.3, -10.0)
+	main.sfx_at(at, "zap", 0.8, -2.0)
+	main.sfx_at(at, "thunder", 1.3, -10.0)
 	main.hitstop(0.05)
 	main.shake(4.0)
 	if is_instance_valid(target) and not target.dead:
@@ -617,7 +617,7 @@ func _rod(p) -> void:
 		"color": color(), "flash": 0.0}
 	main.fx_ring(at, color(), 26.0, 0.3, 2.0)
 	main.light_flash(at, color(), 0.9, 1.0, 0.3)
-	main.sfx("equip_sword", 0.7, -2.0)
+	main.sfx_at(at, "equip_sword", 0.7, -2.0)
 
 
 ## The rod's time runs down; it beats on its rhythm and bursts at the end (main.gd ticks it).
@@ -653,7 +653,7 @@ static func rod_beat(main, rod: Dictionary) -> void:
 	main.hit_kind = ""
 	if not near.is_empty():
 		main.light_flash(at, col, 0.9, 1.0, 0.2)
-		main.sfx("zap", 1.3, -7.0)
+		main.sfx_at(at, "zap", 1.3, -7.0)
 
 
 ## The rod's end: it draws the charge out of every charged foe near it, striking each.
@@ -675,7 +675,7 @@ static func rod_burst(main, rod: Dictionary) -> void:
 	main.fx_ring(at, col, float(rod["burst_radius"]), 0.4, 4.0)
 	main.light_flash(at, col, 1.6 if drawn > 0 else 0.8, 1.4, 0.3)
 	if drawn > 0:
-		main.sfx("thunder", 1.2, -6.0)
+		main.sfx_at(at, "thunder", 1.2, -6.0)
 		main.shake(3.0)
 
 
@@ -716,7 +716,7 @@ func _lift(p) -> void:
 	var aim: Vector2 = p.aim
 	main.fx_cone(origin, aim, reach, half_arc, color())
 	main.light_flash(origin + aim * reach * 0.5, color(), 1.4, 0.8, 0.35)
-	main.sfx("gust", 0.9)
+	main.sfx_at(origin + aim * reach * 0.5, "gust", 0.9)
 	var lifted := 0
 	var dmg: float = damage()
 	for e in main.targets():
@@ -873,7 +873,7 @@ func _challenge(p) -> void:
 			e.challenged_t = stat("duration")
 			n += 1
 	main.fx_ring(p.global_position, color(), stat("radius"), 0.5, 4.0)
-	main.sfx("warn_knight", 0.8)
+	main.sfx("on_guard", 0.9)
 	main.shake(3.0)
 	if n == 0:
 		main.fx_text(p.global_position + Vector2(0, -34), "no one to challenge", color())
@@ -1366,7 +1366,7 @@ func _quake(p) -> void:
 		main.add_stone_wall(ring, 9.0, 4.0)
 	main.fx_ring(p.global_position, color(), r, 0.4, 6.0)
 	main.fx_burst(p.global_position, Vector2.ZERO, color(), 20, 260.0)
-	main.sfx("slam", 0.85)
+	main.sfx("spell_stone", 0.8)
 	main.shake(7.0)
 	if _overdrawn():
 		p.stagger_self(0.4)  # an overdrawn quake knocks you down too
@@ -1376,7 +1376,7 @@ func _sandwall(p) -> void:
 	var center: Vector2 = p.global_position + p.aim * 60.0
 	p.main.add_stone_wall(_line_points(center, p.aim, stat("length"), 18.0), 11.0, stat("duration"))
 	p.main.fx_burst(center, p.aim, color(), 14, 200.0)
-	p.main.sfx("hit_heavy", 0.7, -4.0)
+	p.main.sfx_at(center, "hit_heavy", 0.7, -4.0)
 	p.main.shake(3.0)
 
 
@@ -1386,7 +1386,7 @@ func _sinkhole(p) -> void:
 	var at: Vector2 = target.global_position if target != null else p.global_position + p.aim * 140.0
 	main.pits.append({"pos": at, "r": 30.0, "t": 2.5})
 	main.fx_ring(at, color(), 36.0, 0.4, 4.0)
-	main.sfx("slam", 0.75)
+	main.sfx_at(at, "spell_stone", 0.75)
 	if target == null:
 		return
 	if target.radius <= 13.0 and not target.is_boss():
@@ -1403,7 +1403,7 @@ func _fault(p) -> void:
 	manticore().bury(self, p, center)  # (its Apex: foes on the line are buried and crushed)
 	p.main.add_stone_wall(_line_points(center, p.aim, stat("length"), 16.0), 9.0, stat("duration"), true)
 	p.main.fx_burst(center, p.aim, color(), 20, 240.0)
-	p.main.sfx("slam", 0.7)
+	p.main.sfx_at(center, "spell_stone", 0.7)
 	p.main.shake(6.0)
 
 
@@ -1651,7 +1651,7 @@ func _desperation(p) -> void:
 	p.desperate_speed_low = float(stat("speed_low")) if stat("speed_low") != null else 0.4
 	p.main.fx_text(p.global_position + Vector2(0, -44), spell_name(), color())
 	p.main.fx_ring(p.global_position, color(), 34.0, 0.3, 3.0)
-	p.main.sfx("warn_knight", 1.3, -4.0)
+	p.main.sfx("on_guard", 1.2, -4.0)
 
 
 func _pyre(p) -> void:

@@ -8,7 +8,9 @@ extends RefCounted
 ## climber's pages, story moments and in the stations); only one loop is
 ## heard once a crossfade is done, however often the place changes; the
 ## music and ambience carry on across a new floor; the whistle only blows
-## when a train pulls in. Run by smoke_test.gd (_part_tests).
+## when a train pulls in; the music and ambience dip under a big moment (the
+## Regard, a summit, a new mark, a guardian's death, a story gong) and come
+## back, through the sliders and M. Run by smoke_test.gd (_part_tests).
 
 const Bank := preload("res://scripts/sound_bank.gd")
 const Music := preload("res://scripts/music.gd")
@@ -33,6 +35,7 @@ func run(smoke) -> void:
 	await _one_at_a_time()
 	await _whistle()
 	await _live_director()
+	await _ducking()
 	await _carries_on()
 	A = t.main.audio
 	A.director_on = true
@@ -235,6 +238,73 @@ func _until(cond: Callable) -> void:
 	var end := Time.get_ticks_msec() + 1500
 	while not cond.call() and Time.get_ticks_msec() < end:
 		await t._frames(1)
+
+
+## A big moment dips the music and the ambience (audio.gd DUCK) for about a
+## second and a half, then they ease back to where the sliders put them;
+## muted stays muted. The big moments call it: the Regard, a summit, a new
+## mark, a guardian's death and every story gong.
+func _ducking() -> void:
+	main.menu.close()
+	await t._frames(1)
+	A.set_mood("calm", 0.0)
+	A.set_ambience(String(main.tower), 0.0)
+	A.duck_until = 0
+	A.duck_depth = 0.0
+	A.duck_now = 0.0
+	A._apply_music()
+	var tr: Dictionary = A.tracks[String(Music.MOODS["calm"]["track"])]
+	var p: AudioStreamPlayer = tr["player"]
+	var music0: float = p.volume_db
+	var amb0: float = A.ambience.volume_db
+	A.duck()
+	await _until(func(): return A.duck_now <= float(A.DUCK["db"]) + 0.05)
+	var dip: float = music0 - p.volume_db
+	var amb_dip: float = amb0 - A.ambience.volume_db
+	_check(dip >= 5.5 and dip <= 8.5 and amb_dip >= 5.5 and amb_dip <= 8.5, "a big moment dips the music %.1f dB and the ambience %.1f dB (about 6 to 8)" % [dip, amb_dip])
+	await t._wait(0.5)
+	_check(music0 - p.volume_db >= 5.5, "...and holds the dip a moment (%.1f dB down after half a second)" % (music0 - p.volume_db))
+	var end := Time.get_ticks_msec() + 4000
+	while A.duck_now < -0.01 and Time.get_ticks_msec() < end:
+		await t._frames(1)
+	_check(absf(p.volume_db - music0) < 0.1 and absf(A.ambience.volume_db - amb0) < 0.1, "...then eases back to its level (%.1f dB, was %.1f)" % [p.volume_db, music0])
+	# Through the slider: a half-way Music level dips from where it is.
+	var keep: float = A.music_level
+	A.set_levels(1.0, A.sound_level)
+	var full: float = p.volume_db
+	A.set_levels(0.5, A.sound_level)
+	var half: float = p.volume_db
+	A.duck()
+	await _until(func(): return A.duck_now <= float(A.DUCK["db"]) + 0.05)
+	_check(absf(half - (full + linear_to_db(0.5))) < 0.1 and absf((half - p.volume_db) - absf(float(A.DUCK["db"]))) < 0.6,
+		"...from where the Music slider puts it (%.1f at half -> %.1f dB)" % [half, p.volume_db])
+	# Muted stays muted through a dip.
+	A.toggle_music()
+	_check(p.volume_db <= -79.0 and A.ambience.volume_db <= -79.0, "...and with the music off (M), a dip stays silent")
+	A.toggle_music()
+	A.set_levels(keep, A.sound_level)
+	A.duck_until = 0
+	A.duck_now = 0.0
+	A.duck_depth = 0.0
+	A._apply_music()
+	# The big moments call it; a gong rung for a story scene dips the music too.
+	var src := FileAccess.get_file_as_string("res://scripts/main.gd")
+	for bit in ["sfx(\"regard\", 1.0, 0.0, 0.0)\n\tduck_music()", "sfx(\"summit_win\", 1.0, 0.0, 0.0)\n\tduck_music()", "sfx(\"mark_form\", pitch, db, 0.0)\n\t\tduck_music()", "AnimScript.slow_beat(self)  # (a beast falls: a beat of slow time)\n\t\tduck_music()"]:
+		_check(bit in src, "main.gd dips the music at: %s" % bit.split("\n")[0].strip_edges())
+	A.duck_until = 0
+	A.story_gong()  # (not in a story mood: no gong, no dip)
+	_check(A.duck_until == 0, "...no gong outside a story moment, and no dip")
+	A.mood = "story"
+	A.toll_at = -1
+	A.last_played.erase("gong")
+	A.story_gong()
+	_check(A.duck_until > Time.get_ticks_msec() and A.last_played.has("gong"), "a story scene's gong dips the music under it")
+	A.mood = ""
+	A.set_mood("calm", 0.0)
+	A.duck_until = 0
+	A.duck_now = 0.0
+	A.duck_depth = 0.0
+	A._apply_music()
 
 
 ## A new floor starts the scene afresh: the music and ambience carry on.

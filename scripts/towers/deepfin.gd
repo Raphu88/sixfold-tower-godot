@@ -57,14 +57,14 @@ static func _own_act(e, delta: float, dir: Vector2, dist: float, p) -> void:
 			if dist < float(D["leap_range"]) and main.clear_line(pos, p.global_position) and main.request_attack(e):
 				e.state = "rise"
 				e.state_t = float(D["rise"])
-				main.sfx("bubble", 0.7, -4.0)
+				main.sfx_at(e.global_position, "bubble", 0.7, -4.0)
 		"rise":
 			e.submerged = false
 			e.velocity = Vector2.ZERO
 			e.state_t -= delta
 			if e.state_t <= 0.0:
 				e._begin_wind("wind", float(D["wind"]))
-				main.sfx_kind("warn", "lurker", "warn_knight", 0.8, -2.0)
+				main.sfx_kind_at(e.global_position, "warn", "lurker", "", 0.8, -2.0)
 				e.lunge_dir = dir
 		"wind":
 			e.submerged = false
@@ -75,7 +75,7 @@ static func _own_act(e, delta: float, dir: Vector2, dist: float, p) -> void:
 				e.state = "lunge"
 				e.state_t = clampf((dist + 30.0) / float(D["leap_speed"]), 0.2, 0.55)
 				e.lunge_hit = false
-				main.sfx("spell_water", 1.1, -6.0)
+				main.sfx_at(e.global_position, "spell_water", 1.1, -6.0)
 				main.fx_burst(pos, e.lunge_dir, Color(0.6, 0.85, 0.95), 10, 160.0)
 		"lunge":
 			e.submerged = false
@@ -101,7 +101,7 @@ static func _own_act(e, delta: float, dir: Vector2, dist: float, p) -> void:
 			if in_deep:
 				e.state = "dive"
 				e.state_t = 0.3
-				main.sfx("bubble", 0.9, -6.0)
+				main.sfx_at(e.global_position, "bubble", 0.9, -6.0)
 			else:
 				var home: Vector2 = tf.nearest_deep(pos, 520.0)
 				e.velocity = (home - pos).normalized() * float(D["crawl"]) if home != Vector2.INF else Vector2.ZERO

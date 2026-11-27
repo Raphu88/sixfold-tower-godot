@@ -267,8 +267,8 @@ static func _falling_swords(bond, p) -> void:
 			main.fx_ring(spot, col, r, 0.3, 4.0)
 			main.fx_burst(spot, Vector2.ZERO, Palette.STEEL, 10, 220.0)
 			main.light_flash(spot, col, 1.0, 1.4, 0.25)
-			main.sfx("hit_heavy", 0.75 + 0.08 * i)
-			main.sfx("equip_sword", 0.7, -6.0)
+			main.sfx_at(spot, "hit_heavy", 0.75 + 0.08 * i)
+			main.sfx_at(spot, "equip_sword", 0.7, -6.0)
 			main.shake(3.5)
 		var paint := func(b, it: Dictionary):
 			var age: float = it["age"]
@@ -421,7 +421,7 @@ static func _rune_brand(bond, p) -> void:
 		main.fx_ring(at, col, blast, 0.35, 5.0)
 		main.fx_burst(at, Vector2.ZERO, col, 14, 260.0)
 		main.light_flash(at, col, 1.3, 1.4, 0.3)
-		main.sfx("zap", 0.85)
+		main.sfx_at(at, "zap", 0.85)
 		main.shake(4.0)
 	var tick := func(it: Dictionary, _delta: float):
 		var e = st["foe"]
@@ -499,7 +499,7 @@ static func _binding_circle(bond, p) -> void:
 	it["node"].data["circle"] = {"pos": center, "r": r}  # (Runesmith III: one of your circles)
 	main.fx_ring(center, col, r, 0.4, 4.0)
 	main.light_flash(center, col, 1.2, 1.2, 0.35)
-	main.sfx("spell_iron", 0.8)
+	main.sfx_at(center, "spell_iron", 0.8)
 	main.sfx("ready", 0.8, -6.0)
 
 
@@ -603,7 +603,7 @@ static func _embed(main, col: Color, e, dir: Vector2, dmg: float, splash: float,
 		main.fx_ring(st["pos"], col, r, 0.25, 3.0)
 		main.fx_burst(st["pos"], Vector2.ZERO, Palette.STEEL, 10, 220.0)
 		main.light_flash(st["pos"], col, 0.9, 1.0, 0.2)
-		main.sfx("hit_stab", 1.3, -4.0)
+		main.sfx_at(st["pos"], "hit_stab", 1.3, -4.0)
 	var paint := func(b, it: Dictionary):
 		var k := clampf(float(it["age"]) / delay, 0.0, 1.0)
 		var d: Vector2 = st["dir"]

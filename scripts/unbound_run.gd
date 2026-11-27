@@ -755,7 +755,7 @@ func _break(bar: Dictionary) -> void:
 	main.fx_burst(at, Vector2.ZERO, RAW, 12, 200.0)
 	main.light_flash(at, barrier_color(bar["kind"]), 1.6, 1.6, 0.4)
 	main.shake(7.0)
-	main.sfx("slam", 0.7, 0.0, 0.0)
+	main.sfx("stone_thud", 0.85, 0.0, 0.0)
 	main.banner = {"title": title, "lines": [line], "t": 3.0}
 	hits.erase(bar["id"])
 
@@ -807,7 +807,7 @@ func _open_cards() -> void:
 	main.card_focus = 0
 	if main.player != null:
 		main.player.set_physics_process(false)
-	main.sfx("ready", 0.6, -2.0, 0.0)
+	main.sfx("cards", 1.0, -2.0)
 
 
 ## A card on the choice (main.gd camp_card).

@@ -50,7 +50,7 @@ func _act(delta: float, dir: Vector2, dist: float, p) -> void:
 				state = "glare"
 				state_t = float(b["glare"])
 				stiff_said = false
-				main.sfx("eye_open", 0.8, -2.0)
+				main.sfx_at(global_position, "eye_open", 0.8, -2.0)
 				main.light_flash(global_position + gaze_dir * radius, C_GLARE, 1.0, 1.4, 0.3)
 		"glare":
 			velocity = Vector2.ZERO
@@ -70,7 +70,7 @@ func _act(delta: float, dir: Vector2, dist: float, p) -> void:
 				lunge_dir = dir
 			if _wind(delta):
 				main.fx_cone(global_position, lunge_dir, float(b["bite_reach"]), deg_to_rad(float(b["bite_arc"])), Color(0.8, 0.95, 0.5))
-				main.sfx("swing_light", 0.7, -3.0)
+				main.sfx_at(global_position, "swing_light", 0.7, -3.0)
 				_strike_cone(p, lunge_dir, float(b["bite_reach"]), float(b["bite_arc"]), dmg * float(b["bite_mult"]))
 				_end_attack("recover", 0.9)
 		"recover", "idle":
@@ -86,7 +86,7 @@ func _act(delta: float, dir: Vector2, dist: float, p) -> void:
 				_begin_wind("gaze_wind", float(b["gaze_wind"]))
 				gaze_dir = dir
 				set_meta("look_away", true)  # (a phone's aim stops turning you toward it)
-				main.sfx("hiss", 1.2, -4.0)
+				main.sfx_at(global_position, "hiss", 1.2, -4.0)
 				main.fx_text(global_position + Vector2(0, -radius - 22.0), String(BASILISK_TEXT["glow"]), C_GLARE)
 			else:
 				_circle(dir, dist, float(b["keep"]), speed)

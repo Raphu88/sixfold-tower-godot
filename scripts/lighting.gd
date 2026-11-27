@@ -46,6 +46,7 @@ const Palette := preload("res://scripts/palette.gd")
 const Essence := preload("res://scripts/essence.gd")
 const Secret := preload("res://scripts/secret.gd")
 const Shade := preload("res://scripts/shade.gd")
+const StairSeal := preload("res://scripts/stair_seal.gd")
 
 ## Most lights sent to the shader in a frame (it loops over them per pixel).
 const MAX_LIGHTS := 48
@@ -520,7 +521,7 @@ func _gather(view: Rect2) -> void:
 	if main.stair_open:
 		n = _put(n, view, main.stair_pos, 190.0 + 10.0 * sin(t * 3.0), Palette.STAIR_LIGHT, 0.85, 0.22 + 0.06 * sin(t * 3.0))
 		_bloom_kind(main.stair_pos, "stair", Palette.STAIR_LIGHT, 0.9 + 0.1 * sin(t * 3.0))
-	elif main.ward and main.layout_on:
+	elif main.ward and main.layout_on and StairSeal.layer(main) == "task":  # (violet only while the task's seal shows: a gate or ward has its own light)
 		n = _put(n, view, main.stair_pos, 140.0, Palette.WARD_LIGHT, 0.6, 0.2 + 0.05 * sin(t * 2.0))
 		_bloom_kind(main.stair_pos, "ward", Palette.WARD_LIGHT, 0.85 + 0.15 * sin(t * 2.0))
 	else:

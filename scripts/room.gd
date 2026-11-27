@@ -12,6 +12,7 @@ const Mirror := preload("res://scripts/mirror.gd")
 const Holes := preload("res://scripts/holes.gd")
 const Particles := preload("res://scripts/particles.gd")
 const UI := preload("res://scripts/ui.gd")
+const StairSeal := preload("res://scripts/stair_seal.gd")
 
 const TILE := 40.0
 const WALL_FACE := 46.0  # height of the north wall's visible front
@@ -30,6 +31,11 @@ var hole_spots: Array = []  # each hole tile's centre (the Firebird's embers ris
 var stair_pos := Vector2.ZERO
 var stair_open := false
 var stair_barred := false  # a gate or ward stands before it (climb_shape.gd): no chain drawn under it
+## The stair's one seal (stair_seal.gd): the lock shown now, and each
+## picture's weight (a lock fades as the next comes in).
+var seal := ""
+var seal_mix := {"barrier": 0.0, "task": 0.0, "chain": 1.0, "open": 0.0}
+var _seal_at := Vector2.INF  # the stair the mix belongs to (a new stair snaps it)
 var torch_color := Palette.TORCH
 # A floor of rooms: which tiles are solid (walls between rooms).
 var grid := Vector2i.ZERO
@@ -201,7 +207,32 @@ func _view_rect() -> Rect2:
 	return Rect2(cam.get_screen_center_position() - size * 0.5, size).grow(260.0)
 
 
+## The lock the stair shows now (stair_seal.gd layer): from the room's
+## owner when it's the game, else from what the room was told.
+func seal_lock() -> String:
+	var m = get_parent()
+	if m != null and m.has_method("practice_or_arena") and m.get("climb_shape") != null:
+		return StairSeal.layer(m)
+	return "open" if stair_open else ("barrier" if stair_barred else "chain")
+
+
+## A new floor (main.gd _start_floor): its stair shows its lock at once.
+func seal_new_floor() -> void:
+	_seal_at = Vector2.INF
+
+
+## Moves the seal's mix toward its lock (a new stair shows its lock at once).
+func seal_tick(delta: float) -> void:
+	seal = seal_lock()
+	if stair_pos != _seal_at:
+		_seal_at = stair_pos
+		StairSeal.snap(seal_mix, seal)
+	else:
+		StairSeal.step(seal_mix, seal, delta)
+
+
 func _process(delta: float) -> void:
+	seal_tick(delta)
 	if tint != self_modulate:
 		tint = self_modulate
 		features.self_modulate = tint
@@ -728,8 +759,7 @@ func _draw_stair(c, t: float) -> void:
 		var y := base.y - i * 8.0
 		var rect := Rect2(Vector2(stair_pos.x - step_w / 2.0, y - 8.0), Vector2(step_w, 8.0))
 		var col := Palette.WALL_FACE.lightened(0.05 + k * 0.1)
-		if not stair_open:
-			col = col.darkened(0.35)
+		col = col.darkened(0.35 * (1.0 - float(seal_mix["open"])))  # (lit as it opens)
 		# Each step: a lit tread on top, its riser in shade below (the
 		# shading toolkit, lit from the top-left like the rest of the room).
 		c.rect(rect, Palette.OUTLINE)
@@ -737,37 +767,13 @@ func _draw_stair(c, t: float) -> void:
 		c.box(Rect2(inner.position, Vector2(inner.size.x, inner.size.y * 0.55)), col.lightened(0.06))
 		c.box(Rect2(inner.position + Vector2(0, inner.size.y * 0.55), Vector2(inner.size.x, inner.size.y * 0.45)), col.darkened(0.28))
 		c.line(inner.position + Vector2(0, 0.5), Vector2(inner.end.x, inner.position.y + 0.5), Color(col.lightened(0.3), 0.7), 1.0)
-	if stair_open:
-		var pulse := 0.5 + 0.5 * sin(t * 3.0)
-		c.draw_arc(stair_pos, 30.0 + pulse * 6.0, 0.0, TAU, 40, Color(1.0, 0.85, 0.5, 0.35 + 0.3 * pulse), 2.5)
-		# A chevron pointing up the steps.
-		var tip := stair_pos + Vector2(0, -26 - pulse * 4.0)
-		c.draw_polyline(PackedVector2Array([tip + Vector2(-9, 7), tip, tip + Vector2(9, 7)]), Color(1.0, 0.9, 0.6, 0.9), 2.5)
-	elif not stair_barred:
-		# Sealed: an iron chain sagging across the steps between two rings,
-		# its links alternately face-on and edge-on, a padlock in the middle.
-		var iron := Color(0.5, 0.48, 0.52)
-		var y0 := base.y - 22.0
-		var a := Vector2(stair_pos.x - 36.0, y0)
-		var e := Vector2(stair_pos.x + 36.0, y0)
-		for end in [a, e]:
-			c.disc(end, 3.6, Palette.OUTLINE)
-			c.disc(end, 2.6, iron.darkened(0.25), Draw.Shade.METAL)
-		var links := 9
-		for i in links:
-			var k := (float(i) + 0.5) / float(links)
-			var p := a.lerp(e, k) + Vector2(0, sin(k * PI) * 6.0)
-			var slope := cos(k * PI) * 6.0 * PI / 72.0  # (the sag's slope here)
-			var rot := atan(slope)
-			if i % 2 == 0:
-				c.oval(p, Vector2(4.6, 3.0), rot, Palette.OUTLINE)
-				c.oval(p, Vector2(3.6, 2.1), rot, iron, Draw.Shade.METAL)
-				c.oval(p, Vector2(1.9, 0.8), rot, Color(0.08, 0.07, 0.09))
-			else:
-				var d := Vector2.from_angle(rot) * 3.6
-				c.line(p - d, p + d, Palette.OUTLINE, 3.0)
-				c.bar(p - d, p + d, iron.darkened(0.1), 1.6)
-		UI.lock_into(c, a.lerp(e, 0.5) + Vector2(0, 11.0), 7.0, Color(0.62, 0.5, 0.3))
+	# The stair's one seal (stair_seal.gd): the strongest lock only, each
+	# fading as the next comes in. (The barrier is climb_shape.gd's, over the
+	# darkness, at seal_mix["barrier"].)
+	var drop: float = 1.0 - float(seal_mix["chain"]) if seal == "open" else 0.0
+	StairSeal.chain_into(c, stair_pos, float(seal_mix["chain"]), drop, float(seal_mix["task"]))
+	StairSeal.ring_into(c, stair_pos, float(seal_mix["task"]), t)
+	StairSeal.open_into(c, stair_pos, float(seal_mix["open"]), t)
 
 
 func _draw_ambient() -> void:

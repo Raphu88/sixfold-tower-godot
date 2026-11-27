@@ -208,7 +208,7 @@ func _show_cards(tool: String, title: String, lines: Array, list: Array, ctx := 
 		if e.is_physics_processing():
 			e.set_physics_process(false)
 			_frozen.append(e)
-	main.sfx("ready", 1.1, -6.0, 0.0)
+	main.sfx("cards", 1.0, -2.0)
 	return true
 
 
@@ -847,7 +847,7 @@ func raise_wall(seconds: float, kind: String) -> String:
 	walls.append({"tiles": tiles, "body": _body(_tiles_rect(tiles), 1), "t": seconds, "kind": kind, "runs": []})
 	main.fx_text(_tile_center(tiles[0]) + Vector2(0, -30), SB.TEXT["raised"], SB.color("designer"))
 	main.shake(3.0)
-	main.sfx("slam", 0.8, -8.0, 0.0)
+	main.sfx("stone_thud", 1.0, -8.0, 0.0)
 	queue_redraw()
 	return ""
 
@@ -885,7 +885,7 @@ func sink_wall(tiles: Array) -> String:
 	_set_tiles(tiles, false)
 	walls.append({"tiles": tiles.duplicate(), "body": null, "t": SB.WALL_TIME, "kind": "sink", "runs": runs})
 	main.fx_text(_tile_center(tiles[0]) + Vector2(0, -30), SB.TEXT["sunk"], SB.color("designer"))
-	main.sfx("slam", 0.6, -8.0, 0.0)
+	main.sfx("stone_thud", 0.8, -8.0, 0.0)
 	queue_redraw()
 	return ""
 

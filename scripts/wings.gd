@@ -404,7 +404,7 @@ func _try_seal(w: Dictionary) -> void:
 	for t in w["door"]:
 		main.fx_burst(_tile_center(t), w["out"], Color(0.54, 0.51, 0.59), 12, 120.0)
 	main.shake(7.0)
-	main.sfx("slam", 0.55, 0.0, 0.0)
+	main.sfx("stone_thud", 0.75, 0.0, 0.0)
 	main.sfx("step_plate", 0.45, -4.0, 0.0)
 	main.banner = {"title": TEXT["sealed_title"], "lines": [TEXT["sealed"]], "t": 3.5}
 	main.note_event("doors", main.notices.TEXT["doors_shut"], null, false)
@@ -462,7 +462,7 @@ func _begin(w: Dictionary) -> void:
 	var c: Dictionary = CONDITIONS[w["condition"]]
 	var rule: String = c["rule"] % int(w["limit"]) if w["condition"] == "swift" else String(c["rule"])
 	main.banner = {"title": TEXT["rule_title"], "lines": [TEXT["waves"] % int(w["waves"]), rule], "t": 3.2}
-	main.sfx("warn_knight", 0.7, -2.0, 0.0)
+	main.sfx("on_guard", 0.95, -2.0, 0.0)
 
 
 func _alive(list: Array) -> Array:
@@ -501,7 +501,7 @@ func _spawn_wave(w: Dictionary) -> void:
 		main.fx_burst(at, Vector2.UP, GOLD, 12, 140.0)
 		main.fx_ring(at, GOLD, 44.0, 0.4, 3.0)
 	w["mobs"] = mobs
-	main.sfx("slam", 0.8, -6.0, 0.0)
+	main.sfx("stone_thud", 1.0, -6.0, 0.0)
 	main.fx_text(w["rect"].get_center() + Vector2(0, -60), TEXT["wave"] % [int(w["wave"]), int(w["waves"])], GOLD)
 	dirty = true
 
@@ -523,7 +523,7 @@ func _break(w: Dictionary) -> void:
 	w["broken"] = true
 	var c: Dictionary = CONDITIONS.get(w.get("condition", ""), {})
 	var lines: Array = [c.get("broken", "")]
-	main.sfx("warn_knight", 0.5, 0.0, 0.0)
+	main.sfx("on_guard", 0.8, 0.0, 0.0)
 	if w["fail"] == "champion":
 		lines.append(TEXT["broken_champion"])
 		_send_champion(w)
@@ -809,7 +809,7 @@ func _open_secret(s: Dictionary, quiet := false) -> void:
 	main.fx_burst(c, Vector2.ZERO, Color(0.62, 0.52, 1.0), 18, 160.0)
 	main.fx_ring(c, Color(0.62, 0.52, 1.0), 60.0, 0.5, 3.0)
 	main.fx_text(c + Vector2(0, -24), TEXT["secret_open"], Color(0.75, 0.68, 1.0))
-	main.sfx("slam", 0.5, -2.0, 0.0)
+	main.sfx_at(c, "stone_thud", 0.7, -2.0, 0.0)
 	main.sfx("rift", 0.9, -4.0, 0.0)
 	main.shake(4.0)
 	main.banner = {"title": TEXT["secret_title"], "lines": [TEXT["secret_line"]], "t": 2.4}

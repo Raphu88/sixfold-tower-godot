@@ -372,16 +372,33 @@ static func gear_of(rec: Dictionary) -> Dictionary:
 
 
 ## Their look: their appearance, dressed in their gear as the climber is (gear_look.gd).
+## (A rival saved before looks were kept, an old save's, gets one made from
+## their id: derived_look.)
 static func look_of(rec: Dictionary) -> Dictionary:
-	var lk := Appearance.look(rec.get("app", Appearance.DEFAULTS))
+	var made := {} if rec.has("app") else derived_look(rec)
+	var lk := Appearance.look(rec["app"] if rec.has("app") else made["app"])
 	lk["hood"] = lk["cloak"].darkened(0.22)
 	lk["head"] = Appearance.head_kind(lk)
 	var gear := gear_of(rec)
+	if not made.is_empty() and not gear.has("armor") and String(made["armor"]) != "":
+		gear["armor"] = Gear.make(String(made["armor"]))  # (worn in the look only: nothing is added to their record)
 	GearLook.before_armor(lk, gear)
 	GearLook.armor_look(lk, gear)
 	GearLook.after_armor(lk, gear)
-	GearLook.extras(lk, gear, String(rec.get("weapon", "sword")))
+	GearLook.extras(lk, gear, String(rec.get("weapon", made.get("weapon", "sword"))))
 	return lk
+
+
+## A look for a rival with none saved: hair, skin, clothes and their colours,
+## a cloak or none, and an armour and weapon for its outline, all from a
+## seed made of their id (or name), so each is distinct and the same every
+## time they're drawn. {app, armor, weapon}. Saved looks are never changed.
+static func derived_look(rec: Dictionary) -> Dictionary:
+	var rng := RandomNumberGenerator.new()
+	rng.seed = hash("rival look " + String(rec.get("id", rec.get("name", "rival"))))
+	var app := Appearance.random({}, rng)
+	var armors: Array = ARMORS[rng.randi_range(0, ARMORS.size() - 1)][1]
+	return {"app": app, "armor": String(armors[rng.randi_range(0, armors.size() - 1)]), "weapon": String(WEAPONS[rng.randi_range(0, WEAPONS.size() - 1)])}
 
 
 static func armor_id(rec: Dictionary) -> String:
@@ -1088,7 +1105,7 @@ func start_duel(enc: Dictionary) -> void:
 		if not gates.is_empty() and (lr.is_empty() or String(lr.get("state", "")) in ["armed", "done"]):
 			main.door_view.lock_rooms[rm] = {"state": "pending", "gates": gates, "bodies": [], "mobs": [], "t": 0.0}
 	main.banner = {"title": TEXT["duel_title"], "lines": [TEXT["duel_line"] % enc["rival"]["name"]], "t": 2.6}
-	main.sfx("warn_knight", 1.1, -2.0, 0.0)
+	main.sfx("on_guard", 1.0, -2.0, 0.0)
 
 
 func duel_on() -> bool:

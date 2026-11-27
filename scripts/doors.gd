@@ -400,7 +400,7 @@ func pull(l: Dictionary) -> void:
 	main.banner = {"title": LOCK_TEXT["lever_title"], "lines": [LOCK_TEXT["lever_line"]], "t": 2.5}
 	main.note_event("lock", main.notices.TEXT["lever"], null, false)
 	main.sfx("crossbow_reload", 0.6, -2.0, 0.0)
-	main.sfx("slam", 1.4, -10.0, 0.0)
+	main.sfx("stone_thud", 1.5, -10.0, 0.0)
 	main.shake(4.0)
 	_redraw()
 
@@ -516,7 +516,7 @@ func _shut(lr: Dictionary, mobs: Array) -> void:
 		lr["bodies"].append(body)
 		main.fx_burst(rect.get_center(), Vector2.ZERO, Color(0.54, 0.51, 0.59), 10, 110.0)
 	main.shake(7.0)
-	main.sfx("slam", 0.6, 0.0, 0.0)
+	main.sfx("stone_thud", 0.75, 0.0, 0.0)
 	main.sfx("step_chain", 0.5, -4.0, 0.0)
 	main.banner = {"title": LOCK_TEXT["shut_title"], "lines": [LOCK_TEXT["shut"]], "t": 2.6}
 	main.note_event("doors", main.notices.TEXT["doors_shut"], null, false)
@@ -536,7 +536,7 @@ func _reopen(lr: Dictionary) -> void:
 		main.fx_burst(_tiles_rect(g).get_center(), Vector2.ZERO, KEY_GOLD, 8, 90.0)
 	if main.fog != null:
 		main.fog.set("last_tile", Vector2i(-999, -999))
-	main.sfx("slam", 0.9, -6.0, 0.0)
+	main.sfx("stone_thud", 1.1, -6.0, 0.0)
 	main.banner = {"title": LOCK_TEXT["open_title"], "lines": [], "t": 1.8}
 	main.note_event("doors", main.notices.TEXT["doors_open"], null, false)
 	_redraw()
@@ -575,11 +575,11 @@ func open_door(d: Dictionary, quiet := false) -> void:
 	main.fx_burst(d["rect"].get_center(), d["out"], dust, 10, 90.0)
 	main.fx_burst(d["rect"].get_center(), -d["out"], dust, 8, 70.0)
 	if _stone(d):
-		main.sfx("stone_slide", 1.1, -6.0, 0.06)  # (a slab grinds aside)
+		main.sfx_at(d["rect"].get_center(), "stone_slide", 1.1, -6.0, 0.06)  # (a slab grinds aside)
 	else:
-		main.sfx("door_open", 1.0, 0.0, 0.08)  # (wood and iron swinging; an iron plate rattles too)
+		main.sfx_at(d["rect"].get_center(), "door_open", 1.0, 0.0, 0.08)  # (wood and iron swinging; an iron plate rattles too)
 		if String(d.get("style", "")) in ["hazard", "chained", "crown"]:
-			main.sfx("step_plate", 0.6, -8.0, 0.05)
+			main.sfx_at(d["rect"].get_center(), "step_plate", 0.6, -8.0, 0.05)
 	main.tip("doors")  # the Entity, the first time
 	_redraw()
 
@@ -668,7 +668,7 @@ func close_door(d: Dictionary, hold := 0.0) -> bool:
 	if main.fog != null:
 		main.fog.set("last_tile", Vector2i(-999, -999))
 	holding = list.filter(func(x): return float(x.get("held", 0.0)) > 0.0).size()
-	main.sfx("slam" if _stone(d) else "door_close", 1.4 if _stone(d) else 1.0, -8.0 if _stone(d) else 0.0, 0.08)
+	main.sfx_at(d["rect"].get_center(), "stone_thud" if _stone(d) else "door_close", 1.5 if _stone(d) else 1.0, -8.0 if _stone(d) else 0.0, 0.08)
 	_redraw()
 	return true
 

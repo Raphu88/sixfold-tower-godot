@@ -86,7 +86,7 @@ func _act(delta: float, dir: Vector2, dist: float, p) -> void:
 				lunge_dir = dir
 			if _wind(delta):
 				main.fx_cone(global_position, lunge_dir, float(c["swipe_reach"]), deg_to_rad(float(c["swipe_arc"])), Color(1.0, 0.6, 0.3))
-				main.sfx("swing", 0.8, -2.0)
+				main.sfx_at(global_position, "swing", 0.8, -2.0)
 				_strike_cone(p, lunge_dir, float(c["swipe_reach"]), float(c["swipe_arc"]), dmg)
 				_end_attack("recover", 1.0)
 		"recover", "idle":
@@ -108,7 +108,7 @@ func _act(delta: float, dir: Vector2, dist: float, p) -> void:
 					state_t = float(c["channel"])
 					heap["k"] = 0.0
 					main.fx_text(global_position + Vector2(0, -radius - 24.0), String(KINDLER_TEXT["kindle"]), C_TORCH)
-					main.sfx("flare", 0.8, -2.0)
+					main.sfx_at(global_position, "flare", 0.8, -2.0)
 				else:
 					velocity = main.path_dir(global_position, heap["pos"]) * speed
 				return
@@ -134,7 +134,7 @@ func _rekindle(h: Dictionary) -> void:
 	main.fx_burst(at, Vector2.UP, C_TORCH, 18, 200.0)
 	main.fx_ring(at, C_TORCH, 40.0, 0.35, 3.0)
 	main.light_flash(at, C_TORCH, 1.2, 1.5, 0.3)
-	main.sfx("burn", 0.9, -2.0)
+	main.sfx_at(global_position, "burn", 0.9, -2.0)
 
 
 func take_hit(amount: float, dir: Vector2, force := 140.0, heavy := false, pierce := false) -> void:
@@ -166,7 +166,7 @@ static func fallen(main, e) -> bool:
 	if e.has_meta("ashen"):
 		main.fx_text(e.global_position + Vector2(0, -30), String(KINDLER_TEXT["crumble"]), Color(0.75, 0.72, 0.7))
 		main.fx_burst(e.global_position, Vector2.UP, Color(0.45, 0.42, 0.42), 16, 140.0)
-		main.sfx("burn", 0.6, -6.0)
+		main.sfx_at(e.global_position, "burn", 0.6, -6.0)
 		return true
 	if e.is_boss() or e.ally or e.shade or e.mirror or e.kind in NO_ASH:
 		return false
@@ -238,7 +238,7 @@ class Heaps extends Node2D:
 				if gone != "-":
 					main.fx_text(Vector2(h["pos"]) + Vector2(0, -24), String(K.KINDLER_TEXT[gone]), Color(0.7, 0.82, 0.92) if gone == "soaked" else Color(0.85, 0.8, 0.72))
 					main.fx_burst(h["pos"], Vector2.UP, Color(0.5, 0.48, 0.48), 10, 90.0)
-					main.sfx("hiss" if gone == "soaked" else "step", 1.0, -4.0)
+					main.sfx_at(global_position, "hiss" if gone == "soaked" else "step", 1.0, -4.0)
 		queue_redraw()
 
 	func _draw() -> void:

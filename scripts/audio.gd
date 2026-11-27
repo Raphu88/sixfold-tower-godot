@@ -30,6 +30,23 @@ const GAP_MS := {"burn": 250}
 ## loudest page sound, so they're evened out (all soft). The summit's bells
 ## were quieter than a crit: a climb won is the biggest moment there is.
 const TRIM := {"ui_open": 3.0, "ui_close": -1.5, "ui_back": -2.0, "summit_win": 4.0}
+## Extra pitch spread for sounds played very often from many places: the
+## wind's three takes (wind spells, rolls, traps, storms) never sound alike.
+const VARIANCE := {"gust": 0.12}
+
+## Sound by distance (play_at): a sound from a place in the world (a
+## monster's tell, hit or death, a trap, a door, an impact, a spell landing)
+## is at full within `near` px of the climber, then fades (evenly in dB) to
+## `far_db` at `far` px and stays there, so an off-screen tell is still
+## heard, clearly quieter. A monster's glint beside you stays at full. UI
+## sounds, the climber's own and the big moments use play (no position).
+const DISTANCE := {"near": 200.0, "far": 900.0, "far_db": -18.0}
+
+## The music and ambience dip under a big moment (the Regard, a summit won, a
+## new mark, a guardian's death, a story scene's gong): down `db` within
+## `attack` s, held until `hold` s from the start, then easing back over
+## `release` s. On top of the sliders and M (muted stays muted).
+const DUCK := {"db": -7.0, "attack": 0.12, "hold": 1.5, "release": 1.2}
 
 var streams := {}  # name -> Array of AudioStream
 var players: Array = []
@@ -38,6 +55,7 @@ var voice_start: Array = []  # per player: when it started (msec)
 var voice_fade: Array = []  # per player: a fade-out tween, or null
 var last_played := {}
 var last_variant := {}
+var last_db := {}  # sound -> the level it last played at (dB; for tests)
 var music: AudioStreamPlayer  # the track playing now (music.gd's mood picks it)
 ## Track name -> {player, level (0..1: its share of the crossfade), target,
 ## rate (level a second), db (its level now), db_to, db_rate}.
@@ -57,6 +75,14 @@ var ambience_old: AudioStreamPlayer = null
 var amb_old_level := 0.0
 var amb_old_rate := 1.0
 var music_on := true
+## The duck now (dB, 0 or below), how deep the latest one goes, and until
+## when (msec) it holds before easing back.
+var duck_now := 0.0
+var duck_depth := 0.0
+var duck_until := 0
+## Where the climber hears from (play_at), if set (tests); otherwise the
+## climber's own place, and with no climber every sound is at full.
+var listener := Vector2.INF
 ## What was playing when the scene last ended (a new floor, the train): the
 ## next audio carries on from there if it starts right after.
 static var _resume := {}
@@ -253,6 +279,7 @@ func _process(_delta: float) -> void:
 	var now := Time.get_ticks_usec()
 	var dt := minf((now - _music_us) / 1000000.0, 0.25)
 	_music_us = now
+	_update_duck(dt)
 	for name in tracks:
 		var tr: Dictionary = tracks[name]
 		if float(tr["level"]) != float(tr["target"]) or float(tr["db"]) != float(tr["db_to"]):
@@ -275,6 +302,30 @@ func _process(_delta: float) -> void:
 	_note_resume()
 
 
+## Dips the music and ambience under a big moment (DUCK): a second one while
+## the first holds keeps the deeper dip and the later end.
+func duck(db := float(DUCK["db"]), hold := float(DUCK["hold"])) -> void:
+	duck_depth = minf(db, duck_depth) if Time.get_ticks_msec() < duck_until else db
+	duck_until = maxi(duck_until, Time.get_ticks_msec() + int(hold * 1000.0))
+
+
+## The duck's level this frame: quickly down, held, then eased back.
+func _update_duck(dt: float) -> void:
+	var holding := Time.get_ticks_msec() < duck_until
+	var want := duck_depth if holding else 0.0
+	if not holding:
+		duck_depth = 0.0
+	if is_equal_approx(duck_now, want):
+		return
+	if want < duck_now:
+		duck_now = move_toward(duck_now, want, absf(float(DUCK["db"])) / maxf(float(DUCK["attack"]), 0.01) * dt)
+	else:
+		# (eases back: a smooth curve rather than a straight ramp)
+		var rate := absf(float(DUCK["db"])) / maxf(float(DUCK["release"]), 0.01)
+		duck_now = move_toward(duck_now, want, rate * dt * clampf(1.4 - duck_now / float(DUCK["db"]), 0.4, 1.4))
+	_apply_music()
+
+
 ## A track that has faded all the way out pauses (it carries on from there).
 func _settle(tr: Dictionary) -> void:
 	var p: AudioStreamPlayer = tr["player"]
@@ -289,7 +340,7 @@ func _track_volume(tr: Dictionary) -> void:
 	if music_muted() or share <= 0.001:
 		p.volume_db = -80.0
 	else:
-		p.volume_db = float(tr["db"]) + linear_to_db(share) + linear_to_db(music_level)
+		p.volume_db = float(tr["db"]) + linear_to_db(share) + linear_to_db(music_level) + duck_now
 
 
 ## The opening's screen `i` (0..5) is showing (opening.gd calls this each
@@ -301,7 +352,7 @@ func story_toll(i: int) -> void:
 		return
 	if toll_at != i:
 		toll_at = i
-		play("gong", 1.0, -2.0, 0.0)
+		_gong()
 
 
 ## The track heard now (the one fading in), or "".
@@ -314,7 +365,7 @@ func track_playing() -> String:
 
 
 func _ambience_db() -> float:
-	return -80.0 if music_muted() else AMBIENCE_DB + linear_to_db(music_level)
+	return -80.0 if music_muted() else AMBIENCE_DB + linear_to_db(music_level) + duck_now
 
 
 ## The ambience players' levels: the Music slider times each one's share of
@@ -386,6 +437,32 @@ func has_sound(sound: String) -> bool:
 	return streams.has(sound) and not streams[sound].is_empty()
 
 
+## How much quieter a sound `dist` px from the climber is (DISTANCE): 0 dB
+## within `near`, `far_db` from `far` on, evenly in dB between.
+static func distance_db(dist: float) -> float:
+	var near := float(DISTANCE["near"])
+	var far := float(DISTANCE["far"])
+	return float(DISTANCE["far_db"]) * clampf((dist - near) / maxf(far - near, 1.0), 0.0, 1.0)
+
+
+## Where the climber hears from: `listener` if set, else the climber.
+func hearing_from() -> Vector2:
+	if listener != Vector2.INF:
+		return listener
+	var m = get_parent()
+	if m != null and "player" in m and m.player != null and is_instance_valid(m.player) and m.player.is_inside_tree():
+		return m.player.global_position
+	return Vector2.INF
+
+
+## A sound from a place in the world: quieter the farther it is from the
+## climber (distance_db). Rate limits and voices are play's.
+func play_at(sound: String, pos: Vector2, pitch := 1.0, volume_db := 0.0, variance := 0.05) -> void:
+	var ear := hearing_from()
+	var db := 0.0 if ear == Vector2.INF else distance_db(ear.distance_to(pos))
+	play(sound, pitch, volume_db + db, variance)
+
+
 ## pitch: base playback speed; variance adds a little randomness.
 func play(sound: String, pitch := 1.0, volume_db := 0.0, variance := 0.05) -> void:
 	if not has_sound(sound) or sound_level <= 0.01:
@@ -409,8 +486,10 @@ func play(sound: String, pitch := 1.0, volume_db := 0.0, variance := 0.05) -> vo
 	voice_start[slot] = now
 	var p: AudioStreamPlayer = players[slot]
 	p.stream = list[idx]
+	variance = maxf(variance, float(VARIANCE.get(sound, 0.0)))
 	p.pitch_scale = maxf(0.1, pitch * (1.0 + randf_range(-variance, variance)))
 	p.volume_db = volume_db + MASTER_DB + float(TRIM.get(sound, 0.0)) + linear_to_db(sound_level)
+	last_db[sound] = p.volume_db
 	p.play()
 
 
@@ -467,10 +546,16 @@ func _gong_soon() -> void:
 		return
 	await get_tree().create_timer(0.15, true).timeout
 	if is_instance_valid(self) and mood == "story" and toll_at < 0:
-		play("gong", 1.0, -2.0, 0.0)
+		_gong()
 
 
 ## A story scene turning to its next page or scene (the ending's pages): one gong.
 func story_gong() -> void:
 	if mood == "story" and toll_at < 0:
-		play("gong", 1.0, -2.0, 0.0)
+		_gong()
+
+
+## The gong of a story scene: rung once, with the music dipped under it.
+func _gong() -> void:
+	play("gong", 1.0, -2.0, 0.0)
+	duck()

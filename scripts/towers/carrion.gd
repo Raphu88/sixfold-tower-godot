@@ -57,7 +57,7 @@ func _act(delta: float, dir: Vector2, dist: float, p) -> void:
 				submerged = false
 				main.fx_burst(spot, Vector2.UP, Color(0.8, 0.72, 0.6), 14, 160.0)
 				main.fx_ring(spot, Color(0.85, 0.75, 0.6), float(c["radius"]), 0.3, 3.0)
-				main.sfx("swing_heavy", 0.75, -2.0)
+				main.sfx_at(global_position, "swing_heavy", 0.75, -2.0)
 				main.shake(3.0)
 				if p.global_position.distance_to(spot) < float(c["radius"]) + p.radius:
 					p.receive_attack(dmg, self)
@@ -71,7 +71,7 @@ func _act(delta: float, dir: Vector2, dist: float, p) -> void:
 			if state_t <= 0.0:
 				state = "rise"
 				state_t = float(c["rise"])
-				main.sfx("wingbeat", 0.8, -4.0)
+				main.sfx_at(global_position, "wingbeat", 0.8, -4.0)
 		"rise":
 			submerged = false
 			velocity = Vector2.ZERO

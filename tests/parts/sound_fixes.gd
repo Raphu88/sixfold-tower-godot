@@ -13,7 +13,17 @@ extends RefCounted
 ## weapon's crit; doors creak or grind by what they're made of; the stair's
 ## ward sounds like essence, its gate like iron; levels trimmed in data stay
 ## small; the gong is compressed like every other effect, and a full rebuild
-## keeps it. Run by smoke_test.gd (_part_tests).
+## keeps it.
+##
+## And the second round: effects with nothing above 10 kHz are built at
+## 22.05 kHz (smaller on the phone); a sound from a place in the world
+## (monsters, traps, doors, impacts, spells landing) is quieter the farther
+## it is (audio.gd DISTANCE), while the menus, the climber's own sounds and
+## the big moments stay at full; offers of cards rustle like cards instead of
+## the "ready" click; the knight's armour rattle is his alone and "slam" is
+## a heavy blow you dodge (fights beginning have "on_guard", scenery in
+## stone "stone_thud"); the wind comes in three recorded takes. Run by
+## smoke_test.gd (_part_tests).
 
 const Bank := preload("res://scripts/sound_bank.gd")
 const Doors := preload("res://scripts/doors.gd")
@@ -31,6 +41,12 @@ func run(smoke) -> void:
 	_glint_is_danger()
 	_levels()
 	await _new_sounds()
+	print("sound fixes: smaller files, sound by distance, cards, sounds of their own, varied wind")
+	_small_files()
+	await _by_distance()
+	_cards()
+	_own_users()
+	_wind()
 
 
 func _check(cond: bool, what: String) -> void:
@@ -148,7 +164,7 @@ func _glint_is_danger() -> void:
 		for sub in DirAccess.get_directories_at(d):
 			dirs.append(d + "/" + sub)
 		for f in DirAccess.get_files_at(d):
-			if f.ends_with(".gd") and not f in allowed and "sfx(\"glint\"" in FileAccess.get_file_as_string(d + "/" + f):
+			if f.ends_with(".gd") and not f in allowed and _glint_re().search(FileAccess.get_file_as_string(d + "/" + f)) != null:
 				others.append(f)
 	_check(others.is_empty(), "the glint warns of danger only (also played by: %s)" % ", ".join(others))
 	var main_text := FileAccess.get_file_as_string("res://scripts/main.gd")
@@ -203,17 +219,20 @@ func _new_sounds() -> void:
 	var cs = main.climb_shape
 	if cs != null and is_instance_valid(cs):
 		var bar_was: Dictionary = cs.bar
+		var phys_was: bool = cs.is_physics_processing()
+		cs.set_physics_process(false)  # (a stand-in barrier with only its kind: the stair's own tick left out)
 		cs.bar = {"kind": "ward"}
 		A.last_played.erase("use_ward")
-		A.last_played.erase("slam")
+		A.last_played.erase("stone_thud")
 		cs._barrier_sound("up")
-		var ward_ok: bool = A.last_played.has("use_ward") and not A.last_played.has("slam")
+		var ward_ok: bool = A.last_played.has("use_ward") and not A.last_played.has("stone_thud")
 		await t._wait(0.06)
 		cs.bar = {"kind": "gate"}
-		A.last_played.erase("slam")
+		A.last_played.erase("stone_thud")
 		cs._barrier_sound("up")
-		_check(ward_ok and A.last_played.has("slam") and A.last_played.has("step_chain"), "the stair's ward hums up like essence; the iron gate clangs down with its chains")
+		_check(ward_ok and A.last_played.has("stone_thud") and A.last_played.has("step_chain"), "the stair's ward hums up like essence; the iron gate thuds down in stone with its chains (no beast's slam)")
 		cs.bar = bar_was
+		cs.set_physics_process(phys_was)
 	# The stair's growth sound counts every mark's step.
 	var prof = main.profile
 	var before: int = main.growth_count()
@@ -222,3 +241,185 @@ func _new_sounds() -> void:
 	_check(main.growth_count() > before, "a mark growing a step is counted, so the stair can ring it (%d -> %d)" % [before, main.growth_count()])
 	prof.bonds = bonds_was
 	A.sound_level = keep
+
+
+## A call that plays the glint, by distance or not: sfx("glint" or sfx_at(<where>, "glint".
+func _glint_re() -> RegEx:
+	var re := RegEx.new()
+	re.compile("sfx(_at)?\\([^\"\\n]*\"glint\"")
+	return re
+
+
+## The WAV file's own sample rate (its header, bytes 24..27).
+func _wav_rate(path: String) -> int:
+	var f := FileAccess.open(path, FileAccess.READ)
+	if f == null:
+		return 0
+	f.seek(24)
+	return f.get_32()
+
+
+## Effects with nothing above 10 kHz are written at 22.05 kHz (about 40% of
+## them: thuds, roars, stone, wind), they load at that rate, and on the
+## phone they weigh less a second than the ones kept at 32 kHz.
+func _small_files() -> void:
+	var A = t.main.audio
+	var small := {}
+	var rates := {}
+	for name in Bank.SFX:
+		for path in Bank.SFX[name]:
+			var r := _wav_rate(String(path))
+			rates[r] = int(rates.get(r, 0)) + 1
+			if r == 22050:
+				small[name] = true
+	_check(small.size() >= Bank.SFX.size() * 0.3 and rates.size() <= 2 and rates.has(22050) and rates.has(32000),
+		"about 40%% of the effects are built at 22.05 kHz, the rest at 32 (%d of %d sounds; files by rate: %s)" % [small.size(), Bank.SFX.size(), str(rates)])
+	var low: Array = ["slam", "stone_thud", "gust", "regard", "gong"]
+	_check(low.all(func(n): return small.has(n)), "...the low ones among them: %s" % ", ".join(low.filter(func(n): return small.has(n))))
+	_check(not small.has("glint") and not small.has("chime") and not small.has("hit_light"), "...while bright ones (the glint, the chime, a light hit) keep 32 kHz")
+	# Loaded, they play at their own rate, and weigh less a second.
+	var per_s := {22050: [], 32000: []}
+	for name in ["slam", "stone_thud", "gust", "kill_wyvern", "glint", "chime", "hit_light", "parry"]:
+		for s in A.streams.get(name, []):
+			if s is AudioStreamWAV and s.get_length() > 0.0 and per_s.has(int(s.mix_rate)):
+				per_s[int(s.mix_rate)].append(float(s.data.size()) / s.get_length())
+	var avg := func(a: Array) -> float: return a.reduce(func(x, y): return x + y, 0.0) / maxf(1.0, a.size())
+	_check(not per_s[22050].is_empty() and not per_s[32000].is_empty() and avg.call(per_s[22050]) < avg.call(per_s[32000]) * 0.8,
+		"...they load at 22.05 kHz and take about a third less a second (%.0f bytes/s, against %.0f at 32 kHz)" % [avg.call(per_s[22050]), avg.call(per_s[32000])])
+	var build := FileAccess.get_file_as_string("res://tools/build_audio.py")
+	_check("SR_SMALL = 22050" in build and "HIGH_DB = -40.0" in build and "def shrink_existing" in build, "...and the build tool writes them so by measuring (build_audio.py SR_SMALL, HIGH_DB)")
+
+
+## A world sound is quieter the farther it is from the climber; the menus,
+## the climber's own sounds and the big moments are not.
+func _by_distance() -> void:
+	var A = t.main.audio
+	var keep: float = A.sound_level
+	A.sound_level = 1.0
+	var ear := Vector2(1000, 1000)
+	A.listener = ear
+	var at_db := func(dist: float) -> float:
+		A.last_played.erase("hit")
+		A.play_at("hit", ear + Vector2(dist, 0), 1.0, 0.0, 0.0)
+		return float(A.last_db.get("hit", 99.0))
+	var near: float = at_db.call(60.0)
+	var edge: float = at_db.call(200.0)
+	var mid: float = at_db.call(550.0)
+	var far: float = at_db.call(900.0)
+	var off: float = at_db.call(2500.0)
+	_check(absf(near) < 0.01 and absf(edge) < 0.01, "a sound beside the climber, or 200 px off, is at full (%.1f, %.1f dB)" % [near, edge])
+	_check(mid < -6.0 and mid > -12.0 and absf(far + 18.0) < 0.01 and absf(off + 18.0) < 0.01,
+		"...fading to -18 dB at 900 px (%.1f dB at 550, %.1f at 900) and no lower beyond it: an off-screen tell is still heard (%.1f at 2500)" % [mid, far, off])
+	# A monster's glint near you stays clear: enemy.gd's glint plays by distance, at full close by.
+	A.last_played.erase("glint")
+	A.play_at("glint", ear + Vector2(120, 0), 1.0, 0.0, 0.0)
+	_check(absf(float(A.last_db.get("glint", 99.0)) - float(A.TRIM.get("glint", 0.0))) < 0.01, "a monster's glint 120 px away rings at full")
+	# Sounds with no place stay at full, wherever the listener is.
+	A.last_played.erase("ui")
+	A.play("ui_confirm")
+	A.last_played.erase("regard")
+	A.play("regard", 1.0, 0.0, 0.0)
+	_check(absf(float(A.last_db.get("ui_confirm", 99.0)) - float(A.TRIM.get("ui_confirm", 0.0))) < 0.01 and absf(float(A.last_db.get("regard", 99.0))) < 0.01,
+		"menu sounds and the big moments (the Regard) are not touched")
+	A.listener = Vector2.INF
+	A.sound_level = keep
+	# The world's callers pass their place; the big moments and the climber's own do not.
+	var enemy := FileAccess.get_file_as_string("res://scripts/enemy.gd")
+	_check(enemy.count("main.sfx(\"") == enemy.count("main.sfx(\"roar_") and enemy.count("main.sfx_at(global_position, ") >= 60,
+		"a monster's tells, blows and cries come from where it is; only a guardian's roar is at full (%d by distance)" % enemy.count("main.sfx_at(global_position, "))
+	_check("main.sfx_kind_at(global_position, \"hurt\"" in enemy, "...its cry when struck too")
+	var others := {"traps.gd": "main.sfx_at(at, sound", "doors.gd": "main.sfx_at(d[\"rect\"].get_center(), \"door_open\"", "projectile.gd": "main.sfx_at(global_position, \"arrow_hit\"",
+		"reactions.gd": "main.sfx_at(at, String(r[\"sound\"])", "main.gd": "sfx_at(e.global_position, kill_sound"}
+	for f in others:
+		_check(others[f] in FileAccess.get_file_as_string("res://scripts/" + f), "%s plays by distance (%s)" % [f, others[f]])
+	var main_text := FileAccess.get_file_as_string("res://scripts/main.gd")
+	_check("sfx(\"regard\", 1.0, 0.0, 0.0)" in main_text and "sfx(\"summit_win\", 1.0, 0.0, 0.0)" in main_text and "(a guardian's death: at full)" in main_text,
+		"...while the Regard, a summit and a guardian's death stay at full")
+	var foes: Array = []
+	for d in ["res://scripts/foes", "res://scripts/towers"]:
+		for f in DirAccess.get_files_at(d):
+			var src := FileAccess.get_file_as_string(d + "/" + f)
+			if f.ends_with(".gd") and src.begins_with("extends \"res://scripts/enemy.gd\"") and src.contains("main.sfx(\""):
+				foes.append(f)
+	_check(foes.is_empty(), "every other monster's sounds come from where it is too (still at full: %s)" % ", ".join(foes))
+
+
+## Every offer of cards (a camp's, a vault's, the belt's, an heirloom, the
+## path, the exit, a secret, the Unbound's choice) rustles like cards; the
+## "ready" click is kept for things armed and ready.
+func _cards() -> void:
+	var A = t.main.audio
+	_check(A.has_sound("cards") and A.streams["cards"].size() >= 3, "dealt cards have their own soft rustle, in three takes")
+	var missing: Array = []
+	var dealt := 0
+	for f in ["main.gd", "climb_shape.gd", "unbound_run.gd", "secret_deep.gd"]:
+		var lines := FileAccess.get_file_as_string("res://scripts/" + f).split("\n")
+		var fn := ""
+		var body := ""
+		for i in lines.size() + 1:
+			var line: String = lines[i] if i < lines.size() else "func _end"
+			if line.begins_with("func ") or line.begins_with("static func "):
+				if body.contains("camp_choosing = true") and body.contains("sfx("):
+					dealt += 1
+					if not body.contains("sfx(\"cards\"") or body.contains("sfx(\"ready\""):
+						missing.append(f + " " + fn)
+				fn = line
+				body = ""
+			body += line + "\n"
+	_check(dealt >= 9 and missing.is_empty(), "every offer of cards plays the card sound, not 'ready' (%d offers; not: %s)" % [dealt, ", ".join(missing)])
+	var main_text := FileAccess.get_file_as_string("res://scripts/main.gd")
+	_check(main_text.count("sfx(\"cards\"") == 5, "...the camp's, a vault's, the belt's, the heirloom's and the path's cards in main.gd (%d)" % main_text.count("sfx(\"cards\""))
+
+
+## "warn_knight" is the knight's own tell, and "slam" a heavy blow you
+## dodge (a beast's or a brute's), each only from those; a fight beginning
+## draws "on_guard", scenery in stone falls with "stone_thud".
+func _own_users() -> void:
+	var knight: Array = []
+	var slam: Array = []
+	var re := RegEx.new()
+	re.compile("(sfx(_at|_kind)?\\([^\\n]*\"slam\"|\"sound\": \"slam\"|\\[\"slam\", [0-9])")
+	var dirs: Array = ["res://scripts"]
+	while not dirs.is_empty():
+		var d: String = dirs.pop_back()
+		for sub in DirAccess.get_directories_at(d):
+			dirs.append(d + "/" + sub)
+		for f in DirAccess.get_files_at(d):
+			if not f.ends_with(".gd") or f == "sound_bank.gd":
+				continue
+			var fn := ""
+			for line in FileAccess.get_file_as_string(d + "/" + f).split("\n"):
+				if line.begins_with("func ") or line.begins_with("static func "):
+					var head: String = line.get_slice("(", 0)
+					fn = head.get_slice(" ", head.get_slice_count(" ") - 1)
+				if line.contains("\"warn_knight\""):
+					knight.append("%s %s" % [f, fn])
+				if re.search(line) != null:
+					slam.append("%s %s" % [f, fn])
+	var knight_bad: Array = knight.filter(func(s): return s != "enemy.gd _knight")
+	_check(knight.size() >= 1 and knight_bad.is_empty(), "the armour rattle is only the knight's own tell (also: %s)" % ", ".join(knight_bad))
+	var blows := ["enemy.gd _champion_slam", "enemy.gd _gryphon", "enemy.gd _shellback", "enemy.gd _kraken", "enemy.gd _smith", "enemy.gd _ram_crash",
+		"enemy.gd _manticore", "drowned.gd _act", "graftling.gd _act", "forge_golem.gd _act"]
+	var slam_bad: Array = slam.filter(func(s): return not s in blows)
+	_check(not slam.is_empty() and slam_bad.is_empty(), "'slam' is only a heavy blow you dodge, from a beast or a brute (also: %s)" % ", ".join(slam_bad))
+	var A = t.main.audio
+	_check(A.has_sound("on_guard") and A.has_sound("stone_thud") and A.streams["stone_thud"].size() >= 2, "a fight beginning has its own sound (a blade drawn over a low boom), scenery in stone its own thud")
+	var src := ""
+	for f in ["arena.gd", "rivals.gd", "climb_shape.gd", "wings.gd", "proving.gd", "doors.gd", "puzzle.gd", "cracks.gd"]:
+		src += FileAccess.get_file_as_string("res://scripts/" + f)
+	_check(src.count("\"on_guard\"") >= 9 and src.count("\"stone_thud\"") >= 8,
+		"...heard where duels, rounds, hordes and rules begin, and where bars, walls and slabs come down (%d, %d)" % [src.count("\"on_guard\""), src.count("\"stone_thud\"")])
+
+
+## The wind is three recorded takes, picked at random, its pitch spread wider.
+func _wind() -> void:
+	var A = t.main.audio
+	_check(A.streams.get("gust", []).size() >= 3, "the wind comes in several recorded takes (%d)" % A.streams.get("gust", []).size())
+	_check(float(A.VARIANCE.get("gust", 0.0)) >= 0.1, "...with a wider pitch spread, so the fifty-odd callers never sound alike")
+	var build := FileAccess.get_file_as_string("res://tools/build_audio.py")
+	var gust := build.get_slice("\"gust\": {", 1).get_slice("], \"level\"", 0)
+	_check(gust.contains("windy/windy_ambiance.ogg@") and not gust.contains("synth:wind"), "...cut from a real windy day, not the old synthesised gust")
+	var short := 99.0
+	for s in A.streams.get("gust", []):
+		short = minf(short, s.get_length())
+	_check(short < 1.0, "...one take short enough for a roll (%.2f s)" % short)

@@ -476,8 +476,8 @@ static func _cinder_dive(bond, p) -> void:
 	spawn(main, 0.45, Callable(), paint, {"a": start, "b": end})
 	main.light_flash(end, col, 1.6, 1.8, 0.3)
 	main.fx_burst(end, p.aim, col, 14, 260.0)
-	main.sfx("gust", 1.2)
-	main.sfx("spell_fire", 1.0, -2.0)
+	main.sfx_at(end, "gust", 1.2)
+	main.sfx_at(end, "spell_fire", 1.0, -2.0)
 	main.shake(3.0)
 	if bond._overdrawn():
 		p.hp = maxf(1.0, p.hp - 5.0)  # an overdrawn dive scorches you too
@@ -582,8 +582,8 @@ static func _flashpoint(bond, p) -> void:
 	spawn(main, 0.4, Callable(), paint, {"at": at})
 	main.fx_burst(at, Vector2.ZERO, col, 22, 320.0)
 	main.light_flash(at, col, 1.8, 2.0, 0.35)
-	main.sfx("fire_blast", 0.9)
-	main.sfx("hit_heavy", 0.9, -4.0)
+	main.sfx_at(at, "fire_blast", 0.9)
+	main.sfx_at(at, "hit_heavy", 0.9, -4.0)
 	main.shake(5.0)
 
 

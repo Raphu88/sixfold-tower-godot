@@ -442,7 +442,7 @@ static func _blast_later(p, at: Vector2, delay: float, r: float, dmg: float, bur
 				o.ignite(burn, 2.0)
 		runner(main).decal("blast", c, 0.45, r, col)
 		main.light_flash(c, col, 1.2, 1.6, 0.3)
-		main.sfx("fire_blast", 1.0, -4.0))
+		main.sfx_at(c, "fire_blast", 1.0, -4.0))
 
 
 ## Smoulder: burns, and when this foe falls while it smoulders, the burn
@@ -583,7 +583,7 @@ static func _lodestone(main, at: Vector2, r: float, pull: float, col: Color, ski
 		o.tide_push(to.normalized() * minf(pull, to.length() * 3.0))
 		runner(main).decal("lode", at, 0.45, 4.0, col, {"to": o.global_position})
 	main.fx_ring(at, col, 26.0, 0.35, 3.0)
-	main.sfx("spell_iron", 0.7, -6.0)
+	main.sfx_at(at, "spell_iron", 0.7, -6.0)
 
 
 ## Rend: each hit deepens the bleed (up to "stacks"), the bleed growing with it.
@@ -653,7 +653,7 @@ static func _bloom(p, at: Vector2, heal: float, seconds: float, col: Color) -> v
 			var T = load("res://scripts/technique.gd")
 			T._heal(p, heal)
 			main.fx_burst(at, Vector2.UP, col, 8, 90.0)
-			main.sfx("spell_life", 1.1, -4.0)
+			main.sfx_at(at, "spell_life", 1.1, -4.0)
 			r.decals.erase(d)
 			return false
 		return true)

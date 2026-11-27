@@ -498,7 +498,7 @@ func _give_way(w: Dictionary) -> void:
 	_set_body(w, true)
 	main.fx_text(Vector2(w["pos"]) + Vector2(0, -40), TEXT["gives"], LOOK["sand"])
 	main.fx_burst(w["pos"], Vector2.UP, LOOK["sand"], 16, 140.0)
-	main.sfx("slam", 0.5, -5.0, 0.05)
+	main.sfx_at(w["pos"], "stone_thud", 0.7, -5.0, 0.05)
 	main.shake(4.0)
 	# A walking foe standing on it goes down with the sand.
 	for e in main.enemies():

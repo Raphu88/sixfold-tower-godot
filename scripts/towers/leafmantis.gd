@@ -93,7 +93,7 @@ func _act(delta: float, dir: Vector2, dist: float, p) -> void:
 				slashes -= 1
 				state_t = float(m["gap"])
 				main.fx_cone(global_position, lunge_dir, float(m["reach"]), deg_to_rad(float(m["arc"])), C_BLADE)
-				main.sfx("swing_light", 1.25 if slashes == 1 else 1.05, -2.0)
+				main.sfx_at(global_position, "swing_light", 1.25 if slashes == 1 else 1.05, -2.0)
 				_strike_cone(p, lunge_dir, float(m["reach"]), float(m["arc"]), dmg * float(m["slash_mult"]))
 		"recover", "idle":
 			submerged = false
@@ -135,7 +135,7 @@ func _spring(dir: Vector2) -> void:
 	lunge_dir = dir
 	main.fx_text(global_position + Vector2(0, -radius - 18.0), String(LEAFMANTIS_TEXT["rustle"]), Color(0.75, 0.95, 0.5))
 	main.fx_burst(global_position, Vector2.UP, C_LEAF_HI, 10, 90.0)
-	main.sfx("gust", 1.6, -8.0)
+	main.sfx_at(global_position, "gust", 1.6, -8.0)
 	_warn(1.3)
 
 

@@ -52,7 +52,7 @@ func _purse(prof) -> float:
 func _silent_sounds() -> Array:
 	var names := {}
 	var re := RegEx.new()
-	re.compile("sfx\\(\"([a-z_]+)\"")
+	re.compile("sfx(?:_at\\([^,\\n]*,\\s*|\\()\"([a-z_]+)\"")  # (sfx("x" and sfx_at(<where>, "x")
 	for f in DirAccess.get_files_at("res://scripts"):
 		if not f.ends_with(".gd"):
 			continue

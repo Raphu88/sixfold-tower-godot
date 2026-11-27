@@ -233,8 +233,8 @@ static func _flood(bond, _sp: Dictionary, p) -> void:
 	_lasting(main, float(bond.stat("duration")), tick, paint)
 	main.fx_burst(at, Vector2.ZERO, col, 18, 240.0)
 	main.light_flash(at, col, 1.4, 0.9, 0.4)
-	main.sfx("wave", 0.8)
-	main.sfx("gust", 0.6, -6.0)
+	main.sfx_at(at, "wave", 0.8)
+	main.sfx_at(at, "gust", 0.6, -6.0)
 
 
 ## Geysers: a line of spots along your aim (stopping at a wall), each
@@ -291,8 +291,8 @@ static func _geyser_burst(main, at: Vector2, radius: float, dmg: float, stun: fl
 	_lasting(main, 0.55, Callable(), paint)
 	main.fx_burst(at, Vector2.UP, col, 14, 260.0)
 	main.light_flash(at, col, 1.2, 1.2, 0.3)
-	main.sfx("geyser")
-	main.sfx("gust", 1.2, -6.0)
+	main.sfx_at(at, "geyser")
+	main.sfx_at(at, "gust", 1.2, -6.0)
 	main.shake(3.0)
 
 
@@ -317,7 +317,7 @@ static func _bulwark(bond, p) -> void:
 			var crossed: bool = (prev.distance_to(center) - radius) * (s.position.distance_to(center) - radius) <= 0.0
 			if on_wall.call(s.position, 12.0) or (crossed and absf(aim.angle_to(s.position - center)) <= half + 0.1):
 				main.fx_burst(s.position, -s.vel.normalized(), WATER, 7, 170.0)
-				main.sfx("hit_slime", 1.4, -8.0)
+				main.sfx_at(s.position, "hit_slime", 1.4, -8.0)
 				s.queue_free()
 		for e in main.targets():
 			var rel: Vector2 = e.global_position - center
@@ -346,8 +346,8 @@ static func _bulwark(bond, p) -> void:
 	_lasting(main, float(bond.stat("duration")), tick, paint)
 	main.fx_burst(center + aim * radius, aim, WATER, 14, 220.0)
 	main.light_flash(center + aim * radius, col, 1.1, 1.0, 0.3)
-	main.sfx("spell_frost", 0.8)
-	main.sfx("parry", 0.6, -8.0)
+	main.sfx_at(center + aim * radius, "spell_frost", 0.8)
+	main.sfx_at(center + aim * radius, "parry", 0.6, -8.0)
 
 
 ## Tidebreak: for a while, every parry made while your barrier holds sends
@@ -490,8 +490,8 @@ static func _drown(bond, sp: Dictionary, p) -> void:
 	main.fx_bolt([at, p.global_position], col)
 	main.fx_burst(at, Vector2.UP, col, 14, 220.0)
 	main.light_flash(at, col, 1.2, 1.2, 0.35)
-	main.sfx("spell_water", 0.7)
-	main.sfx("zap", 0.5, -6.0)
+	main.sfx_at(at, "spell_water", 0.7)
+	main.sfx_at(at, "zap", 0.5, -6.0)
 	main.hitstop(0.05)
 	if bond._overdrawn():
 		p.hp = maxf(1.0, p.hp - 6.0)  # an overdrawn drain drinks from you too, like Undertow
@@ -742,7 +742,7 @@ static func unbreakable(bond, sp: Dictionary, p) -> void:
 		main.fx_ring(c, col, radius, 0.45, 6.0)
 		main.fx_burst(c, Vector2.ZERO, col, 26, 340.0)
 		main.light_flash(c, col, 1.8, 1.6, 0.4)
-		main.sfx("crit", 0.7)
+		main.sfx_at(c, "crit", 0.7)
 		main.shake(7.0)
 		for e in main.targets():
 			var to: Vector2 = e.global_position - c

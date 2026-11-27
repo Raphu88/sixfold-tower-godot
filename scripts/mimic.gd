@@ -88,7 +88,7 @@ func _act(delta: float, dir: Vector2, dist: float, p) -> void:
 			if _wind(delta):
 				var reach := float(RULES["bite"])
 				main.fx_cone(global_position, lunge_dir, reach, deg_to_rad(float(RULES["bite_arc"])), Color(1.0, 0.85, 0.8))
-				main.sfx("swing_heavy", 0.75)
+				main.sfx_at(global_position, "swing_heavy", 0.75)
 				var to: Vector2 = p.global_position - global_position
 				if to.length() <= reach + p.radius and absf(lunge_dir.angle_to(to)) <= deg_to_rad(float(RULES["bite_arc"])):
 					p.receive_attack(dmg, self)
@@ -101,7 +101,7 @@ func _act(delta: float, dir: Vector2, dist: float, p) -> void:
 				state = "lunge"
 				state_t = float(RULES["lunge"]) / float(RULES["lunge_speed"])
 				lunge_hit = false
-				main.sfx("slime_hop", 0.6)
+				main.sfx_at(global_position, "slime_hop", 0.6)
 		"lunge":
 			state_t -= delta
 			velocity = lunge_dir * float(RULES["lunge_speed"])
@@ -119,16 +119,16 @@ func _act(delta: float, dir: Vector2, dist: float, p) -> void:
 		_:  # chase: hops after you
 			if dist < float(RULES["bite"]) + 6.0 and main.request_attack(self):
 				_begin_wind("wind_bite", float(RULES["bite_wind"]))
-				main.sfx("warn_knight", 1.3, -4.0)
+				main.sfx_at(global_position, "door_open", 1.5, -4.0)  # (its lid creaks wide)
 				return
 			if dist > 110.0 and dist < float(RULES["lunge"]) and lunge_cd <= 0.0 and main.clear_line(global_position, p.global_position) and main.request_attack(self):
 				_begin_wind("wind_lunge", float(RULES["lunge_wind"]))
-				main.sfx("warn_knight", 1.1, -4.0)
+				main.sfx_at(global_position, "door_open", 1.3, -4.0)
 				return
 			hop_t -= delta
 			if hop_t <= 0.0:
 				hop_t = float(RULES["hop"])
-				main.sfx("step_chain", 0.7, -10.0, 0.1)
+				main.sfx_at(global_position, "step_chain", 0.7, -10.0, 0.1)
 			# A hop: a burst forward, then a moment on the ground.
 			var k := clampf(hop_t / float(RULES["hop"]), 0.0, 1.0)
 			velocity = dir * speed * (2.2 if k > 0.55 else 0.15)

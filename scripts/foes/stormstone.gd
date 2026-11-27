@@ -54,7 +54,7 @@ func _act(delta: float, _dir: Vector2, dist: float, _p) -> void:
 			if charge >= 1.0:
 				_begin_wind("wind_arc", float(RULES["aim"]))
 				target = _nearest()
-				main.sfx("charge", 1.3, -4.0)
+				main.sfx_at(global_position, "charge", 1.3, -4.0)
 
 
 ## Whoever stands nearest within its reach: the climber or a monster (not
@@ -87,14 +87,14 @@ func _discharge() -> void:
 	if tg == null or not is_instance_valid(tg) or tg.dead or tg.global_position.distance_to(global_position) > float(RULES["reach"]) + 40.0:
 		main.fx_bolt([global_position + Vector2(0, -16), global_position + Vector2(randf_range(-18, 18), 14)], C_BOLT)
 		main.fx_text(global_position + Vector2(0, -radius - 28.0), TEXT["ground"], C_RUNE)
-		main.sfx("zap", 0.7, -6.0)
+		main.sfx_at(global_position, "zap", 0.7, -6.0)
 		return
 	_struck = tg
 	var at: Vector2 = tg.global_position
 	var mid := (global_position + at) * 0.5 + (at - global_position).orthogonal().normalized() * randf_range(-18.0, 18.0)
 	main.fx_bolt([global_position + Vector2(0, -16), mid, at], C_BOLT)
 	main.light_flash(at, C_BOLT, 1.4, 1.8, 0.3)
-	main.sfx("thunder", 1.2, -2.0)
+	main.sfx_at(global_position, "thunder", 1.2, -2.0)
 	if tg == main.player:
 		var before: float = tg.hp
 		tg.receive_attack(dmg, self, true)

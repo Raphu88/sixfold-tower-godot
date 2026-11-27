@@ -239,6 +239,9 @@ func _climb() -> void:
 func _levels() -> void:
 	var keep_level: float = A.music_level
 	var keep_sound: float = A.sound_level
+	A.duck_until = 0  # (no dip left from a story moment's gong: tests/parts/audio_places.gd tests the dips)
+	A.duck_depth = 0.0
+	A.duck_now = 0.0
 	A.set_mood("calm", 0.0)
 	var p: AudioStreamPlayer = A.tracks["menu"]["player"]
 	A.set_levels(1.0, keep_sound)

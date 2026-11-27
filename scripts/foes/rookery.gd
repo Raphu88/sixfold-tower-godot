@@ -88,7 +88,7 @@ func _act(delta: float, _dir: Vector2, dist: float, _p) -> void:
 			if hatch_t <= 0.0 and dist < 520.0 and bats.size() < int(RULES["alive"]) and hatched < int(RULES["most"]):
 				state = "hatch"
 				state_t = float(RULES["hatch"])
-				main.sfx("warn_bat", 0.7, -4.0)
+				main.sfx_at(global_position, "warn_bat", 0.7, -4.0)
 
 
 func _hatch() -> void:
@@ -104,7 +104,7 @@ func _hatch() -> void:
 	bats.append(b)
 	main.fx_burst(global_position + out * radius, out, C_EGG, 10, 160.0)
 	main.fx_text(global_position + Vector2(0, -radius - 26.0), TEXT["hatch"], Color(0.85, 0.8, 0.95))
-	main.sfx("wingbeat", 1.2, -4.0)
+	main.sfx_at(global_position, "wingbeat", 1.2, -4.0)
 
 
 ## It never moves: a blow shakes it but doesn't shift it.

@@ -239,7 +239,7 @@ func _go_dark(msg: String, hurt: bool) -> void:
 	if hurt:
 		p.receive_attack(4.0 + float(main.floor_num), null, true)
 		main.shake(5.0)
-		main.sfx("slam", 0.7, -4.0, 0.0)
+		main.sfx("stone_thud", 0.9, -4.0, 0.0)
 		main.fx_burst(p.global_position, Vector2.ZERO, Color(0.45, 0.4, 0.38), 12, 160.0)
 	else:
 		main.sfx("trap_click", 0.6, -8.0)

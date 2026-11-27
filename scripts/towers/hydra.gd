@@ -60,7 +60,7 @@ func _act(delta: float, dir: Vector2, dist: float, p) -> void:
 				bites_left -= 1
 				state_t = float(h["bite_gap"])
 				main.fx_cone(global_position, lunge_dir, float(h["bite_reach"]), deg_to_rad(float(h["bite_arc"])), Color(0.6, 0.85, 0.45))
-				main.sfx("swing_light", 1.1 + 0.08 * bites_left, -3.0)
+				main.sfx_at(global_position, "swing_light", 1.1 + 0.08 * bites_left, -3.0)
 				_strike_cone(p, lunge_dir, float(h["bite_reach"]), float(h["bite_arc"]), dmg * float(h["bite_mult"]))
 		"recover", "idle":
 			state_t -= delta
@@ -71,7 +71,7 @@ func _act(delta: float, dir: Vector2, dist: float, p) -> void:
 			if heads > 0 and dist < float(h["bite_near"]) and main.request_attack(self):
 				_begin_wind("wind_bite", float(h["bite_wind"]))
 				_warn(0.9)
-				main.sfx("hiss", 1.1, -6.0)
+				main.sfx_at(global_position, "hiss", 1.1, -6.0)
 			else:
 				velocity = dir * speed if dist > 46.0 else Vector2.ZERO
 
@@ -86,13 +86,13 @@ func _tend_stumps(delta: float) -> void:
 		if burn_t > 0.0 and float(st["t"]) <= float(h["sear"]):
 			st["seared"] = true
 			main.fx_text(global_position + Vector2(0, -radius - 30.0), String(HYDRA_TEXT["seared"]), Color(1.0, 0.65, 0.35))
-			main.sfx("burn", 0.8, -4.0)
+			main.sfx_at(global_position, "burn", 0.8, -4.0)
 		elif float(st["t"]) >= float(h["regrow"]):
 			stumps.erase(st)
 			heads = mini(int(h["max_heads"]), heads + 2)
 			main.fx_text(global_position + Vector2(0, -radius - 30.0), String(HYDRA_TEXT["regrow"]), Color(0.75, 0.95, 0.55))
 			main.fx_burst(global_position + face * radius, face, C_NECK, 10, 120.0)
-			main.sfx("hit_slime", 0.8, -2.0)
+			main.sfx_at(global_position, "hit_slime", 0.8, -2.0)
 
 
 func is_attacking() -> bool:

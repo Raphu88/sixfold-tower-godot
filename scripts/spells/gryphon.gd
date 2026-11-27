@@ -220,7 +220,7 @@ static func _ball_lightning(bond, p) -> void:
 			if pts.size() > 1:
 				main.fx_bolt(pts, col)
 				main.light_flash(o["pos"], col, 1.0, 1.2, 0.2)
-				main.sfx("zap", 1.3, -6.0)
+				main.sfx_at(o["pos"], "zap", 1.3, -6.0)
 		main.hit_kind = "")
 	main.light_flash(start, col, 1.0, 1.4, 0.3)
 	main.sfx("spell_lightning", 1.0, -2.0)
@@ -264,8 +264,8 @@ static func _thunderclap(bond, p) -> void:
 		n.draw_arc(at, r * 0.35, 0.0, TAU, 28, Color(col, 0.5 * a), 3.0, true)
 	_lasting(main, 0.45, Callable(), paint)
 	main.light_flash(at, col, 2.2, 1.8, 0.35)
-	main.sfx("thunder")
-	main.sfx("slam", 0.7, -4.0)
+	main.sfx_at(at, "thunder")
+	main.sfx_at(at, "hit_heavy", 0.6, -4.0)
 	main.shake(7.0)
 	main.hitstop(0.06)
 	if struck == 0:
@@ -310,7 +310,7 @@ static func _updraft(bond, p) -> void:
 	_lasting(main, float(bond.stat("duration")), tick, paint)
 	main.fx_ring(at, col, radius, 0.3, 3.0)
 	main.light_flash(at, col, 1.0, 0.8, 0.3)
-	main.sfx("spell_wind", 1.1)
+	main.sfx_at(at, "spell_wind", 1.1)
 
 
 ## Hurl: every foe in the air near you is flung along your aim. It strikes
@@ -438,7 +438,7 @@ static func _snare(bond, p) -> void:
 	if node != null:
 		_snares.append(node)
 	main.fx_ring(at, col, radius + 6.0, 0.3, 2.0)
-	main.sfx("equip_bow", 0.9, -4.0)
+	main.sfx_at(at, "equip_bow", 0.9, -4.0)
 
 
 ## Pinning Shot: a heavy arrow (flown here, not a projectile node, so it can
@@ -472,8 +472,8 @@ static func _pin(bond, p) -> void:
 				continue
 			e.take_hit(dmg, dir, 80.0, true)
 			main.fx_burst(e.global_position - dir * e.radius, -dir, col, 12, 260.0)
-			main.sfx("arrow_hit", 0.8)
-			main.sfx("hit_stab", 0.7, -4.0)
+			main.sfx_at(e.global_position - dir * e.radius, "arrow_hit", 0.8)
+			main.sfx_at(e.global_position - dir * e.radius, "hit_stab", 0.7, -4.0)
 			main.shake(3.0)
 			if "quarry" in p:
 				p.quarry = e  # (Quarry: the last foe you struck)
@@ -604,7 +604,7 @@ static func _branching(bond, sp: Dictionary, p) -> void:
 		main.fx_bolt(leg, col)
 		main.light_flash(leg[1], col, 0.9, 1.3, 0.25)
 	if not legs.is_empty():
-		main.sfx("zap")
+		main.sfx_at(legs[-1][1], "zap")
 		main.hitstop(0.07)
 		main.shake(6.0)
 	var dmg: float = bond.call_strike(sp) * float(bond.spell_stat(sp, "boost"))
@@ -694,8 +694,8 @@ static func _skyward(bond, sp: Dictionary, p) -> void:
 	var aim: Vector2 = p.aim
 	main.fx_cone(origin, aim, reach, half, col)
 	main.light_flash(origin + aim * reach * 0.5, col, 1.6, 0.9, 0.35)
-	main.sfx("gust", 0.8)
-	main.sfx("spell_wind", 1.2, -4.0)
+	main.sfx_at(origin + aim * reach * 0.5, "gust", 0.8)
+	main.sfx_at(origin + aim * reach * 0.5, "spell_wind", 1.2, -4.0)
 	var up: Array = []
 	for e in main.targets():
 		var to: Vector2 = e.global_position - origin
@@ -724,7 +724,7 @@ static func _skyward(bond, sp: Dictionary, p) -> void:
 			var at: Vector2 = e.global_position
 			main.fx_ring(at, col, splash_r, 0.35, 4.0)
 			main.fx_burst(at, Vector2.ZERO, Color(0.8, 0.75, 0.7), 14, 240.0)
-			main.sfx("hit_heavy", 0.75)
+			main.sfx_at(at, "hit_heavy", 0.75)
 			main.shake(5.0)
 			for o in main.targets():
 				if o != e and not splashed.has(o.get_instance_id()) and o.airborne <= 0.0 and o.global_position.distance_to(at) <= splash_r + o.radius:
@@ -893,7 +893,7 @@ static func _seeking_shot(bond, sp: Dictionary, p) -> void:
 			return false
 		p.ranged_hit(e, dmg, d, 120.0, true)
 		main.fx_burst(e.global_position - d * e.radius, -d, col, 12, 260.0)
-		main.sfx("arrow_hit", 0.8)
+		main.sfx_at(e.global_position - d * e.radius, "arrow_hit", 0.8)
 		var tgt := {"e": e}
 		for i in range(1, strikes):
 			FX.later(main, 0.12 * i, func():
@@ -946,7 +946,7 @@ static func sky_bolt(main, e, dmg: float, col: Color) -> void:
 	var at: Vector2 = e.global_position
 	main.fx_bolt([at + Vector2(randf_range(-20, 20), -220.0), at + Vector2(randf_range(-8, 8), -70.0), at], col)
 	main.light_flash(at, col, 1.2, 1.6, 0.2)
-	main.sfx("zap", 0.9, -4.0)
+	main.sfx_at(at, "zap", 0.9, -4.0)
 	main.hit_kind = LIGHTNING
 	e.take_hit(dmg, Vector2.ZERO, 0.0)
 	main.hit_kind = ""
@@ -965,7 +965,7 @@ static func roll_gust(main, at: Vector2, radius: float, lift: float, most_weight
 		lifted += 1
 	main.fx_ring(at, col, radius, 0.3, 2.0)
 	if lifted > 0:
-		main.sfx("gust", 1.4, -6.0)
+		main.sfx_at(at, "gust", 1.4, -6.0)
 
 
 ## Eye of the Storm's Apex: each cyclone drifts toward where you aim, at

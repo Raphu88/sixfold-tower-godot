@@ -212,8 +212,8 @@ static func _quicksand(bond, p) -> void:
 		b.arc(center, r, 0.0, TAU, 40, Color(col, 0.55 * a), 2.0)
 	_add(main, dur, tick, paint, false)
 	main.fx_burst(center, Vector2.ZERO, SAND, 16, 180.0)
-	main.sfx("spell_stone", 0.7)
-	main.sfx("gust", 0.5, -4.0)
+	main.sfx_at(center, "spell_stone", 0.7)
+	main.sfx_at(center, "gust", 0.5, -4.0)
 	main.shake(3.0)
 
 
@@ -246,7 +246,7 @@ static func _contagion(bond, p) -> void:
 		if dead:
 			it["done"] = true
 			main.fx_burst(st["pos"], Vector2.ZERO, col, 16, 200.0)
-			main.sfx("hit_slime", 0.8, -2.0)
+			main.sfx_at(st["pos"], "hit_slime", 0.8, -2.0)
 	var from: Vector2 = p.global_position
 	var paint := func(b, it: Dictionary):
 		var age: float = it["age"]
@@ -570,7 +570,7 @@ static func bloom(bond, shot) -> void:
 		main.clouds.append({"pos": at, "r": r, "t": float(t), "tick": 0.0, "color": col})
 		main.fx_burst(at, Vector2.ZERO, col, 12, 170.0)
 		main.fx_ring(at, col, r, 0.3, 2.0)
-		main.sfx("hit_slime", 0.85, -4.0))
+		main.sfx_at(at, "hit_slime", 0.85, -4.0))
 
 
 ## Toxin Build II: a poisoned foe that dies passes `pass` of its stacks

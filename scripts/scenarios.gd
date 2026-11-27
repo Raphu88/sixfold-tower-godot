@@ -343,7 +343,7 @@ func _tick(s: Dictionary, delta: float, p) -> void:
 				if r["t"] <= 0.0 and not r.get("hit", false):
 					r["hit"] = true
 					main.fx_burst(r["pos"], Vector2.ZERO, Palette.WALL_EDGE, 10, 160.0)
-					main.sfx("slam", 1.2, -10.0)
+					main.sfx_at(r["pos"], "stone_thud", 1.4, -10.0)
 					if p.global_position.distance_to(r["pos"]) < r["r"] + p.radius and p.iframes <= 0.0:
 						p.receive_attack(float(cfg["dmg"]) + float(cfg["dmg_per_floor"]) * main.floor_num, null, true)
 			rocks = rocks.filter(func(r): return r["t"] > -0.4)
@@ -366,7 +366,7 @@ func _tick(s: Dictionary, delta: float, p) -> void:
 				s["seen"] += 1
 				s["seen_cd"] = float(cfg["cooldown"])
 				main.fx_text(p.global_position + Vector2(0, -40), TEXT["seen"], Color(1.0, 0.55, 0.4))
-				main.sfx("warn_knight", 1.1, -4.0)
+				main.sfx("on_guard", 1.2, -4.0)
 				main.light_flash(p.global_position, Color(1.0, 0.85, 0.5), 1.2, 1.2, 0.3)
 				var e = _spawn(s, 2.0)
 				if e != null:
@@ -583,7 +583,7 @@ func _seal(s: Dictionary) -> void:
 		main.add_child(body)
 		bodies.append({"body": body, "rect": r})
 		main.fx_burst(r.get_center(), Vector2.ZERO, Color(0.55, 0.51, 0.6), 8, 100.0)
-	main.sfx("slam", 0.7, -2.0)
+	main.sfx("stone_thud", 0.85, -2.0)
 
 
 func _unseal() -> void:

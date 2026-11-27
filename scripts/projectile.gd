@@ -78,7 +78,7 @@ func _physics_process(delta: float) -> void:
 		_ended()
 		main.fx_burst(position, -vel.normalized(), Color(0.8, 0.75, 0.7), 4, 140.0)
 		if friendly and style in ["arrow", "bolt"]:
-			main.sfx("arrow_hit", 1.25, -12.0)  # your arrow thunks into the wall
+			main.sfx_at(global_position, "arrow_hit", 1.25, -12.0)  # your arrow thunks into the wall
 		queue_free()
 		return
 	# Sandshaper's walls stop monsters' shots.
@@ -91,14 +91,14 @@ func _physics_process(delta: float) -> void:
 			_burst()
 			_ended()
 			main.fx_burst(position, -vel.normalized(), Color(0.8, 0.75, 0.7), 5, 160.0)
-			main.sfx("arrow_hit", 1.2, -8.0)
+			main.sfx_at(global_position, "arrow_hit", 1.2, -8.0)
 			queue_free()
 			return
 	# The climber's arrows light the puzzle's eyes (and stop there).
 	if friendly and return_to == null and main.puzzle != null and main.puzzle.shot(position):
 		_burst()
 		_ended()
-		main.sfx("arrow_hit", 1.1, -6.0)
+		main.sfx_at(global_position, "arrow_hit", 1.1, -6.0)
 		queue_free()
 		return
 	if friendly:

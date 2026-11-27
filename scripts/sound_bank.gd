@@ -47,7 +47,7 @@ const SFX := {
 	"step_plate": ["res://assets/audio/sfx/step_plate_0.wav", "res://assets/audio/sfx/step_plate_1.wav"],
 	"charge": ["res://assets/audio/sfx/charge_0.wav", "res://assets/audio/sfx/charge_1.wav"],
 	"zap": ["res://assets/audio/sfx/zap_0.wav", "res://assets/audio/sfx/zap_1.wav"],
-	"gust": ["res://assets/audio/sfx/gust_0.wav"],
+	"gust": ["res://assets/audio/sfx/gust_0.wav", "res://assets/audio/sfx/gust_1.wav", "res://assets/audio/sfx/gust_2.wav"],
 	"burn": ["res://assets/audio/sfx/burn_0.wav", "res://assets/audio/sfx/burn_1.wav", "res://assets/audio/sfx/burn_2.wav", "res://assets/audio/sfx/burn_3.wav", "res://assets/audio/sfx/burn_4.wav"],
 	"hiss": ["res://assets/audio/sfx/hiss_0.wav", "res://assets/audio/sfx/hiss_1.wav"],
 	"glint": ["res://assets/audio/sfx/glint_0.wav"],
@@ -263,6 +263,9 @@ const SFX := {
 	"door_close": ["res://assets/audio/sfx/door_close_0.wav", "res://assets/audio/sfx/door_close_1.wav"],
 	"denied": ["res://assets/audio/sfx/denied_0.wav", "res://assets/audio/sfx/denied_1.wav"],
 	"mark_form": ["res://assets/audio/sfx/mark_form_0.wav"],
+	"on_guard": ["res://assets/audio/sfx/on_guard_0.wav", "res://assets/audio/sfx/on_guard_1.wav"],
+	"stone_thud": ["res://assets/audio/sfx/stone_thud_0.wav", "res://assets/audio/sfx/stone_thud_1.wav"],
+	"cards": ["res://assets/audio/sfx/cards_0.wav", "res://assets/audio/sfx/cards_1.wav", "res://assets/audio/sfx/cards_2.wav"],
 }
 
 const MUSIC := {

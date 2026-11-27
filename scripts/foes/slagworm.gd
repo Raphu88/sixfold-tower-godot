@@ -54,7 +54,7 @@ func _act(delta: float, dir: Vector2, dist: float, p) -> void:
 				var reach := float(RULES["bite"])
 				var arc := deg_to_rad(float(RULES["bite_arc"]))
 				main.fx_cone(global_position, lunge_dir, reach + 6.0, arc, C_MOLTEN)
-				main.sfx("hit_slime", 0.6)
+				main.sfx_at(global_position, "hit_slime", 0.6)
 				var to: Vector2 = p.global_position - global_position
 				if to.length() <= reach + p.radius and absf(lunge_dir.angle_to(to)) <= arc:
 					p.receive_attack(dmg, self)
@@ -68,7 +68,7 @@ func _act(delta: float, dir: Vector2, dist: float, p) -> void:
 			if dist < float(RULES["bite"]) + 6.0 and main.request_attack(self):
 				lunge_dir = dir
 				_begin_wind("wind_bite", float(RULES["bite_wind"]))
-				main.sfx("hiss", 0.7, -4.0)
+				main.sfx_at(global_position, "hiss", 0.7, -4.0)
 			else:
 				velocity = dir * speed
 
