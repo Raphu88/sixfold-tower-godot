@@ -154,7 +154,7 @@ static func _do_seal(menu, part: String) -> void:
 		prof.save()
 		main._give_bonds()
 	else:
-		main.sfx("ui_back", 1.0, -6.0, 0.0)
+		main.sfx("denied", 1.0, -6.0, 0.0)
 	menu.toast = String(got["line"])
 	menu.toast_t = 4.0
 	_redraw(menu, "ub_unseal" if bool(got["ok"]) else "ub_seal")
@@ -165,12 +165,12 @@ static func _do_unseal(menu, part: String) -> void:
 	var prof = main.profile
 	var got: Dictionary = Unbound.unseal(prof, part, bool(main.on_train))
 	if bool(got["ok"]):
-		main.sfx("glint", 0.8, -4.0, 0.0)
+		main.sfx("lock_turn", 0.8, -4.0, 0.0)
 		menu.set_meta("seal_told", main.tip_now("node_unsealed"))
 		prof.save()
 		main._give_bonds()
 	else:
-		main.sfx("ui_back", 1.0, -6.0, 0.0)
+		main.sfx("denied", 1.0, -6.0, 0.0)
 	menu.toast = String(got["line"])
 	menu.toast_t = 4.0
 	_redraw(menu, "ub_seal" if bool(got["ok"]) else "ub_unseal")

@@ -657,7 +657,7 @@ func pick_up() -> void:
 	var said: String = TEXT["picked"] % String(item["name"])
 	main.fx_text(item["pos"] + Vector2(0, -30), String(item["name"]).capitalize(), KINDS_COLOR)
 	main.fx_ring(item["pos"], KINDS_COLOR, 50.0, 0.4, 3.0)
-	main.sfx("glint", 1.2, -3.0)
+	main.sfx("chime", 1.2, -3.0)
 	main.note_event("contract", said, KINDS_COLOR)
 	main.banner = {"title": TEXT["thing"].to_upper(), "lines": [said], "t": 2.6, "note": true}
 	_clear_item()

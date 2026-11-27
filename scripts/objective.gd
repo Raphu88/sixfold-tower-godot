@@ -378,7 +378,7 @@ func _tick(delta: float, p, hurt: bool) -> void:
 				tablet["read"] = true
 				var names: Array = spec["order"].map(func(i): return pieces[i]["glyph"])
 				main.banner = {"title": String(k["tablet"]).to_upper(), "lines": [Objectives.TEXT["read"] % ", ".join(names)], "t": 6.0, "inscribed": true, "note": true}
-				main.sfx("glint", 1.1, -4.0)
+				main.sfx("chime", 1.1, -4.0)
 			for i in pieces.size():
 				var pc: Dictionary = pieces[i]
 				var on := pos.distance_to(pc["pos"]) < 20.0
@@ -593,7 +593,7 @@ func _piece_done(pc: Dictionary) -> void:
 		pc["t"] = float(spec.get("hold", 20.0))
 	main.fx_ring(pc["pos"], _piece_color(), 50.0, 0.4, 3.0)
 	main.fx_burst(pc["pos"], Vector2.UP, _piece_color(), 10, 120.0)
-	main.sfx("glint", 1.0 + 0.1 * done_count(), -3.0)
+	main.sfx("chime", 1.0 + 0.1 * done_count(), -3.0)
 	target_t = 0.0
 
 
@@ -757,7 +757,7 @@ func on_enemy_killed(e) -> void:
 		key = {"pos": main.walkable_point(e.global_position, e.global_position)}
 		keeper = null
 		main.fx_text(key["pos"] + Vector2(0, -40), Objectives.TEXT["keeper_falls"], GOLD)
-		main.sfx("glint", 0.9, -2.0)
+		main.sfx("chime", 0.9, -2.0)
 		target_t = 0.0
 
 

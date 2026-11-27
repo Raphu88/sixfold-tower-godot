@@ -376,7 +376,7 @@ static func cast(p) -> bool:
 	# the essence filtered in pays for itself.
 	if not ItemPool.can_use(m, g) and not ItemPool.primed_for(p, g):
 		m.fx_text(p.global_position + Vector2(0, -40), TEXT["no_pool"] % Gear.display(g), Color(0.95, 0.55, 0.42))
-		m.sfx("ui_back", 0.8, -8.0)
+		m.sfx("denied", 0.8, -8.0)
 		return true
 	if not p.spend_sta(float(data(g).get("sta", 6.0))):
 		p._winded()

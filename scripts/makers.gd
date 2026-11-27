@@ -847,7 +847,6 @@ func start_meeting(maker: String, confront := false) -> void:
 		main.player.velocity = Vector2.ZERO
 	get_tree().paused = true
 	main.sfx("maker_meeting", 1.0, 0.0, 0.0)
-	main.sfx("glint", 0.3, -4.0, 0.0)
 
 
 ## A confrontation's answers and what each does (climb_shape.gd CONFRONT).

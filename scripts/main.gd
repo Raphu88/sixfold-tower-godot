@@ -927,7 +927,7 @@ func _process(delta: float) -> void:
 		room_view.stair_open = true
 		tip("stair")
 		if alive > 0:
-			sfx("glint", 0.7, -2.0, 0.0)
+			sfx("chime", 0.7, -2.0, 0.0)
 	if not cleared and not climbing and alive == 0:
 		cleared = true
 		sfx("clear", 1.0, 0.0, 0.0)
@@ -1271,7 +1271,7 @@ func _start_floor(n: int) -> void:
 		var by: Dictionary = profile.record.get("beasts_by", {}) if profile != null else {}
 		if guardians_beaten() == Towers.ORDER.size() - 1 and int(by.get(tower, 0)) <= 0:
 			story("final")  # (the last guardian standing: entity.gd STORY)
-		sfx_kind("roar", str(tower_data().get("beast_kind", "")), "warn_knight", 1.0, -2.0)  # (the beast takes notice: its roar)
+		sfx_kind("roar", str(tower_data().get("beast_kind", "")), "warn_knight", 1.0, 0.0)  # (the beast takes notice: its roar, at full)
 	# The first climb, the floor before the Regard: the Entity's word on it (entity.gd STORY).
 	if first_climb and not in_camp and n == ClimbShapeScript.regard_floor() - 1 and not _story_unbound():
 		story("before_regard")
@@ -1417,7 +1417,7 @@ func _room_banner(i: int) -> void:
 	banner = {"title": String(th["name"]).to_upper(), "lines": [th["sub"]], "t": 2.8, "room": true, "inscribed": true}
 	note_event("room", String(notices.TEXT["room"]) % th["name"])
 	remark("theme:" + String(room_themes[i]))
-	sfx("glint", 0.6 if th["kind"] == "bad" else 1.1, -12.0, 0.0)
+	sfx("glint" if th["kind"] == "bad" else "chime", 0.6 if th["kind"] == "bad" else 1.1, -12.0, 0.0)  # (a bad room glints like a blow coming; a good one chimes)
 
 
 ## A restless crypt: its dead rise as you walk in.
@@ -1481,7 +1481,7 @@ func _open_cache() -> void:
 	fx_burst(pos, Vector2.ZERO, col, 18, 220.0)
 	light_flash(pos, col, 1.8, 1.8, 0.4)
 	AnimScript.chest(self, pos, col)  # (it pops open)
-	sfx("glint", 1.3, -2.0, 0.0)
+	sfx("chime", 1.3, -2.0, 0.0)
 
 
 ## A lost cache (lost.gd): on a floor of rooms of a tower where you lost
@@ -1693,6 +1693,7 @@ func _arrive() -> void:
 		kinds[l] = "banked"
 	for l in Vessel.wear_core_runes(self):  # (a worn core rune counts a floor down: vessel.gd)
 		lines.append(l)
+	var grown_from := growth_count()  # (a mark's step or a Node's level gained here gets its sound below)
 	var poured: Dictionary = profile.pour(run_essence, run_soak, Train.condense_share())
 	var keep: Dictionary = poured["keep"]
 	var banked := float(poured["body"]) + float(poured["marks"]) - float(poured.get("over", 0.0))  # (what went into you: not what your marks or Nodes couldn't take)
@@ -1724,6 +1725,7 @@ func _arrive() -> void:
 	for l in grew:
 		kinds[l] = "mark"
 	lines.append_array(grew)
+	var grew_step := growth_count() > grown_from
 	_high_step_tips()  # (a mark at step 6, or its Zenith: the Entity explains, the first time)
 	run_essence = {}
 	run_soak = {}
@@ -1770,6 +1772,8 @@ func _arrive() -> void:
 		return
 	# Halfway up a long climb, the stair leads to a camp first.
 	if not leaving_camp and _camp_due():
+		if grew_step:
+			sfx("mark_form", 1.35, -9.0, 0.0)  # (a mark grew a step, or a Node a level: its sound, light and high)
 		_enter_camp(lines)
 		return
 	_start_floor(floor_num + 1)
@@ -1818,7 +1822,10 @@ func _arrive() -> void:
 	if forming != "":
 		banner["lines"] = Array(banner.get("lines", [])) + [forming]  # (the stair's barrier is forming: climb_shape.gd)
 	player.set_physics_process(true)
-	sfx("clear", 0.8, -8.0, 0.0)
+	if grew_step:
+		sfx("mark_form", 1.35, -9.0, 0.0)  # (a mark grew a step, or a Node a level: its sound, light and high)
+	elif floor_num != int(tower_data().get("summit", 0)):
+		sfx("clear", 0.8, -8.0, 0.0)  # (the summit's floor opens on the guardian's roar alone)
 	makers.on_arrive()  # (in the quiet after the stair, a Maker may show itself)
 	SwornScript.on_arrive(self)  # (a Maker's errand for its Sworn: done once its floor is reached)
 	climb_shape.after_arrive()  # (floor 6 of the first climb: the Regard; floor 6 again: the Lethal Proving offered)
@@ -2191,7 +2198,7 @@ func consume_crystal(kind: String) -> Array:
 		var col: Color = Essence.color(kind)
 		fx_ring(player.global_position, col, 40.0, 0.4, 3.0)
 		light_flash(player.global_position, col, 1.2, 1.4, 0.3)
-	sfx("glint", 1.2, -4.0, 0.0)
+	sfx("crystal", 1.2, -4.0, 0.0)
 	tip("crystal_eat")
 	return lines
 
@@ -2242,7 +2249,7 @@ func _forced(kind: String, part: String, amount: float) -> Array:
 		fx_ring(player.global_position, col, 52.0, 0.5, 4.0)
 		fx_burst(player.global_position, Vector2.UP, Color(1.0, 0.45, 0.3), 10, 140.0)
 	sfx("burn", 1.1, -6.0, 0.0)
-	sfx("glint", 0.8, -6.0, 0.0)
+	sfx("crystal", 0.8, -6.0, 0.0)
 	tip("forcing")
 	return lines
 
@@ -2289,7 +2296,7 @@ func drink_tincture(id: String, part: String) -> Array:
 		fx_ring(player.global_position, col, 46.0, 0.45, 3.0)
 		light_flash(player.global_position, col, 1.4, 1.6, 0.35)
 	sfx("drink", 1.0, -4.0, 0.0)
-	sfx("glint", 1.3, -8.0, 0.0)
+	sfx("chime", 1.3, -8.0, 0.0)
 	tip("tincture")
 	return lines
 
@@ -2311,6 +2318,7 @@ func split_line(poured: Dictionary) -> String:
 func recall_pressed() -> bool:
 	if first_climb:
 		fx_text(player.global_position + Vector2(0, -44), Items.RECALL["first_climb"], Color(0.8, 0.78, 0.85))
+		sfx("denied")
 		return false
 	if recall_ask_t > 0.0:
 		recall_ask_t = 0.0
@@ -2318,7 +2326,7 @@ func recall_pressed() -> bool:
 		return true
 	recall_ask_t = float(Items.RECALL["confirm"])
 	banner = {"title": Items.RECALL["ask_title"], "lines": [Items.RECALL["ask"]], "t": float(Items.RECALL["confirm"]), "pri": 2, "hold": true}
-	sfx("warn_knight", 1.3, -8.0, 0.0)
+	sfx("ui_open", 1.15, -4.0, 0.0)  # (it asks first, like the confirmation pop-up)
 	return false
 
 
@@ -2572,7 +2580,7 @@ func drop_gear(pos: Vector2, g, fresh := false) -> void:
 	if fresh and Gear.noticed(r):
 		var name := Gear.display(r).trim_prefix(Gear.rarity_name(r) + " ")  # ("RARE: Axe of the Riposte")
 		loot_notice = {"text": Gear.TEXT["notice"] % [Gear.rarity_name(r).to_upper(), name], "color": Gear.rarity_color(r), "t": 3.5}
-		sfx("glint", 1.4, -4.0, 0.0)
+		sfx("chime", 1.4, -4.0, 0.0)
 
 
 ## A slain beast leaves its own Regarded piece where it falls (always the
@@ -3127,10 +3135,41 @@ func form_mark(part: String, faint: bool) -> String:
 	profile.add_bond(part, id, faint)
 	marked_this_climb = true  # (the Makers count new marks themselves: makers.gd sync_body)
 	GuideScript.moment("new_mark", "new_mark", {"mark": BondScript.Bonds.BONDS[id]["name"]})
-	sfx("crit", 0.7, -4.0)
+	_mark_sound(faint)
 	_give_bonds()
 	profile.save()
 	return id
+
+
+## Every mark's step and every Node's level added up: the stair compares it
+## before and after banking, and a gain rings the mark's sound, light and high.
+func growth_count() -> int:
+	var n := 0
+	if profile == null:
+		return 0
+	for part in profile.bonds:
+		n += profile.step_for_xp(float(profile.bonds[part].get("xp", 0.0)))
+	if UnboundRun.Unbound.is_on(profile):
+		for part in UnboundRun.Unbound.PARTS:
+			n += UnboundRun.Unbound.level(profile, part)
+	return n
+
+
+## The new mark's sound (audio: mark_form), lower and softer for a faint one.
+## At a summit the victory's bells ring first (show_victory comes in the same
+## moment), and the mark follows once they've rung out.
+func _mark_sound(faint: bool) -> void:
+	var pitch := 0.88 if faint else 1.0
+	var db := -5.0 if faint else -1.0
+	if not is_inside_tree():
+		return
+	await get_tree().process_frame
+	if not is_instance_valid(self) or not is_inside_tree():
+		return
+	if victory.is_empty():
+		sfx("mark_form", pitch, db, 0.0)
+	else:
+		sfx_after(1.3, "mark_form", pitch, db)
 
 
 ## A sealed wing (wings.gd) beaten with its rule kept: on an early floor
@@ -3402,7 +3441,6 @@ func _begin_regard(fell: bool) -> void:
 		if "reflected" in c:
 			c.queue_free()
 	sfx("regard", 1.0, 0.0, 0.0)
-	sfx("glint", 0.6, -2.0, 0.0)
 
 
 ## True once the Regard has played long enough to be dismissed.
@@ -3892,7 +3930,7 @@ func choose_path(kind: String) -> void:
 		banner["lines"] = [Secret.TEXT["chosen_line"] % [Secret.display(kind), Secret.TEXT["chosen"]]] + banner.get("lines", [])
 		banner["t"] = maxf(float(banner.get("t", 0.0)), 4.0)
 	tip("secret_path")
-	sfx("crit", 0.6, -2.0, 0.0)
+	sfx("mark_form", 0.9, -2.0, 0.0)
 	if player != null:
 		light_flash(player.global_position, Secret.color(kind), 2.4, 2.0, 0.8)
 		fx_ring(player.global_position, Secret.color(kind), 90.0, 0.7, 5.0)
@@ -4719,6 +4757,7 @@ func on_enemy_killed(e) -> void:
 	shake(6.0)
 	if e.is_boss() and not e.shade:
 		AnimScript.slow_beat(self)  # (a beast falls: a beat of slow time)
+		sfx_after(0.45, "slam", 0.5, -1.0)  # (...and its body lands after its death cry, deep)
 
 
 ## Hit-pause: freeze the action for a moment so impacts land.
@@ -4745,6 +4784,16 @@ func set_slowmo(on: bool, time_scale := RING_TIME) -> void:
 func sfx(sound: String, pitch := 1.0, volume_db := 0.0, variance := 0.06) -> void:
 	if audio != null:
 		audio.play(sound, pitch, volume_db, variance)
+
+
+## A sound a moment from now, in real time (hit-pause and slow motion don't
+## stretch the wait). Nothing plays if the scene has gone in the meantime.
+func sfx_after(delay: float, sound: String, pitch := 1.0, volume_db := 0.0) -> void:
+	if not is_inside_tree():
+		return
+	await get_tree().create_timer(delay, true, false, true).timeout
+	if is_instance_valid(self) and is_inside_tree() and audio != null and is_instance_valid(audio):
+		sfx(sound, pitch, volume_db, 0.0)
 
 
 ## Fades out a sound that's still playing.

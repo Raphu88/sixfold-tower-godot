@@ -153,7 +153,6 @@ func wake(why: String) -> bool:
 		b["t"] = maxf(float(b.get("t", 0.0)), 3.2)
 		main.banner = b
 	main.sfx("rift", 0.8, -4.0, 0.0)
-	main.sfx("glint", 0.6, -6.0, 0.0)
 	main.tip("portal_awake")
 	queue_redraw()
 	return true

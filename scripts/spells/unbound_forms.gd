@@ -282,7 +282,7 @@ static func cast_form(id: String, t: Dictionary, p, power: float, run, sh: Dicti
 			_add(main, base.merged({"kind": "brand", "e": best, "pos": at, "left": float(sh["delay"]), "total": float(sh["delay"]),
 				"r": float(sh["radius"]), "dmg": float(sh["damage"]) * power}))
 			main.fx_ring(at, col, 18.0, 0.25, 2.0)
-			main.sfx("glint", 1.3, -4.0)
+			main.sfx("spell_rune", 1.3, -4.0)
 			return 1 if best != null else 0
 		"stride":
 			var dur: float = float(sh["duration"]) * reach_k  # (Air carries a move farther: here, longer)
@@ -362,7 +362,7 @@ static func cast_form(id: String, t: Dictionary, p, power: float, run, sh: Dicti
 			_add(main, base.merged({"kind": "omen", "pos": at, "left": float(sh["duration"]), "total": float(sh["duration"]), "trig": float(sh["trigger"]),
 				"r": float(sh["radius"]), "armed": -1.0, "dmg": float(sh["damage"]) * power}))
 			main.fx_ring(at, col, float(sh["trigger"]) + 6.0, 0.3, 2.0)
-			main.sfx("glint", 0.7, -3.0)
+			main.sfx("spell_rune", 0.7, -3.0)
 			return 0
 		"heartbeat":
 			var pc := base.merged({"kind": "beat", "off": off, "r": float(sh["radius"]) * reach_k, "left": int(sh["beats"]), "every": float(sh["tick"]), "next": 0.0,
@@ -719,7 +719,7 @@ static func _on_cast(n, p, part: String, b, at: Vector2) -> void:
 				e.challenged_t = maxf(float(e.challenged_t), dur)
 				n.gaze.append({"e": e, "t": dur, "col": col})
 				main.fx_ring(e.global_position, RAW, e.radius + 10.0, 0.4, 2.0)
-			main.sfx("glint", 0.6, -6.0)
+			main.sfx("spell_rune", 0.6, -6.0)
 
 
 # --- drawing (in code, over the darkness) ------------------------------------------------------

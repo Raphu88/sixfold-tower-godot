@@ -481,7 +481,7 @@ func _physics_process(delta: float) -> void:
 			main.tip("barrier_" + String(bar["kind"]))
 		if float(bar["t"]) >= float(bar["window"]):
 			bar["state"] = "up"
-			main.sfx("slam", 0.8 if bar["kind"] == "gate" else 1.3, -2.0, 0.0)
+			_barrier_sound("up")
 			main.shake(2.0)
 			main.fx_text(main.stair_pos + Vector2(0, 54), String(TEXT["gate_up" if bar["kind"] == "gate" else "ward_up"]), color())
 			return
@@ -522,7 +522,7 @@ func try_slip() -> bool:
 	bar["state"] = "slipped"
 	main.player.global_position = main.stair_pos
 	main.player.reset_physics_interpolation()
-	main.sfx("slam", 0.6, 0.0, 0.0)
+	_barrier_sound("slip")
 	main.shake(6.0)
 	main.fx_burst(main.stair_pos + Vector2(0, 20), Vector2.UP, color(), 16, 160.0)
 	_breached("slipped")
@@ -598,13 +598,13 @@ func _hurt(amount: float, at: Vector2) -> void:
 	bar["shudder"] = 0.35
 	main.fx_burst(at, Vector2.UP, color(), 8, 160.0)
 	main.shake(3.0)
-	main.sfx("hit_heavy", 0.7 if bar["kind"] == "gate" else 1.4, -4.0)
+	_barrier_sound("hit")
 	if float(bar["dmg"]) >= float(bar["hp"]):
 		bar["state"] = "broken"
 		main.fx_burst(Rect2(bar["rect"]).get_center(), Vector2.ZERO, color(), 28, 260.0)
 		main.light_flash(Rect2(bar["rect"]).get_center(), color(), 1.8, 1.6, 0.4)
 		main.shake(7.0)
-		main.sfx("slam", 0.5, 0.0, 0.0)
+		_barrier_sound("broken")
 		_breached("broken")
 		return
 	main.fx_text(at + Vector2(0, -30), String(TEXT["crack"]), color())
@@ -730,7 +730,24 @@ func confront_answer(id: String) -> Dictionary:
 ## The stair opened the ordinary way (its task done): the barrier lifts.
 func _open() -> void:
 	bar["state"] = "open"
-	main.sfx("glint", 1.0, -6.0, 0.0)
+	main.sfx("chime", 1.0, -4.0, 0.0)
+
+
+## The barrier's sounds (`what`: "up", "hit", "broken", "slip"), by kind: the
+## iron gate clangs and its chains rattle; the ward is the tower's essence,
+## so it hums up, rings when struck and shatters like glass.
+const BARRIER_SOUNDS := {
+	"gate": {"up": [["slam", 0.8, -2.0], ["step_chain", 0.55, -4.0]], "hit": [["hit_heavy", 0.7, -4.0]],
+		"broken": [["slam", 0.5, 0.0], ["step_chain", 0.45, -2.0]], "slip": [["slam", 0.6, 0.0]]},
+	"ward": {"up": [["use_ward", 0.8, 0.0]], "hit": [["form_shell", 1.2, -4.0]],
+		"broken": [["glass_break", 0.6, 0.0], ["unmake", 0.8, -4.0]], "slip": [["use_ward", 1.2, -2.0], ["gust", 0.8, -6.0]]},
+}
+
+
+func _barrier_sound(what: String) -> void:
+	var kind := "gate" if String(bar.get("kind", "gate")) == "gate" else "ward"
+	for s in BARRIER_SOUNDS[kind].get(what, []):
+		main.sfx(String(s[0]), float(s[1]), float(s[2]), 0.0)
 
 
 # --- the ending --------------------------------------------------------------------------
@@ -764,7 +781,6 @@ func start_story(kind: String) -> void:
 		main.player.velocity = Vector2.ZERO
 	get_tree().paused = true
 	main.sfx("maker_meeting", 1.0, 0.0, 0.0)
-	main.sfx("glint", 0.3, -4.0, 0.0)
 
 
 ## The council over (story_view.gd finish): the Entity's word on the plea's

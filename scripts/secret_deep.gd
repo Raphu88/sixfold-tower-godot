@@ -297,7 +297,7 @@ func take_card(i: int) -> void:
 			_take_mreroll(c, ctx)
 		"man_build":
 			_take_mbuild(c, ctx)
-	main.sfx("glint", 0.8, -4.0, 0.0)
+	main.sfx("chime", 0.8, -4.0, 0.0)
 
 
 func _paid_card(id: String, name: String, desc: String, color: Color, cost: Dictionary, extra := {}) -> Dictionary:

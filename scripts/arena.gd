@@ -547,7 +547,7 @@ func _lesson(delta: float, p) -> void:
 func _touch_posts(p) -> void:
 	if post < posts.size() and p.global_position.distance_to(posts[post]) <= POST_REACH:
 		main.fx_ring(posts[post], UI.GILT, 40.0, 0.35, 3.0)
-		main.sfx("glint", 1.2, -6.0, 0.0)
+		main.sfx("chime", 1.2, -6.0, 0.0)
 		post += 1
 		queue_redraw()
 

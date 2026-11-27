@@ -479,7 +479,7 @@ static func prime(p) -> String:
 	var k := kind(g)
 	if not take_carried(m, k, float(POWER["essence"])):
 		m.fx_text(at, TEXT["power_short"], Color(0.95, 0.55, 0.42))
-		m.sfx("ui_back", 0.8, -8.0)
+		m.sfx("denied", 0.8, -8.0)
 		m.tip("item_power")
 		return ""
 	p.item_power = {"slot": Gear.slot_of(g), "code": Gear.code(g), "kind": k}

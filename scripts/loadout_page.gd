@@ -508,7 +508,7 @@ func _equip(where: String, i: int, into: String) -> void:
 		m.inv_sel = "worn:" + slot if m.page == "loadout" else m.inv_sel
 		_done(TEXT["worn_now"] % Gear.display(g), "", "armor_on")
 	else:
-		_done(Train.TEXT["cant"] % why, "", "ui_back")
+		_done(Train.TEXT["cant"] % why, "", "denied")
 
 
 func _unequip(slot: String, to: String) -> void:
@@ -519,7 +519,7 @@ func _unequip(slot: String, to: String) -> void:
 	if why == "":
 		_done(TEXT["took_off"] % Gear.display(g), "", "ui_confirm")
 	else:
-		_done(Train.TEXT["cant"] % why, "", "ui_back")
+		_done(Train.TEXT["cant"] % why, "", "denied")
 
 
 ## Moves a piece between pack and stash; the choice follows it.
@@ -537,7 +537,7 @@ func _move(where: String, i: int) -> void:
 			m.inv_sel = "%s:%d" % [to, n - 1]
 		_done((Train.TEXT["moved_pack"] if to == "pack" else Train.TEXT["moved_chest"]) % name, "", "ui_confirm")
 	else:
-		_done(Train.TEXT["cant"] % why, "", "ui_back")
+		_done(Train.TEXT["cant"] % why, "", "denied")
 
 
 ## Selling asks first (the confirmation pop-up: menu.gd ask), then sells.

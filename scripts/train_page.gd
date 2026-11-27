@@ -1348,9 +1348,9 @@ func _x_make(give: String, to: String, amount: int) -> void:
 	m._want_focus = {"meta": "exchange_do", "value": give}
 	if why == "":
 		artist_line = -1
-		_done(X["done"] % [amount, Essence.display(give), Bench.exchange_get(amount), Essence.display(to)], "", "craft")
+		_done(X["done"] % [amount, Essence.display(give), Bench.exchange_get(amount), Essence.display(to)], "", "crystal")
 	else:
-		_done(B["cant"] % why, "", "ui_back")
+		_done(B["cant"] % why, "", "denied")
 
 
 ## A counter's price drawn on a piece's slot (Temper's cost, what Break down gives).
@@ -2188,7 +2188,7 @@ func _raw_tincture(id: String) -> void:
 			m.main.tip("vessel_tincture")  # (the first tincture made from raw essence: the Entity explains)
 		_done(VesselPage.V["tinct_made"] % Items.ITEMS[id]["name"], "", "brew")
 	else:
-		_done(B["cant"] % why, "", "ui_back")
+		_done(B["cant"] % why, "", "denied")
 
 
 func _craft_tincture(id: String) -> void:
@@ -2196,7 +2196,7 @@ func _craft_tincture(id: String) -> void:
 	if why == "":
 		_done(Flow.TEXT["crafted"] % Items.ITEMS[id]["name"], "", "brew")
 	else:
-		_done(B["cant"] % why, "", "ui_back")
+		_done(B["cant"] % why, "", "denied")
 
 
 func _brew(id: String) -> void:
@@ -2204,7 +2204,7 @@ func _brew(id: String) -> void:
 	if why == "":
 		_done(B["brewed"] % Items.ITEMS[id]["name"], "", "brew")
 	else:
-		_done(B["cant"] % why, "", "ui_back")
+		_done(B["cant"] % why, "", "denied")
 
 
 func _unbrew(id: String) -> void:
@@ -2271,7 +2271,7 @@ func _bench_do(thing: String, ask: String) -> void:
 			m.main.tip("core_rune")  # (the first core rune: the Entity explains)
 		_done(said, "", "craft_break" if what == "break" else ("craft_rune" if what in ["retrait", "inscribe", "vrune", "vcore"] else "craft"))
 	else:
-		_done(B["cant"] % why, "", "ui_back")
+		_done(B["cant"] % why, "", "denied")
 
 
 
@@ -2470,7 +2470,7 @@ func _buy_supply(key: String) -> void:
 			line = Train.line("any")  # (he says any kind spends on his shelf)
 		_done(said, line, "buy")
 	else:
-		_done(T["cant"] % why, Train.line("poor") if why.begins_with("needs") else "", "ui_back")
+		_done(T["cant"] % why, Train.line("poor") if why.begins_with("needs") else "", "denied")
 
 
 func _put_back(id: String) -> void:
@@ -2487,7 +2487,7 @@ func _buy_gear(i: int, to := "pack") -> void:
 		var where: String = {"pack": T["moved_pack"], "chest": T["moved_chest"], "wear": m.loadout_page.TEXT["worn_now"]}[to]
 		_done(T["bought"] % Gear.display(g) + "  ·  " + where % Gear.display(g), Train.line("bought"), "buy")
 	else:
-		_done(T["cant"] % why, Train.line("poor") if why.begins_with("needs") else "", "ui_back")
+		_done(T["cant"] % why, Train.line("poor") if why.begins_with("needs") else "", "denied")
 
 
 ## Asks the outfitter to hold a piece (the special order).
@@ -2499,7 +2499,7 @@ func _hold(i: int) -> void:
 		m.inv_sel = "order"
 		_done(T["held"] % Gear.display(g), Train.line("bought"), "ui_confirm")
 	else:
-		_done(T["cant"] % why, "", "ui_back")
+		_done(T["cant"] % why, "", "denied")
 
 
 # --- drawn parts --------------------------------------------------------------------------

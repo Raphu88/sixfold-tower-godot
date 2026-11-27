@@ -223,7 +223,7 @@ func tick(delta: float) -> void:
 	stones[g] = true
 	last = g
 	glided = false
-	main.sfx("glint", 0.9 + 0.4 * float(lit_count()) / maxf(1.0, stones.size()), -8.0, 0.0)
+	main.sfx("chime", 0.9 + 0.4 * float(lit_count()) / maxf(1.0, stones.size()), -8.0, 0.0)
 	main.fx_ring(stone_center(g), _lit_color(), 26.0, 0.25, 2.0)
 	if lit_count() == stones.size():
 		host.solve()

@@ -698,7 +698,7 @@ static func use(id: String, p) -> bool:
 			if id == "lantern_oil":
 				main.light_flash(p.global_position, col, 1.6, 2.0, 0.4)
 			elif id == "seeing_scroll":
-				main.sfx("glint", 0.8, -2.0, 0.0)
+				main.sfx("chime", 0.8, -4.0, 0.0)
 		"unmaking_ash":
 			var hit := 0
 			for e in main.targets():

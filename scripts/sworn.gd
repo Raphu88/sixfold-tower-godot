@@ -237,7 +237,7 @@ static func try_rescue(main, roll := -1.0) -> bool:
 		if main.has_method("fx_ring"):
 			main.fx_ring(p.global_position, Makers.color(m), float(RESCUE["reach"]), 0.5, 3.0)
 		if main.has_method("sfx"):
-			main.sfx("glint", 0.7, -2.0, 0.0)
+			main.sfx("chime", 0.7, -2.0, 0.0)
 			main.sfx("maker_glimpse", 1.1, -4.0, 0.0)
 	if main.has_method("tip"):
 		main.tip("sworn_rescue")

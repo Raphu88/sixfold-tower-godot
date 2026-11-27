@@ -457,7 +457,6 @@ static func _rune_brand(bond, p) -> void:
 			st["hurt"] = true)
 	main.fx_text(target.global_position + Vector2(0, -target.radius - 26.0), TEXT["branded"], col)
 	main.sfx("spell_rune")
-	main.sfx("glint", 0.9, -6.0)
 
 
 ## Binding Circle: a circle at your aim (short of a wall). Any foe inside it

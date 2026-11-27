@@ -140,7 +140,7 @@ func tick(delta: float) -> void:
 		var at: Vector2 = main.walkable_point(room.get_center(), g["pos"], 14.0) if room.has_point(g["pos"]) else g["pos"]
 		sparks.append({"pos": at, "kind": g["kind"]})
 		main.fx_ring(at, Essence.color(g["kind"]), 40.0, 0.4, 3.0)
-		main.sfx("glint", 1.2, -6.0, 0.0)
+		main.sfx("chime", 1.2, -6.0, 0.0)
 	if p.in_air():
 		return
 	# Walk over a spark to carry it (setting down the one you held).

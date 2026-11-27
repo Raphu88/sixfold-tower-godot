@@ -154,7 +154,7 @@ func _take_chest(c: Dictionary) -> void:
 		if not g.is_empty():
 			main.drop_gear(c["pos"] + Vector2(-18, 10), g, true)
 	main.fx_ring(c["pos"], Color(1.0, 0.85, 0.5), 50.0, 0.4, 3.0)
-	main.sfx("glint", 1.25, -3.0)
+	main.sfx("chime", 1.25, -3.0)
 
 
 ## A mimic's chest, opened: it springs, a monster where the chest stood

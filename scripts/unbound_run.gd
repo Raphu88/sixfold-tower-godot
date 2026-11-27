@@ -885,7 +885,7 @@ func choose(i: int) -> void:
 	_close_cards()
 	main._give_bonds()
 	main.tip("unbound")
-	main.sfx("crit", 0.5, -2.0, 0.0)
+	main.sfx("mark_form", 0.75, -2.0, 0.0)  # (the body turns: deeper, for the Unbound's road)
 	if main.player != null:
 		main.light_flash(main.player.global_position, RAW, 2.2, 2.0, 0.7)
 		main.fx_ring(main.player.global_position, RAW, 90.0, 0.7, 5.0)

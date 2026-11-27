@@ -413,7 +413,7 @@ func _take(c: Dictionary) -> void:
 				main.drop_gear(at + Vector2(0, 14), g, true)
 				main.notices.feed(TEXT["gear"] % Gear.display(g), Gear.color(g), "gear")
 	main.fx_ring(at, Color(1.0, 0.85, 0.5), 60.0, 0.5, 3.0)
-	main.sfx("glint", 1.2, -2.0)
+	main.sfx("chime", 1.2, -2.0)
 	queue_redraw()
 
 

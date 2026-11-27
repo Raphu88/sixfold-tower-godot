@@ -118,7 +118,7 @@ func _hit(q: Dictionary) -> void:
 		q["open"] = 0.0
 		q["rest"] = REST
 		q["pop"] = 0.4
-		main.sfx("glint", 1.0 + 0.08 * burst, -2.0, 0.0)
+		main.sfx("chime", 1.0 + 0.08 * burst, -2.0, 0.0)
 		main.fx_burst(q["pos"], Vector2.UP, HEAD_COLORS.get(want, Color.WHITE), 12, 140.0)
 		main.fx_text(q["pos"] + Vector2(0, -30), TEXT["count"] % [burst, need], HEAD_COLORS.get(want, Color.WHITE))
 		if burst >= need:

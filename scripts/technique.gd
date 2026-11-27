@@ -503,7 +503,7 @@ static func _cast_form(t: Dictionary, p, power: float, run, sh: Dictionary, w: D
 				hits = 1
 			else:
 				main.fx_text(origin + Vector2(0, -34), "no one to mark", col)
-			main.sfx("glint", 1.1, -4.0)
+			main.sfx("denied", 1.1, -4.0)
 		"sight":
 			main.track_t = maxf(main.track_t, float(sh["duration"]) * reach_k)
 			var near: float = float(sh["near"])
@@ -518,7 +518,7 @@ static func _cast_form(t: Dictionary, p, power: float, run, sh: Dictionary, w: D
 					hit(p, e, 0.0, Vector2.ZERO, w2, power, run)
 					hits += 1
 			main.fx_ring(origin, col, near, 0.6, 2.0)
-			main.sfx("glint", 0.8, -4.0)
+			main.sfx("spell_rune", 0.8, -4.0)
 		"shell":
 			var chosen: Dictionary = w.get("_fx", {})
 			if not chosen.is_empty():

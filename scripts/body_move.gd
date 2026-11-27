@@ -288,7 +288,7 @@ static func _cycle_to(menu) -> void:
 	var p := plan(menu)
 	var tg: Array = p["targets"]
 	if tg.is_empty():
-		menu.main.sfx("ui_back", 1.0, -6.0, 0.0)
+		menu.main.sfx("denied", 1.0, -6.0, 0.0)
 		return
 	menu.set_meta("move_to", tg[(tg.find(p["to"]) + 1) % tg.size()])
 	menu.set_meta("node_pick", String(menu.get_meta("move_to")))
@@ -319,7 +319,7 @@ static func _do_move(menu, drain: bool) -> void:
 		prof.save()
 		main._give_bonds()
 	else:
-		main.sfx("ui_back", 1.0, -6.0, 0.0)
+		main.sfx("denied", 1.0, -6.0, 0.0)
 	menu.set_meta("move_said", {"line": line, "ok": ok, "ms": Time.get_ticks_msec()})
 	_redraw(menu, "ub_drain" if drain else "ub_move")
 

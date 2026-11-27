@@ -471,7 +471,7 @@ func _step_done(p) -> void:
 	arena._gain(String(d.get("essence", "air")), STEP_ESSENCE)
 	main.fx_ring(p.global_position, Color(1.0, 0.86, 0.45), 46.0, 0.4, 4.0)
 	main.fx_text(p.global_position + Vector2(0, -44), TEXT["step_done"], Color(1.0, 0.86, 0.45))
-	main.sfx("glint", 1.1, -4.0, 0.0)
+	main.sfx("chime", 1.1, -4.0, 0.0)
 	if i + 1 >= count():
 		i = count()
 		_clear_foes()
