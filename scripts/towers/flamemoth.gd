@@ -98,7 +98,7 @@ func _act(delta: float, dir: Vector2, dist: float, p) -> void:
 			if dist < float(m["dart_near"]) and main.request_attack(self):
 				_begin_wind("wind", float(m["dart_wind"]))
 				_warn(1.2)
-				main.sfx("wingbeat", 1.6, -6.0)
+				main.sfx_at(global_position, "wingbeat", 1.6, -6.0)
 				aim_dir = dir
 			else:
 				var bob := Vector2(sin(Time.get_ticks_msec() * 0.005 + get_instance_id()), cos(Time.get_ticks_msec() * 0.004)) * 25.0
@@ -158,7 +158,7 @@ func grow() -> void:
 	main.fx_text(global_position + Vector2(0, -radius - 22.0), String(FLAMEMOTH_TEXT["grow"]), C_WING)
 	main.fx_burst(global_position, Vector2.UP, C_WING, 10, 120.0)
 	main.light_flash(global_position, C_WING, 1.0, 1.3, 0.25)
-	main.sfx("burn", 1.4, -6.0)
+	main.sfx_at(global_position, "burn", 1.4, -6.0)
 
 
 ## Water or wind: the swarm scatters (most of its health gone, back to its smallest).
@@ -172,7 +172,7 @@ func disperse() -> void:
 	_resize(moth_r)
 	main.fx_text(global_position + Vector2(0, -radius - 22.0), String(FLAMEMOTH_TEXT["disperse"]), Color(0.7, 0.85, 1.0))
 	main.fx_burst(global_position, Vector2.ZERO, C_WING, 16, 220.0)
-	main.sfx("wingbeat", 1.3, -2.0)
+	main.sfx_at(global_position, "wingbeat", 1.3, -2.0)
 	if is_attacking():
 		_end_attack("rest", 1.2)
 	stun = maxf(stun, float(m["daze"]))

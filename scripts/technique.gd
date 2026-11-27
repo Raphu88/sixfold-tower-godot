@@ -472,7 +472,7 @@ static func _cast_form(t: Dictionary, p, power: float, run, sh: Dictionary, w: D
 					hit(p, e, float(sh["damage"]) * power, to.normalized(), w, power, run)
 					hits += 1
 			main.fx_cone(origin, aim, reach, half, col)
-			main.sfx("warn_knight", 1.3, -6.0)
+			main.sfx("on_guard", 1.25, -6.0)
 		"pull":
 			var length: float = float(sh["length"]) * reach_k
 			for e in main.targets():

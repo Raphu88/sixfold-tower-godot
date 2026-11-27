@@ -59,7 +59,7 @@ func _act(delta: float, dir: Vector2, dist: float, p) -> void:
 			if dist < float(RULES["range"]) and main.clear_line(global_position, p.global_position) and main.request_attack(self):
 				lunge_dir = dir
 				_begin_wind("wind_gust", float(RULES["wind"]))
-				main.sfx("spell_wind", 1.3, -6.0)
+				main.sfx_at(global_position, "spell_wind", 1.3, -6.0)
 			else:
 				_circle(dir, dist, float(RULES["keep"]), speed)
 
@@ -70,7 +70,7 @@ func _gust(p) -> void:
 	_gusts += 1
 	var lane := float(RULES["lane"])
 	var half := float(RULES["width"]) * 0.5
-	main.sfx("gust", 1.1)
+	main.sfx_at(global_position, "gust", 1.1)
 	main.fx_burst(global_position + lunge_dir * radius, lunge_dir, C_WIND, 16, 420.0)
 	for i in 3:
 		var side := lunge_dir.orthogonal() * (float(i) - 1.0) * half * 0.6

@@ -393,14 +393,14 @@ func _chase(delta: float, dir: Vector2, dist: float, p) -> void:
 			_begin_wind("wind_shot", wind_dur)
 			aim_dir = dir
 			lunge_dir = dir
-			main.sfx("warn_archer", 1.1)
+			main.sfx_at(global_position, "warn_archer", 1.1)
 		return
 	if dist < _reach() + p.radius - float(SWING["inside"]) and main.request_attack(self):
 		link = 0
 		lunge_dir = dir
 		wind_dur = float(SWING["first"])
 		_begin_wind("wind_swing", wind_dur)
-		main.sfx("warn_knight", 1.25, -3.0)
+		main.sfx_at(global_position, "equip_sword", 0.9, -3.0)
 	elif main.holds_attack(self) or main.can_attack():
 		velocity = dir * speed
 	else:
@@ -418,7 +418,7 @@ func _swing_hit(p) -> void:
 	var snd := String(wd.get("sound", "swing"))
 	if swing_heavy and not snd.ends_with("_heavy"):
 		snd += "_heavy"
-	main.sfx(snd, float(wd.get("pitch", 1.0)) * 0.92)
+	main.sfx_at(global_position, snd, float(wd.get("pitch", 1.0)) * 0.92)
 	knock += lunge_dir * float(sw.get("lunge", 150.0)) * 0.5  # a step into the swing, as you lunge
 	var to: Vector2 = p.global_position - global_position
 	if to.length() <= reach + p.radius and absf(lunge_dir.angle_to(to)) <= deg_to_rad(arc):
@@ -431,12 +431,12 @@ func _loose() -> void:
 	arrow.heavy = String(wd["kind"]) == "crossbow" or bool(wd.get("heavy", false))
 	if String(wd["kind"]) == "gun":
 		arrow.style = "shot"
-		main.sfx(String(wd["shot_sound"]), float(wd.get("shot_pitch", 1.0)) * 0.95, -4.0)
+		main.sfx_at(global_position, String(wd["shot_sound"]), float(wd.get("shot_pitch", 1.0)) * 0.95, -4.0)
 		main.fx_burst(arrow.global_position, aim_dir, Color(1.0, 0.85, 0.55), 6, 220.0)
 		arrow.life = maxf(float(wd.get("life", 0.5)) * 1.6, 0.8)
 		return
 	arrow.life = 1.8
-	main.sfx("bow", 0.95, -2.0)
+	main.sfx_at(global_position, "bow", 0.95, -2.0)
 
 
 func _roll(d: Vector2) -> void:
@@ -446,7 +446,7 @@ func _roll(d: Vector2) -> void:
 	state_t = float(ROLL["time"])
 	roll_dir = d.normalized()
 	roll_cd = float(ROLL["every"])
-	main.sfx("dodge", 1.05, -4.0)
+	main.sfx_at(global_position, "dodge", 1.05, -4.0)
 	main.fx_ghost(global_position, radius, LOOK["ghost"])
 
 
@@ -462,7 +462,7 @@ func _begin_spell(dir: Vector2, p) -> void:
 	var col: Color = sp["color"]
 	main.fx_text(global_position + Vector2(0, -radius - 34.0), String(sp["name"]), col)
 	main.fx_ring(global_position, col, radius + 16.0, 0.4, 2.0)
-	main.sfx("charge", 0.85, -4.0)
+	main.sfx_at(global_position, "charge", 0.85, -4.0)
 
 
 ## A spell's aim follows the climber until it locks (a blast's circle and a
@@ -499,13 +499,13 @@ func _release_spell(p) -> void:
 				bolt.tint = col
 				bolt.poison = float(POISON.get(sp["bond"], 0.0))
 				bolt.life = float(shape["range"]) / float(shape["speed"]) + 0.3
-			main.sfx("swing_light", 1.3, -4.0)
+			main.sfx_at(global_position, "swing_light", 1.3, -4.0)
 		"blast":
 			var r := float(shape["r"])
 			main.fx_ring(spell_spot, col, r, 0.4, 4.0)
 			main.fx_burst(spell_spot, Vector2.ZERO, col, 16, 220.0)
 			main.light_flash(spell_spot, col, 1.5, 1.6, 0.3)
-			main.sfx("zap" if sp["bond"] == "stormcaller" else "slam", 0.9, -3.0)
+			main.sfx_at(spell_spot, "zap" if sp["bond"] == "stormcaller" else "hit_heavy", 0.75 if sp["bond"] != "stormcaller" else 0.9, -3.0)
 			main.shake(4.0)
 			if not p.dead and p.global_position.distance_to(spell_spot) < r + p.radius:
 				p.receive_attack(amount, self, true)
@@ -513,7 +513,7 @@ func _release_spell(p) -> void:
 			var reach := float(shape["reach"])
 			var half := deg_to_rad(float(shape["arc"]))
 			main.fx_cone(global_position, lunge_dir, reach, half, col)
-			main.sfx("swing_heavy", 0.75, -2.0)
+			main.sfx_at(global_position, "swing_heavy", 0.75, -2.0)
 			var to: Vector2 = p.global_position - global_position
 			if not p.dead and to.length() < reach + p.radius and absf(lunge_dir.angle_to(to)) <= half:
 				_hit_and_push(p, amount, to.normalized() * float(shape["push"]))
@@ -522,7 +522,7 @@ func _release_spell(p) -> void:
 			main.fx_ring(global_position, col, r2, 0.4, 5.0)
 			main.fx_burst(global_position, Vector2.ZERO, col, 20, 260.0)
 			main.light_flash(global_position, col, 1.6, 1.6, 0.3)
-			main.sfx("slam", 1.1, -3.0)
+			main.sfx_at(global_position, "hit_heavy", 0.85, -3.0)
 			main.shake(4.0)
 			var to2: Vector2 = p.global_position - global_position
 			if not p.dead and to2.length() < r2 + p.radius:
@@ -571,7 +571,7 @@ func _turn_aside(dir: Vector2) -> void:
 	main.fx_text(global_position + Vector2(0, -radius - 22.0), TEXT["turned"], LOOK["guard"])
 	main.fx_ring(at, LOOK["guard"], 40.0, 0.3, 3.0)
 	main.fx_burst(at, -dir, LOOK["guard"], 10, 260.0)
-	main.sfx("parry", 0.85, -2.0)
+	main.sfx_at(global_position, "parry", 0.85, -2.0)
 	main.hitstop(0.08)
 	if p != null:
 		p.knock = dir * float(GUARD["push"])
@@ -594,7 +594,7 @@ func _prize() -> void:
 	main.fx_burst(at, Vector2.ZERO, col, 30, 340.0)
 	main.fx_ring(at, LOOK["glow"], 70.0, 0.5, 4.0)
 	main.light_flash(at, LOOK["glow"], 2.0, 1.8, 0.5)
-	main.sfx("parry", 1.6, -2.0, 0.0)
+	main.sfx_at(global_position, "parry", 1.6, -2.0, 0.0)
 	main.fx_text(at + Vector2(0, -78), TEXT["shatter"], col)
 	var ek: String = main.tower_data().get("essence", "air")
 	var amt := 10.0

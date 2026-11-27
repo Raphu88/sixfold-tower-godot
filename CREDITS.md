@@ -4,11 +4,11 @@ All sound effects and music are **CC0** (public domain), from [OpenGameArt.org](
 
 | Pack | Author | Used for |
 | --- | --- | --- |
-| [50 RPG Sound Effects](https://opengameart.org/content/50-rpg-sound-effects) | Kenney | chops, footsteps, cloth, creaks, knife slices, book pages (menus), doors, a book set down (a refusal) |
-| [RPG Sound Pack](https://opengameart.org/content/rpg-sound-pack) | artisticdude | sword swings, armour, cloth, metal ring |
+| [50 RPG Sound Effects](https://opengameart.org/content/50-rpg-sound-effects) | Kenney | chops, footsteps, cloth, creaks, knife slices, book pages (menus, and the flips of cards dealt), doors, a book set down (a refusal) |
+| [RPG Sound Pack](https://opengameart.org/content/rpg-sound-pack) | artisticdude | sword swings, armour, cloth, metal ring, a sword unsheathed (a fight beginning) |
 | [Swishes Sound Pack](https://opengameart.org/content/swishes-sound-pack) | artisticdude | punches, heavy swings, dodges |
 | [80 CC0 RPG SFX](https://opengameart.org/content/80-cc0-rpg-sfx) | rubberduck | spells, slime, creature sounds, arrow thunks, rubble |
-| [100 CC0 SFX](https://opengameart.org/content/100-cc0-sfx) | rubberduck | slams, metal clangs, wood, gong (and a new mark's) |
+| [100 CC0 SFX](https://opengameart.org/content/100-cc0-sfx) | rubberduck | slams, metal clangs, wood, gong (and a new mark's), paper (cards dealt) |
 | [37 hits/punches](https://opengameart.org/content/37-hitspunches) | Independent.nu | punch and hit bodies |
 | [Fantasy: Rising Moon](https://opengameart.org/content/fantasy-rising-moon) | RandomMind | music: the title, the train and stations, and a climb's calm rooms (CC0) |
 | [Frost in the Northern Winter](https://opengameart.org/content/frost-in-the-northern-winter) | Kaiser (posted by The Oracle) | music: story moments (the introduction, the Regard, the Makers, the ending), cut to open with six tolls; one toll also cut into `sfx/gong_0.wav`, rung as a story scene changes (CC0) |
@@ -21,8 +21,8 @@ All sound effects and music are **CC0** (public domain), from [OpenGameArt.org](
 | [80 CC0 creture SFX #2](https://opengameart.org/content/80-cc0-creture-sfx-2) | rubberduck | monster grunts, deaths, bugs, human grunts (knight, archer) |
 | [40 CC0 water / splash / slime SFX](https://opengameart.org/content/40-cc0-water-splash-slime-sfx) | rubberduck | splashes, bubbles, slime (lurkers, the Kraken, water spells, brewing) |
 | [100 CC0 metal and wood SFX](https://opengameart.org/content/100-cc0-metal-and-wood-sfx) | rubberduck | shell knocks, metal hits, tools, the lever, the mirrors' creak |
-| [75 CC0 breaking / falling / hit sfx](https://opengameart.org/content/75-cc0-breaking-falling-hit-sfx) | rubberduck | glass breaking (flasks), rock breaking, metal falling |
-| [100 CC0 SFX #2](https://opengameart.org/content/100-cc0-sfx-2) | rubberduck | thunder, the train's doors, stones sliding, a switch |
+| [75 CC0 breaking / falling / hit sfx](https://opengameart.org/content/75-cc0-breaking-falling-hit-sfx) | rubberduck | glass breaking (flasks), rock breaking, metal falling, rocks falling (stone thuds: walls, bars, the stair's gate) |
+| [100 CC0 SFX #2](https://opengameart.org/content/100-cc0-sfx-2) | rubberduck | thunder, the train's doors, stones sliding, a switch, air (the breath under the wind's gusts) |
 | [12 Coin Sound Effects](https://opengameart.org/content/12-coin-sound-effects) | StarNinjas | buying |
 | [Cave In](https://opengameart.org/content/cave-in) | StarNinjas | the rift, a puzzle's failure |
 | [Big scary troll sounds](https://opengameart.org/content/big-scary-troll-sounds) | Darsycho | the Manticore's and the Chimera's roars, the smith, the statues' voices |
@@ -49,7 +49,7 @@ All sound effects and music are **CC0** (public domain), from [OpenGameArt.org](
 | [boiling water loops](https://opengameart.org/content/boiling-water-loops) | TinyWorlds | brewing, the sizzle under the crackle of burning |
 | [Liquid Bottle Drink Set](https://opengameart.org/content/liquid-bottle-drink-set) | qubodup | drinking draughts, tonics and vials |
 | [Fantasy Accessory SFX Library](https://opengameart.org/content/fantasy-accessory-sfx-library) | Vehicle (Jan Schupke) | coins (buying, selling), the lock's key, vials and oils |
-| [150 Combat Sound Effects](https://opengameart.org/content/150-combat-sound-effects) | untamedpixels (spell impacts by lentikula, zaps by CoMiGo, all CC0) | bond spells by family: lightning, wind, water, frost, fire, stone, life; the Unbound's bolts and shells |
+| [150 Combat Sound Effects](https://opengameart.org/content/150-combat-sound-effects) | untamedpixels (spell impacts by lentikula, zaps by CoMiGo, all CC0) | bond spells by family: lightning, wind, water, frost, fire, stone, life; the Unbound's bolts and shells; a low explosion (the boom under a fight beginning) |
 | [Electricity Game Sound Pack](https://opengameart.org/content/electricity-game-sound-pack) | faxcorp | thunderlings, lightning, the beam |
 | [Magic Spell SFX](https://opengameart.org/content/magic-spell-sfx) | JaggedStone | wisps, the Makers, runes, eyes, the vessel, the sparkle in a chime, a new mark swelling in |
 | [Teleport Spell](https://opengameart.org/content/teleport-spell) | Ogrebane | wisps, the rift |
@@ -61,7 +61,7 @@ All sound effects and music are **CC0** (public domain), from [OpenGameArt.org](
 | [Heartbeat sounds](https://opengameart.org/content/heartbeat-sounds) | bart | the Regard, the shadow, the Unbound's Heartbeat, a new mark |
 | [Ice breaking/shattering](https://opengameart.org/content/ice-breakingshattering) | IgnasD | frost, the ice puzzle, wisps |
 | [Sand spell](https://opengameart.org/content/sand-spell) | qubodup | sand spells |
-| [windy ambient noise](https://opengameart.org/content/windy-ambient-noise) | Some Weirdo | the Gryphon's, the Manticore's and the Firebird's ambience |
+| [windy ambient noise](https://opengameart.org/content/windy-ambient-noise) | Some Weirdo | the Gryphon's, the Manticore's and the Firebird's ambience; the wind's gusts (three takes) |
 | [Forest bird sounds](https://opengameart.org/content/forest-bird-sounds) | pauliuw | the Thornwild's ambience |
 
 The game's sounds are built from these with `tools/build_audio.py`: layered, levelled, given a shared room reverb, and in a few cases mixed with a synthesised thump or string. Each tower's ambience is built the same way as a 40-second loop; the train's is one steady stretch of the Steam Train Interior recording, looped where the wheels' clatter lines up so the seam stays on the beat. `tools/fetch_audio_sources.sh` downloads the original packs.

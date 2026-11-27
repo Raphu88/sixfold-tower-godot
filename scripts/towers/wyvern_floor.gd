@@ -896,7 +896,7 @@ func lower(ch: Dictionary) -> void:
 	main.fx_text(ch["crank"] + Vector2(0, -40), String(TEXT["crank"]), C_IRON_HI.lightened(0.3))
 	main.fx_burst(mid, Vector2.UP, C_MOLTEN_HI, 14, 160.0)
 	main.sfx("lever", 0.8, -2.0)
-	main.sfx("slam", 0.75, -4.0)
+	main.sfx_at(mid, "stone_thud", 0.9, -4.0)
 	main.shake(3.0)
 
 

@@ -66,14 +66,14 @@ func _act(delta: float, dir: Vector2, dist: float, p) -> void:
 				state = "rebuild"
 				state_t = float(c["rebuild"])
 				main.fx_text(global_position + Vector2(0, -radius - 22.0), String(CAIRN_TEXT["rebuild"]), Color(0.9, 0.82, 0.62))
-				main.sfx("stone_slide", 0.9, -2.0)
+				main.sfx_at(global_position, "stone_slide", 0.9, -2.0)
 		"wind_swing":
 			velocity = Vector2.ZERO
 			if not glinted:
 				lunge_dir = dir
 			if _wind(delta):
 				main.fx_cone(global_position, lunge_dir, float(c["swing_reach"]), deg_to_rad(float(c["swing_arc"])), Color(0.85, 0.75, 0.6))
-				main.sfx("swing_blunt_heavy", 0.8)
+				main.sfx_at(global_position, "swing_blunt_heavy", 0.8)
 				main.shake(3.0)
 				_strike_cone(p, lunge_dir, float(c["swing_reach"]), float(c["swing_arc"]), dmg)
 				_end_attack("recover", 1.4)
@@ -96,7 +96,7 @@ func _gather() -> void:
 	aware = true
 	main.fx_text(global_position + Vector2(0, -radius - 22.0), String(CAIRN_TEXT["gather"]), Color(0.9, 0.82, 0.62))
 	main.fx_burst(global_position, Vector2.UP, C_STONE, 10, 120.0)
-	main.sfx("stone_slide", 0.75, 0.0)
+	main.sfx_at(global_position, "stone_slide", 0.75, 0.0)
 
 
 func is_attacking() -> bool:
@@ -114,7 +114,7 @@ func take_hit(amount: float, dir: Vector2, force := 140.0, heavy := false, pierc
 		elif said_t <= 0.0 and main != null and dir != Vector2.ZERO:
 			said_t = 1.0
 			main.fx_text(global_position + Vector2(0, -radius - 10.0), String(CAIRN_TEXT["shift"]), Color(0.85, 0.8, 0.7))
-			main.sfx("hit_blunt", 0.8, -4.0)
+			main.sfx_at(global_position, "hit_blunt", 0.8, -4.0)
 		return
 	last_heavy = heavy
 	super.take_hit(amount, dir, force, heavy, pierce)
@@ -134,7 +134,7 @@ func _refuse_death() -> bool:
 	knock = Vector2.ZERO
 	main.fx_text(global_position + Vector2(0, -radius - 20.0), String(CAIRN_TEXT["fall"]), Color(0.9, 0.82, 0.62))
 	main.fx_burst(global_position, Vector2.ZERO, C_STONE, 16, 180.0)
-	main.sfx("hit_heavy", 0.6, -2.0)
+	main.sfx_at(global_position, "hit_heavy", 0.6, -2.0)
 	main.shake(4.0)
 	return true
 

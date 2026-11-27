@@ -300,7 +300,7 @@ static func _hungry_flesh(bond, sp: Dictionary, p) -> void:
 		nd.draw_circle(where.lerp(to, k), 5.0, Color(BLOOD, 0.9 * nd.fade(0.2)))
 	Fire.spawn(main, 0.45, Callable(), paint, {})
 	main.fx_burst(where, (at - where).normalized(), BLOOD, 12, 240.0)
-	main.sfx("hit_slime", 0.7)
+	main.sfx_at(where, "hit_slime", 0.7)
 
 
 ## Flesh Shell: Graft Burst as ever, and the flesh closes over you as a
@@ -424,7 +424,7 @@ static func _graft_power(main, p, part: String, dmg: float, col: Color) -> void:
 				main.fx_bolt([at, near.global_position], col)
 	main.fx_text(at + Vector2(0, -50), TEXT["awake"] % part, col)
 	main.fx_ring(at, col, 30.0, 0.25, 2.0)
-	main.sfx("gust", 1.2, -8.0)
+	main.sfx_at(at, "gust", 1.2, -8.0)
 
 
 # --- Covenant ------------------------------------------------------------------------
@@ -520,8 +520,8 @@ static func _release(bond, p) -> void:
 	main.fx_ring(at, col, r, 0.35, 5.0)
 	main.fx_burst(at, Vector2.ZERO, col, 20, 300.0)
 	main.light_flash(at, col, 1.8, 1.8, 0.35)
-	main.sfx("hit_heavy", 0.8)
-	main.sfx("beast_call", 1.15, -4.0)
+	main.sfx_at(at, "hit_heavy", 0.8)
+	main.sfx_at(at, "beast_call", 1.15, -4.0)
 	main.shake(4.0)
 
 
@@ -561,7 +561,7 @@ static func _harvest(bond, p) -> void:
 			n.draw_circle(at, 8.0 + 14.0 * k, Color(col, 0.25 * f))
 	Fire.spawn(main, 0.3, Callable(), paint, {})
 	main.fx_burst(at, dir, col, 10, 220.0)
-	main.sfx("swing", 1.3)
+	main.sfx_at(at, "swing", 1.3)
 
 
 ## Bud: your newest graft grows into a creature of that monster's kind, as

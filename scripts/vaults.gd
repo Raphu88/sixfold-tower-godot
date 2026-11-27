@@ -186,8 +186,8 @@ func open_chest(s: Dictionary, c: Dictionary) -> void:
 			var M = load("res://scripts/mimic.gd")
 			main.fx_text(at + Vector2(0, -36), M.TEXT["spring"], Palette.DANGER.lightened(0.25))
 			main.fx_burst(at, Vector2.UP, Color(0.62, 0.45, 0.3), 12, 160.0)
-			main.sfx("slam", 1.2, -3.0)
-			main.sfx("warn_knight", 0.8, -2.0)
+			main.sfx_at(at, "on_guard", 1.1, -2.0)
+			main.sfx_at(at, "door_open", 1.4, -4.0)  # (the lid creaks up: a mimic)
 			main.shake(3.0)
 			main.tip("mimic")
 			return

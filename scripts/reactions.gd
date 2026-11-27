@@ -80,7 +80,7 @@ static var REACTIONS := {
 	"fumes": {"name": "Fumes", "says": "The poison spreads to its neighbours as burning gas", "states": ["burning", "poisoned"], "consume": [],
 		"color": Color(0.8, 0.78, 0.3), "sound": "burn", "pitch": 0.75, "again": 3.0, "radius": 95.0, "share": 0.5, "burn": 2.0, "burn_t": 3.0},
 	"crater": {"name": "Crater", "says": "Slammed from the air: a big hit, and its neighbours are knocked down", "states": ["airborne", "slam"], "consume": ["airborne"],
-		"color": Color(0.88, 0.76, 0.56), "sound": "slam", "pitch": 0.75, "again": 0.5, "damage": 14.0, "radius": 85.0, "splash": 6.0, "down": 0.8},
+		"color": Color(0.88, 0.76, 0.56), "sound": "hit_heavy", "pitch": 0.65, "again": 0.5, "damage": 14.0, "radius": 85.0, "splash": 6.0, "down": 0.8},
 	"skybolt": {"name": "Skybolt", "says": "A bolt from above strikes it as it falls", "states": ["airborne", "charged"], "consume": ["airborne", "charged"],
 		"color": Color(1.0, 0.95, 0.6), "sound": "thunder", "pitch": 1.1, "again": 1.0, "damage": 16.0, "stun": 0.6},
 	"hemorrhage": {"name": "Hemorrhage", "says": "Draining a bleeding foe: the drain is doubled", "states": ["bleeding", "drained"], "consume": [],
@@ -392,7 +392,7 @@ static func _fire(main, foe, id: String, landing := "") -> void:
 			# (the Entity's log: the first of each reaction on a floor)
 			main.note_event("reaction", String(main.notices.TEXT["reaction"]) % String(r["name"]), col, false, "reaction:" + id)
 			main.remark("reaction:" + id)
-		main.sfx(String(r["sound"]), float(r.get("pitch", 1.0)), -2.0)
+		main.sfx_at(at, String(r["sound"]), float(r.get("pitch", 1.0)), -2.0)
 		main.light_flash(at, col, 1.2, 1.4, 0.3)
 	FIRED[id] = int(FIRED.get(id, 0)) + 1
 	if shared != "":

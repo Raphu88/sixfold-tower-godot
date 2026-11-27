@@ -234,7 +234,7 @@ func _ally_ai(delta: float) -> void:
 					spell_spot = target.global_position
 					lunge_dir = to2.normalized()
 					main.fx_text(global_position + Vector2(0, -radius - 34.0), String(spells[spell_i]["name"]), spells[spell_i]["color"])
-					main.sfx("charge", 0.9, -6.0)
+					main.sfx_at(global_position, "charge", 0.9, -6.0)
 				elif dist > _reach() + target.radius - 4.0:
 					go = _toward(target.global_position)
 				elif ally_cd <= 0.0:
@@ -287,7 +287,7 @@ func _ally_swing() -> void:
 	swing_heavy = false
 	swing_anim = float(wd.get("swing_time", 0.15)) * 2.0
 	main.fx_cone(global_position, lunge_dir, reach + 8.0, deg_to_rad(arc), RIVAL_LOOK["ally"])
-	main.sfx(String(wd.get("sound", "swing")), float(wd.get("pitch", 1.0)) * 0.95, -4.0)
+	main.sfx_at(global_position, String(wd.get("sound", "swing")), float(wd.get("pitch", 1.0)) * 0.95, -4.0)
 	var amount: float = dmg * float(STATS["melee"]) * float(sw.get("dmg", 1.0))
 	for e in main.targets():
 		var to: Vector2 = e.global_position - global_position
@@ -314,7 +314,7 @@ func _ally_release() -> void:
 			main.fx_ring(spell_spot, col, r, 0.4, 4.0)
 			main.fx_burst(spell_spot, Vector2.ZERO, col, 16, 220.0)
 			main.light_flash(spell_spot, col, 1.5, 1.6, 0.3)
-			main.sfx("zap" if sp["bond"] == "stormcaller" else "slam", 0.9, -4.0)
+			main.sfx_at(spell_spot, "zap" if sp["bond"] == "stormcaller" else "hit_heavy", 0.75 if sp["bond"] != "stormcaller" else 0.9, -4.0)
 			for e in main.targets():
 				if e.global_position.distance_to(spell_spot) < r + e.radius:
 					hit.append(e)
@@ -322,7 +322,7 @@ func _ally_release() -> void:
 			var reach := float(shape["reach"])
 			var half := deg_to_rad(float(shape["arc"]))
 			main.fx_cone(global_position, lunge_dir, reach, half, col)
-			main.sfx("swing_heavy", 0.8, -4.0)
+			main.sfx_at(global_position, "swing_heavy", 0.8, -4.0)
 			for e in main.targets():
 				var to: Vector2 = e.global_position - global_position
 				if to.length() < reach + e.radius and absf(lunge_dir.angle_to(to)) <= half:
@@ -332,7 +332,7 @@ func _ally_release() -> void:
 			main.fx_ring(global_position, col, r2, 0.4, 5.0)
 			main.fx_burst(global_position, Vector2.ZERO, col, 20, 260.0)
 			main.light_flash(global_position, col, 1.6, 1.6, 0.3)
-			main.sfx("slam", 1.1, -4.0)
+			main.sfx_at(global_position, "hit_heavy", 0.85, -4.0)
 			for e in main.targets():
 				if e.global_position.distance_to(global_position) < r2 + e.radius:
 					hit.append(e)
@@ -343,7 +343,7 @@ func _ally_release() -> void:
 			for e in near.slice(0, n):
 				hit.append(e)
 				main.fx_bolt([global_position, e.global_position], col)
-			main.sfx("swing_light", 1.3, -4.0)
+			main.sfx_at(global_position, "swing_light", 1.3, -4.0)
 	var st := String(bond_states.get(String(sp["bond"]), ""))
 	for e in hit:
 		if not is_instance_valid(e) or e.dead:

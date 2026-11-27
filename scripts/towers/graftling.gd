@@ -72,7 +72,7 @@ func _act(delta: float, dir: Vector2, dist: float, p) -> void:
 				lunge_dir = dir
 			if _wind(delta):
 				main.fx_cone(global_position, lunge_dir, float(g["claw_reach"]), deg_to_rad(float(g["claw_arc"])), Color(0.9, 0.6, 0.45))
-				main.sfx("swing_light", 0.9, -3.0)
+				main.sfx_at(global_position, "swing_light", 0.9, -3.0)
 				_strike_cone(p, lunge_dir, float(g["claw_reach"]), float(g["claw_arc"]), dmg * float(g["claw_mult"]))
 				_end_attack("recover", 0.8)
 		"wind_leap":
@@ -101,7 +101,7 @@ func _act(delta: float, dir: Vector2, dist: float, p) -> void:
 					var q = main.spawn_projectile(global_position + lunge_dir * radius, lunge_dir.rotated((float(i) - 1.0) * deg_to_rad(12.0)) * float(g["quill_speed"]), dmg * float(g["quill_mult"]))
 					q.style = "spike"
 					q.tint = graft_col
-				main.sfx("bow", 1.1)
+				main.sfx_at(global_position, "bow", 1.1)
 				_end_attack("recover", 0.9)
 		"wind_slam":
 			velocity = Vector2.ZERO
@@ -111,7 +111,7 @@ func _act(delta: float, dir: Vector2, dist: float, p) -> void:
 				var at := global_position + lunge_dir * float(g["slam_ahead"])
 				main.fx_ring(at, Color(0.8, 0.8, 0.85), float(g["slam_r"]), 0.3, 4.0)
 				main.fx_burst(at, Vector2.UP, Color(0.7, 0.68, 0.7), 12, 180.0)
-				main.sfx("slam", 1.0, -3.0)
+				main.sfx_at(global_position, "slam", 1.0, -3.0)
 				main.shake(4.0)
 				if p.global_position.distance_to(at) < float(g["slam_r"]) + p.radius:
 					p.receive_attack(dmg, self)
@@ -121,7 +121,7 @@ func _act(delta: float, dir: Vector2, dist: float, p) -> void:
 			if not glinted:
 				lunge_dir = dir
 			if _wind(delta):
-				main.sfx("swing", 1.5, -4.0)
+				main.sfx_at(global_position, "swing", 1.5, -4.0)
 				if _in_cone(p, lunge_dir, float(g["sting_reach"]), 50.0):
 					_sting(p, dmg)
 				_end_attack("recover", 1.0)
@@ -138,7 +138,7 @@ func _act(delta: float, dir: Vector2, dist: float, p) -> void:
 					state = "graft"
 					state_t = float(g["graft_time"])
 					main.fx_text(global_position + Vector2(0, -radius - 22.0), String(GRAFTLING_TEXT["pull"]), Color(0.95, 0.75, 0.6))
-					main.sfx("hit_slime", 0.7, -2.0)
+					main.sfx_at(global_position, "hit_slime", 0.7, -2.0)
 					return
 			if _try_attack(dir, dist):
 				return
@@ -205,7 +205,7 @@ func _take_part(o) -> void:
 		main.fx_text(o.global_position + Vector2(0, -o.radius - 22.0), String(GRAFTLING_TEXT["torn"]), Color(0.9, 0.7, 0.6))
 	main.fx_text(global_position + Vector2(0, -radius - 34.0), String(GRAFTLING_TEXT[graft]), Color(1.0, 0.8, 0.6))
 	main.fx_burst(global_position, Vector2.UP, graft_col, 12, 140.0)
-	main.sfx("hit_slime", 1.0, -2.0)
+	main.sfx_at(global_position, "hit_slime", 1.0, -2.0)
 
 
 func is_attacking() -> bool:

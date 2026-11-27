@@ -10,7 +10,7 @@ var shooter = null  # the riveter that fired it
 func on_parried(perfect := false) -> void:
 	if not last or shooter == null or not is_instance_valid(shooter) or shooter.dead:
 		main.fx_burst(position, -vel.normalized(), Color(0.85, 0.85, 0.9), 6, 160.0)
-		main.sfx("hit_armor", 1.5, -6.0)
+		main.sfx_at(global_position, "hit_armor", 1.5, -6.0)
 		queue_free()  # (it glances off)
 		return
 	super.on_parried(perfect)

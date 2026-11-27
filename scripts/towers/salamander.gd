@@ -65,7 +65,7 @@ func _act(delta: float, dir: Vector2, dist: float, p) -> void:
 				state = "rise"
 				state_t = float(c["rise"])
 				velocity = Vector2.ZERO
-				main.sfx("burn", 1.3, -6.0)
+				main.sfx_at(global_position, "burn", 1.3, -6.0)
 		"rise":
 			submerged = false
 			velocity = Vector2.ZERO
@@ -114,7 +114,7 @@ func _act(delta: float, dir: Vector2, dist: float, p) -> void:
 				main.fx_ring(global_position, Color(1.0, 0.55, 0.2), float(c["pool_r"]), 0.4, 4.0)
 				main.fx_burst(global_position, Vector2.UP, Color(1.0, 0.6, 0.25), 20, 200.0)
 				main.light_flash(global_position, Color(1.0, 0.55, 0.22), 1.4, 1.6, 0.3)
-				main.sfx("fire_blast", 1.0, -3.0)
+				main.sfx_at(global_position, "fire_blast", 1.0, -3.0)
 				if p.global_position.distance_to(global_position) < float(c["pool_r"]) + p.radius:
 					p.receive_attack(dmg * float(c["pool_dmg"]), self, true)
 				kindle_cd = float(c["kindle_every"])
@@ -133,7 +133,7 @@ func _act(delta: float, dir: Vector2, dist: float, p) -> void:
 			if kindle_cd <= 0.0 and dist < 260.0 and main.request_attack(self):
 				_begin_wind("wind_kindle", float(c["kindle_wind"]))
 				main.fx_text(global_position + Vector2(0, -radius - 22.0), String(SALAMANDER_TEXT["kindle"]), Color(1.0, 0.7, 0.35))
-				main.sfx("spell_fire", 0.8, -3.0)
+				main.sfx_at(global_position, "spell_fire", 0.8, -3.0)
 				return
 			velocity = dir * speed * float(c["walk"]) if dist > 50.0 else Vector2.ZERO
 
@@ -165,7 +165,7 @@ func douse(here: Dictionary) -> void:
 	kindle_cd = maxf(kindle_cd, 3.0)
 	main.fx_text(global_position + Vector2(0, -radius - 22.0), String(SALAMANDER_TEXT["doused"]), Color(0.7, 0.85, 1.0))
 	main.fx_burst(global_position, Vector2.UP, Color(0.92, 0.94, 0.96), 18, 160.0)
-	main.sfx("hiss", 0.9, -2.0)
+	main.sfx_at(global_position, "hiss", 0.9, -2.0)
 
 
 func _surface(next: String, t: float) -> void:

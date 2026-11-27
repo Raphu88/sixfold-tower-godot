@@ -1298,7 +1298,7 @@ func _start_floor(n: int) -> void:
 		var by: Dictionary = profile.record.get("beasts_by", {}) if profile != null else {}
 		if guardians_beaten() == Towers.ORDER.size() - 1 and int(by.get(tower, 0)) <= 0:
 			story("final")  # (the last guardian standing: entity.gd STORY)
-		sfx_kind("roar", str(tower_data().get("beast_kind", "")), "warn_knight", 1.0, 0.0)  # (the beast takes notice: its roar, at full)
+		sfx_kind("roar", str(tower_data().get("beast_kind", "")), "on_guard", 1.0, 0.0)  # (the beast takes notice: its roar, at full)
 	# The first climb, the floor before the Regard: the Entity's word on it (entity.gd STORY).
 	if first_climb and not in_camp and n == ClimbShapeScript.regard_floor() - 1 and not _story_unbound():
 		story("before_regard")
@@ -1462,7 +1462,7 @@ func _ambush(i: int) -> void:
 		fx_ring(spots[k], Color(0.6, 0.5, 0.85), 50.0, 0.4, 3.0)
 	if n > 0:
 		shake(6.0)
-		sfx("slam", 0.6, -4.0, 0.0)
+		sfx("stone_thud", 0.8, -4.0, 0.0)
 
 
 ## Standing in a healing spring heals you until it runs dry.
@@ -1616,7 +1616,7 @@ func check_stuck() -> Array:
 		door_view.unlock(int(lid))
 	var LT: Dictionary = door_view.LOCK_TEXT
 	banner = {"title": LT["relent_title"], "lines": [LT["relent"]], "t": 3.0}
-	sfx("slam", 0.8, -4.0, 0.0)
+	sfx("stone_thud", 1.0, -4.0, 0.0)
 	shake(3.0)
 	return opened
 
@@ -2007,7 +2007,7 @@ func _enter_camp(lines: Array) -> void:
 	card_focus = 0
 	banner = {}
 	player.set_physics_process(false)
-	sfx("ready", 0.7, -4.0, 0.0)
+	sfx("cards", 1.0, -2.0)
 
 
 ## What a camp card shows: {name, desc, color, item} (item is "" for a rune).
@@ -2173,7 +2173,7 @@ func offer_vault(choices: Array, title: String, lines: Array) -> void:
 	player.set_physics_process(false)
 	if wings != null:
 		wings.freeze()
-	sfx("ready", 0.9, -4.0, 0.0)
+	sfx("cards", 1.0, -2.0)
 
 
 func _take_vault_pick(pick: String) -> void:
@@ -2764,7 +2764,7 @@ func offer_belt_swap(d: Dictionary) -> void:
 	player.set_physics_process(false)
 	if wings != null:
 		wings.freeze()
-	sfx("ready", 1.1, -6.0, 0.0)
+	sfx("cards", 1.0, -2.0)
 
 
 ## Takes a card of the belt's take card: "belt:" leaves it, "belt:<id>"
@@ -3196,8 +3196,10 @@ func _mark_sound(faint: bool) -> void:
 		return
 	if victory.is_empty():
 		sfx("mark_form", pitch, db, 0.0)
+		duck_music()  # (the music dips under a new mark)
 	else:
 		sfx_after(1.3, "mark_form", pitch, db)
+		_duck_after(1.3)
 
 
 ## A sealed wing (wings.gd) beaten with its rule kept: on an early floor
@@ -3244,6 +3246,7 @@ func show_victory(lines: Array) -> void:
 	victory = {"t": 0.0, "beast": beast_name(), "lines": lines, "dark": fade > 0.5}
 	player.set_physics_process(false)
 	sfx("summit_win", 1.0, 0.0, 0.0)
+	duck_music()  # (the music dips under the bells)
 
 
 ## Winning the Proving (proving.gd): one of your marks grows (profile.gd
@@ -3469,6 +3472,7 @@ func _begin_regard(fell: bool) -> void:
 		if "reflected" in c:
 			c.queue_free()
 	sfx("regard", 1.0, 0.0, 0.0)
+	duck_music()  # (the music dips under the Regard)
 
 
 ## True once the Regard has played long enough to be dismissed.
@@ -3561,7 +3565,7 @@ func _offer_heirloom() -> bool:
 	camp_choosing = true
 	card_focus = 0
 	player.set_physics_process(false)
-	sfx("ready", 0.7, -4.0, 0.0)
+	sfx("cards", 1.0, -2.0)
 	return true
 
 
@@ -3918,7 +3922,7 @@ func offer_path() -> void:
 		player.iframes = maxf(player.iframes, 9999.0)  # (nothing still in flight can hurt you while you choose)
 	if wings != null:
 		wings.freeze()
-	sfx("ready", 0.6, -2.0, 0.0)
+	sfx("cards", 1.0, -2.0)
 
 
 ## Seconds the path choice ignores presses after it opens.
@@ -4304,7 +4308,7 @@ func _carried_collide(w: Dictionary) -> void:
 				if n < cap and is_instance_valid(e) and not e.dead:
 					w["bumps"][e.get_instance_id()] = n + 1
 					e.take_hit(dmg, Vector2.ZERO, 0.0)
-			sfx("hit_heavy", 1.1, -6.0)
+			sfx_at((a.global_position + b.global_position) * 0.5, "hit_heavy", 1.1, -6.0)
 
 
 func _break_against_wall(e, w: Dictionary) -> void:
@@ -4314,7 +4318,7 @@ func _break_against_wall(e, w: Dictionary) -> void:
 		w["broken"] = []
 	w["broken"].append(e)
 	fx_burst(e.global_position, -w["dir"], w["color"], 10, 220.0)
-	sfx("hit_heavy", 0.8, -2.0)
+	sfx_at(e.global_position, "hit_heavy", 0.8, -2.0)
 	e.take_hit(float(w.get("crash", w["dmg"])), Vector2.ZERO, 0.0, true)
 	if player.has_bond("tidecaller"):
 		e.stagger(1.2)  # Undercurrent: driven into a wall, stunned
@@ -4374,7 +4378,7 @@ func _detonate_rune(r: Dictionary) -> void:
 	fx_ring(r["pos"], r["color"], r["blast"], 0.35, 5.0)
 	fx_burst(r["pos"], Vector2.ZERO, r["color"], 14, 260.0)
 	light_flash(r["pos"], r["color"], 1.3, 1.4, 0.3)
-	sfx("zap", 0.8)
+	sfx_at(r["pos"], "zap", 0.8)
 	shake(4.0)
 
 
@@ -4613,7 +4617,7 @@ func explode(pos: Vector2, r: float, dmg: float, color: Color) -> void:
 	fx_ring(pos, color, r, 0.35, 6.0)
 	fx_burst(pos, Vector2.ZERO, color, 18, 300.0)
 	light_flash(pos, color, 1.0 + r / 60.0, 2.0, 0.35)
-	sfx("hit_heavy", 0.7)
+	sfx_at(pos, "hit_heavy", 0.7)
 	shake(4.0 + AnimScript.num("shake", "blast") * clampf(r / 120.0, 0.0, 1.0))
 
 
@@ -4728,7 +4732,7 @@ func on_enemy_killed(e) -> void:
 		for o in pts:
 			o.take_hit(e.overcharge_dmg, Vector2.ZERO)
 		light_flash(e.global_position, Color(0.95, 0.89, 0.42), 1.6, 1.8, 0.35)
-		sfx("zap", 0.9)
+		sfx_at(e.global_position, "zap", 0.9)
 	# Grafter's Grafting: slain monsters sometimes leave a graft.
 	if player != null and player.has_bond("grafter") and not e.is_boss() and randf() < graft_chance(grafts.size()):
 		BondScript.graft_drop(self, e.global_position, e.kind)
@@ -4778,12 +4782,17 @@ func on_enemy_killed(e) -> void:
 	ParticlesScript.kill(self, e.global_position, e.color, e.radius, e.is_boss())
 	AnimScript.dissolve(self, e)  # (it comes apart into motes that drift to you)
 	var kill_sound: String = "kill_" + e.kind
-	sfx(kill_sound if audio != null and audio.has_sound(kill_sound) else "kill")
+	var big: bool = e.is_boss() and not e.shade
+	if big:
+		sfx(kill_sound if audio != null and audio.has_sound(kill_sound) else "kill")  # (a guardian's death: at full)
+	else:
+		sfx_at(e.global_position, kill_sound if audio != null and audio.has_sound(kill_sound) else "kill")
 	hitstop(0.09)
 	shake(6.0)
-	if e.is_boss() and not e.shade:
+	if big:
 		AnimScript.slow_beat(self)  # (a beast falls: a beat of slow time)
-		sfx_after(0.45, "slam", 0.5, -1.0)  # (...and its body lands after its death cry, deep)
+		duck_music()  # (the music dips under its death cry)
+		sfx_after(0.45, "stone_thud", 0.7, 0.0)  # (...and its body lands after its death cry, deep)
 
 
 ## Hit-pause: freeze the action for a moment so impacts land.
@@ -4807,9 +4816,34 @@ func set_slowmo(on: bool, time_scale := RING_TIME) -> void:
 		Engine.time_scale = slowmo_scale if on else test_speed
 
 
+## A sound at full: the menus, the climber's own actions and the big moments.
+## A sound from a place in the world goes through sfx_at instead.
 func sfx(sound: String, pitch := 1.0, volume_db := 0.0, variance := 0.06) -> void:
 	if audio != null:
 		audio.play(sound, pitch, volume_db, variance)
+
+
+## A sound from a place in the world (a monster's tell, hit or death, a trap,
+## a door, an impact, a spell landing): quieter the farther it is from the
+## climber (audio.gd DISTANCE: full within 200 px, -18 dB from 900 px on).
+func sfx_at(pos: Vector2, sound: String, pitch := 1.0, volume_db := 0.0, variance := 0.06) -> void:
+	if audio != null:
+		audio.play_at(sound, pos, pitch, volume_db, variance)
+
+
+## A creature's own sound from where it is (sfx_kind, by distance).
+func sfx_kind_at(pos: Vector2, what: String, kind: String, fallback := "", pitch := 1.0, volume_db := 0.0) -> void:
+	var sound := what + "_" + kind
+	if audio != null and audio.has_sound(sound):
+		sfx_at(pos, sound, pitch, volume_db)
+	elif fallback != "":
+		sfx_at(pos, fallback, pitch, volume_db)
+
+
+## The music and ambience dip for a moment under a big one (audio.gd DUCK).
+func duck_music() -> void:
+	if audio != null and is_instance_valid(audio):
+		audio.duck()
 
 
 ## A sound a moment from now, in real time (hit-pause and slow motion don't
@@ -4820,6 +4854,15 @@ func sfx_after(delay: float, sound: String, pitch := 1.0, volume_db := 0.0) -> v
 	await get_tree().create_timer(delay, true, false, true).timeout
 	if is_instance_valid(self) and is_inside_tree() and audio != null and is_instance_valid(audio):
 		sfx(sound, pitch, volume_db, 0.0)
+
+
+## The music's dip a moment from now (a new mark ringing after a summit's bells).
+func _duck_after(delay: float) -> void:
+	if not is_inside_tree():
+		return
+	await get_tree().create_timer(delay, true, false, true).timeout
+	if is_instance_valid(self) and is_inside_tree():
+		duck_music()
 
 
 ## Fades out a sound that's still playing.

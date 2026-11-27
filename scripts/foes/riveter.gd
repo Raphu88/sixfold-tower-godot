@@ -73,7 +73,7 @@ func _act(delta: float, dir: Vector2, dist: float, p) -> void:
 			if dist < float(RULES["range"]) and main.clear_line(global_position, p.global_position) and main.request_attack(self):
 				aim_dir = dir
 				_begin_wind("wind_burst", float(RULES["wind"]))
-				main.sfx("crossbow_reload", 1.4, -4.0)
+				main.sfx_at(global_position, "crossbow_reload", 1.4, -4.0)
 			elif dist < float(RULES["keep"]) - 50.0:
 				velocity = -dir * speed
 			else:
@@ -89,10 +89,10 @@ func _fire(hot: bool) -> void:
 	r.last = hot
 	r.shooter = self
 	main.add_child(r)
-	main.sfx("crossbow", 1.5, -4.0)
+	main.sfx_at(global_position, "crossbow", 1.5, -4.0)
 	if hot:
 		glint = 0.22  # (the hot one glints as it flies: parry it)
-		main.sfx("glint", 1.1, 0.0, 0.03)
+		main.sfx_at(global_position, "glint", 1.1, 0.0, 0.03)
 
 
 ## Its own hot rivet came back: knocked out of the air.
@@ -106,7 +106,7 @@ func sent_back() -> void:
 	open_t = float(RULES["down"])
 	main.fx_text(global_position + Vector2(0, -radius - 26.0), TEXT["down"], Color(1.0, 0.85, 0.5))
 	main.fx_burst(global_position, Vector2.DOWN, Color(1.0, 0.7, 0.3), 12, 200.0)
-	main.sfx("hit_armor", 0.8)
+	main.sfx_at(global_position, "hit_armor", 0.8)
 
 
 func _idle_state() -> String:

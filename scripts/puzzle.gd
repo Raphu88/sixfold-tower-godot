@@ -423,7 +423,7 @@ func _update_seal() -> void:
 		set_solid(r, true)
 		main.fx_burst(r.get_center(), Vector2.ZERO, Color(0.55, 0.51, 0.6), 10, 120.0)
 	main.shake(6.0)
-	main.sfx("slam", 0.6, -2.0, 0.0)
+	main.sfx("stone_thud", 0.8, -2.0, 0.0)
 	main.banner = {"title": display_name().to_upper(), "lines": [TEXT["sealed"]], "t": 3.5}
 	queue_redraw()
 

@@ -52,7 +52,7 @@ func _act(delta: float, dir: Vector2, dist: float, p) -> void:
 				main.fx_ring(global_position, C_CORE, reach, 0.3, 3.0)
 				for i in 6:
 					main.fx_bolt([global_position, global_position + Vector2.from_angle(TAU * i / 6.0 + randf()) * reach], C_CORE)
-				main.sfx("zap", 1.2)
+				main.sfx_at(global_position, "zap", 1.2)
 				main.light_flash(global_position, C_BELL, 1.2, 1.4, 0.25)
 				if dist < reach + p.radius and p.iframes <= 0.0:
 					var before: float = p.hp
@@ -68,7 +68,7 @@ func _act(delta: float, dir: Vector2, dist: float, p) -> void:
 		_:  # drift: slowly after you, bobbing side to side
 			if dist < float(RULES["near"]) and main.request_attack(self):
 				_begin_wind("wind_spark", float(RULES["spark_wind"]))
-				main.sfx("charge", 1.6, -6.0)
+				main.sfx_at(global_position, "charge", 1.6, -6.0)
 			else:
 				var sway := dir.orthogonal() * sin(Time.get_ticks_msec() * 0.0015 + get_instance_id()) * 0.7
 				velocity = (dir + sway).normalized() * speed

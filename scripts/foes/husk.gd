@@ -85,7 +85,7 @@ func _act(delta: float, dir: Vector2, dist: float, p) -> void:
 				state = "lunge"
 				state_t = float(RULES["lunge"]) / float(RULES["lunge_speed"])
 				lunge_hit = false
-				main.sfx("thrust", 0.85, -2.0)
+				main.sfx_at(global_position, "thrust", 0.85, -2.0)
 		"lunge":
 			state_t -= delta
 			velocity = lunge_dir * float(RULES["lunge_speed"])
@@ -106,11 +106,11 @@ func _act(delta: float, dir: Vector2, dist: float, p) -> void:
 			if dist < float(RULES["slash"]) + 8.0 and main.request_attack(self):
 				lunge_dir = dir
 				_begin_wind("wind_slash", float(RULES["slash_wind"]))
-				main.sfx("warn_knight", 1.25, -3.0)
+				main.sfx_at(global_position, "equip_sword", 0.85, -3.0)
 			elif dist > 95.0 and dist < float(RULES["lunge"]) + 20.0 and randf() < delta * 0.9 and main.clear_line(global_position, p.global_position) and main.request_attack(self):
 				lunge_dir = dir
 				_begin_wind("wind_lunge", float(RULES["lunge_wind"]))
-				main.sfx("warn_knight", 1.15, -3.0)
+				main.sfx_at(global_position, "equip_sword", 0.8, -3.0)
 			elif main.holds_attack(self) or main.can_attack():
 				velocity = dir * speed
 			else:
@@ -139,14 +139,14 @@ func _roll_from(dir: Vector2) -> void:
 	main.release_attack(self)
 	state = "roll"
 	state_t = float(RULES["roll"])
-	main.sfx("roll", 0.9, -4.0)
+	main.sfx_at(global_position, "roll", 0.9, -4.0)
 
 
 func _slash_at(p) -> void:
 	var reach := float(RULES["slash"])
 	var arc := deg_to_rad(float(RULES["slash_arc"]))
 	main.fx_cone(global_position, lunge_dir, reach + 8.0, arc, Color(1.0, 0.45, 0.35))
-	main.sfx("swing", 0.85)
+	main.sfx_at(global_position, "swing", 0.85)
 	var to: Vector2 = p.global_position - global_position
 	if to.length() <= reach + p.radius and absf(lunge_dir.angle_to(to)) <= arc:
 		p.receive_attack(dmg, self)
@@ -195,7 +195,7 @@ func take_hit(amount: float, dir: Vector2, force := 140.0, heavy := false, pierc
 		state_t = float(RULES["guard"])
 		main.release_attack(self)
 		main.fx_text(global_position + Vector2(0, -radius - 34.0), TEXT["read"], Color(0.75, 0.88, 1.0))
-		main.sfx("equip_sword", 0.8, -4.0)
+		main.sfx_at(global_position, "equip_sword", 0.8, -4.0)
 
 
 func _parry(dir: Vector2) -> void:
@@ -203,7 +203,7 @@ func _parry(dir: Vector2) -> void:
 	main.fx_text(global_position + Vector2(0, -radius - 34.0), TEXT["parried"], Color(0.75, 0.88, 1.0))
 	main.fx_ring(global_position - dir * radius, Color(0.8, 0.9, 1.0), 40.0, 0.3, 3.0)
 	main.fx_burst(global_position - dir * radius, -dir, Color(0.85, 0.92, 1.0), 10, 260.0)
-	main.sfx("parry", 0.85)
+	main.sfx_at(global_position, "parry", 0.85)
 	if p != null:
 		p.knock = (p.global_position - global_position).normalized() * 200.0
 	_streak = 0

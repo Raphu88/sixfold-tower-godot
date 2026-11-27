@@ -555,7 +555,7 @@ func _tick_thorns(dt: float, p) -> void:
 					_grow(th)
 					th["kind"] = "wall"
 					main.fx_text(r.get_center() + Vector2(0, -30), TEXT["closes"], Color(0.7, 0.9, 0.5))
-					main.sfx("slam", 1.4, -8.0)
+					main.sfx_at(r.get_center(), "stone_thud", 1.5, -8.0)
 
 
 func _someone_in(r: Rect2) -> bool:

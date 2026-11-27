@@ -63,7 +63,7 @@ func _act(delta: float, dir: Vector2, dist: float, p) -> void:
 				var reach := float(RULES["swing"])
 				var arc := deg_to_rad(float(RULES["swing_arc"]))
 				main.fx_cone(global_position, lunge_dir, reach + 8.0, arc, Color(1.0, 0.55, 0.3))
-				main.sfx("swing_blunt_heavy", 0.85)
+				main.sfx_at(global_position, "swing_blunt_heavy", 0.85)
 				var to: Vector2 = p.global_position - global_position
 				if to.length() <= reach + p.radius and absf(lunge_dir.angle_to(to)) <= arc:
 					p.receive_attack(dmg, self)
@@ -77,12 +77,12 @@ func _act(delta: float, dir: Vector2, dist: float, p) -> void:
 			if dist < float(RULES["swing"]) + 6.0 and main.request_attack(self):
 				lunge_dir = dir
 				_begin_wind("wind_swing", float(RULES["swing_wind"]))
-				main.sfx("warn_smith", 1.2, -3.0)
+				main.sfx_at(global_position, "warn_smith", 1.2, -3.0)
 			elif throw_cd <= 0.0 and dist > 80.0 and dist < float(RULES["throw"]) and main.clear_line(global_position, p.global_position) and main.request_attack(self):
 				lunge_dir = dir
 				spots = _pick_spots(p)
 				_begin_wind("wind_throw", float(RULES["throw_wind"]))
-				main.sfx("burn", 0.6, -6.0)
+				main.sfx_at(global_position, "burn", 0.6, -6.0)
 			elif dist > float(RULES["throw"]) * 0.7:
 				velocity = dir * speed
 			else:
@@ -115,8 +115,8 @@ func _pick_spots(p) -> Array:
 func _fling(p) -> void:
 	_flings += 1
 	throw_cd = float(RULES["every"])
-	main.sfx("throw", 0.8)
-	main.sfx("burn", 0.9, -2.0)
+	main.sfx_at(global_position, "throw", 0.8)
+	main.sfx_at(global_position, "burn", 0.9, -2.0)
 	var r := float(RULES["spot_r"])
 	var mine: Array = main.flames.filter(func(f): return int(f.get("stoker", 0)) == get_instance_id() and float(f["t"]) > 0.0)
 	for spot in spots:

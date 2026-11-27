@@ -44,7 +44,7 @@ static func _own_act(e, delta: float, dir: Vector2, dist: float, p) -> void:
 				e.state = "dive"
 				e.state_t = clampf((dist + 50.0) / spd, 0.25, 0.8)
 				e.lunge_hit = false
-				e.main.sfx("gust", 1.3, -6.0, 0.05)
+				e.main.sfx_at(e.global_position, "gust", 1.3, -6.0, 0.05)
 		"dive":
 			e.state_t -= delta
 			var spd: float = e.get_meta("spd", float(H["dive_speed"]))
@@ -66,7 +66,7 @@ static func _own_act(e, delta: float, dir: Vector2, dist: float, p) -> void:
 			if e.state_t <= 0.0:
 				e.state = "climb"
 				e.state_t = float(H["climb"])
-				e.main.sfx("wingbeat", 0.8, -8.0, 0.05)
+				e.main.sfx_at(e.global_position, "wingbeat", 0.8, -8.0, 0.05)
 		"climb":
 			e.state_t -= delta
 			h = move_toward(h, float(H["soar_h"]), delta * float(H["soar_h"]) / float(H["climb"]))
@@ -81,7 +81,7 @@ static func _own_act(e, delta: float, dir: Vector2, dist: float, p) -> void:
 			if e.state_t <= 0.0 and dist < float(H["dive_range"]) and e.main.request_attack(e):
 				e._begin_wind("wind_dive", float(H["wind"]))
 				e.aim_dir = dir
-				e.main.sfx("warn_bat", 0.6, -2.0)
+				e.main.sfx_at(e.global_position, "warn_bat", 0.6, -2.0)
 	e.set_meta("h", h)
 
 

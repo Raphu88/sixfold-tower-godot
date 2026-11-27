@@ -1088,7 +1088,7 @@ func start_duel(enc: Dictionary) -> void:
 		if not gates.is_empty() and (lr.is_empty() or String(lr.get("state", "")) in ["armed", "done"]):
 			main.door_view.lock_rooms[rm] = {"state": "pending", "gates": gates, "bodies": [], "mobs": [], "t": 0.0}
 	main.banner = {"title": TEXT["duel_title"], "lines": [TEXT["duel_line"] % enc["rival"]["name"]], "t": 2.6}
-	main.sfx("warn_knight", 1.1, -2.0, 0.0)
+	main.sfx("on_guard", 1.0, -2.0, 0.0)
 
 
 func duel_on() -> bool:

@@ -282,7 +282,7 @@ static func _burst_at(p, b, fx: Dictionary, at: Vector2, r: float, power: float,
 	main.fx_burst(at, Vector2.ZERO, col, 14, 220.0)
 	main.light_flash(at, col, 1.4, 1.6, 0.35)
 	main.shake(3.0)
-	main.sfx("explode" if String(fx.get("state", "")) == "burning" else "hit_heavy", 1.1, -4.0)
+	main.sfx_at(at, "explode" if String(fx.get("state", "")) == "burning" else "hit_heavy", 1.1, -4.0)
 	_ring(main, at, r, col, "")
 
 

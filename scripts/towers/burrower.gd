@@ -53,7 +53,7 @@ func _act(delta: float, dir: Vector2, dist: float, p) -> void:
 			if dist < float(g["erupt_near"]) and _sand(p.global_position) and main.request_attack(self):
 				spot = p.global_position
 				_begin_wind("wind_erupt", float(g["erupt_wind"]))
-				main.sfx("warn_lurker", 0.7, -2.0)
+				main.sfx_at(global_position, "warn_lurker", 0.7, -2.0)
 				velocity = Vector2.ZERO
 				return
 			# Swim toward the climber; at the edge of the sand, come up and crawl.
@@ -74,7 +74,7 @@ func _act(delta: float, dir: Vector2, dist: float, p) -> void:
 				submerged = false
 				main.fx_burst(spot, Vector2.UP, Color(0.86, 0.72, 0.46), 22, 220.0)
 				main.fx_ring(spot, Color(0.86, 0.72, 0.46), float(g["erupt_radius"]), 0.35, 4.0)
-				main.sfx("spell_sand", 0.9, -2.0)
+				main.sfx_at(global_position, "spell_sand", 0.9, -2.0)
 				main.shake(5.0)
 				if p.global_position.distance_to(spot) < float(g["erupt_radius"]) + p.radius:
 					p.receive_attack(dmg, self, true)
@@ -106,7 +106,7 @@ func _act(delta: float, dir: Vector2, dist: float, p) -> void:
 			if dist < float(g["bite_near"]) and main.request_attack(self):
 				lunge_dir = dir
 				_begin_wind("wind_bite", float(g["bite_wind"]))
-				main.sfx("warn_scorpling", 0.7, -2.0)
+				main.sfx_at(global_position, "warn_scorpling", 0.7, -2.0)
 				velocity = Vector2.ZERO
 				return
 			# Out of reach: back toward the nearest sand, or crawl at the climber.
@@ -125,7 +125,7 @@ func _act(delta: float, dir: Vector2, dist: float, p) -> void:
 			if _wind(delta):
 				if dist < float(g["bite_reach"]) + p.radius and absf(lunge_dir.angle_to(dir)) < 1.1:
 					p.receive_attack(dmg * float(g["bite_mult"]), self)
-				main.sfx("swing_light", 0.7, -4.0)
+				main.sfx_at(global_position, "swing_light", 0.7, -4.0)
 				_end_attack("up", 0.8)
 		_:
 			state = "sub" if _sand(global_position) else "crawl"
@@ -178,11 +178,11 @@ func _hurt_voice() -> void:
 	if now < voice_at:
 		return
 	voice_at = now + int(randf_range(450.0, 900.0))
-	main.sfx("hurt_scorpling", 0.7, -2.0)
+	main.sfx_at(global_position, "hurt_scorpling", 0.7, -2.0)
 
 
 func _leave_remains() -> void:
-	main.sfx("kill_scorpling", 0.7, -2.0)
+	main.sfx_at(global_position, "kill_scorpling", 0.7, -2.0)
 	super._leave_remains()
 
 

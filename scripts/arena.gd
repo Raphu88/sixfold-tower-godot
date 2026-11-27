@@ -237,7 +237,7 @@ func start(e: Dictionary) -> String:
 	if duel:
 		_setup_duel()
 		main.banner = {"title": String(Dining.TEXT["arena_banner"]), "lines": [String(Dining.TEXT["arena_line"]) % String(ev.get("rival", {}).get("name", ""))], "t": 3.0}
-		main.sfx("warn_knight", 1.1, -2.0, 0.0)
+		main.sfx("on_guard", 1.0, -2.0, 0.0)
 		main.tip("arena_car")
 		z_index = 2
 		_add_view()
@@ -701,7 +701,7 @@ func _send_round(p) -> void:
 			round_mobs.append(e)
 		opp_name = Tournaments.round_text(rd)
 		main.banner = {"title": (Stations.TEXT["hud_round"] % [round_i + 1, opponents.size()]).to_upper(), "lines": [said], "t": 2.4}
-		main.sfx("warn_knight", 1.1, -6.0, 0.0)
+		main.sfx("on_guard", 1.0, -4.0, 0.0)
 		return
 	if rec.is_empty():
 		opp = load("res://scripts/mirror.gd").spawn(main, at)
@@ -722,7 +722,7 @@ func _send_round(p) -> void:
 	opp.notice_t = 0.0
 	main.fx_ring(opp.global_position, Color(1.0, 0.8, 0.5), 44.0, 0.4, 3.0)
 	main.banner = {"title": (Stations.TEXT["hud_round"] % [round_i + 1, opponents.size()]).to_upper(), "lines": [Stations.TEXT["vs"] % opp_name, said], "t": 2.4}
-	main.sfx("warn_knight", 1.1, -6.0, 0.0)
+	main.sfx("on_guard", 1.0, -4.0, 0.0)
 
 
 ## A duel from the Dining car: the Arena car round the room, and the climber

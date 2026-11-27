@@ -89,7 +89,7 @@ func _act(delta: float, dir: Vector2, dist: float, p) -> void:
 				var arc := deg_to_rad(float(RULES["slam_arc"]))
 				main.fx_cone(global_position, lunge_dir, reach + 8.0, arc, Color(0.6, 0.85, 1.0))
 				main.fx_burst(global_position + lunge_dir * reach * 0.7, Vector2.ZERO, C_WATER, 10, 180.0)
-				main.sfx("slam", 1.15, -2.0)
+				main.sfx_at(global_position, "slam", 1.15, -2.0)
 				var to: Vector2 = p.global_position - global_position
 				if to.length() <= reach + p.radius and absf(lunge_dir.angle_to(to)) <= arc:
 					p.receive_attack(dmg, self)
@@ -103,7 +103,7 @@ func _act(delta: float, dir: Vector2, dist: float, p) -> void:
 			if dist < float(RULES["slam"]) + 6.0 and main.request_attack(self):
 				lunge_dir = dir
 				_begin_wind("wind_slam", float(RULES["slam_wind"]))
-				main.sfx("warn_lurker", 0.6, -2.0)
+				main.sfx_at(global_position, "warn_lurker", 0.6, -2.0)
 			else:
 				velocity = dir * speed
 
@@ -118,7 +118,7 @@ func _rise() -> void:
 		main.tip("drowned")
 	main.fx_burst(global_position, Vector2.UP, C_WATER, 14, 200.0)
 	main.fx_text(global_position + Vector2(0, -radius - 26.0), TEXT["rises"], C_WATER)
-	main.sfx("geyser", 0.7, -6.0)
+	main.sfx_at(global_position, "geyser", 0.7, -6.0)
 
 
 ## Slain, it falls as any monster does (it counts as slain at once), but its
@@ -130,7 +130,7 @@ func _exit_tree() -> void:
 		r["soaked_text"] = TEXT["burst"]
 		var m = Marks.make(main, "burst", r, null)
 		m.beads.append({"pos": global_position, "t": float(RULES["swell"]), "max": float(RULES["swell"])})
-		main.sfx("bubble", 0.5, 0.0)
+		main.sfx_at(global_position, "bubble", 0.5, 0.0)
 	super._exit_tree()
 
 

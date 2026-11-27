@@ -59,7 +59,7 @@ func _act(delta: float, dir: Vector2, dist: float, p) -> void:
 				var col := Color(1.0, 0.55, 0.25) if hot else Color(0.7, 0.66, 0.62)
 				main.fx_ring(spot, col, float(g["slam_radius"]), 0.35, 5.0)
 				main.fx_burst(spot, Vector2.ZERO, col, 12, 220.0)
-				main.sfx("slam", 0.75)
+				main.sfx_at(global_position, "slam", 0.75)
 				main.shake(6.0)
 				if p.global_position.distance_to(spot) < float(g["slam_radius"]) + p.radius:
 					p.receive_attack(dmg, self)
@@ -74,7 +74,7 @@ func _act(delta: float, dir: Vector2, dist: float, p) -> void:
 				main.fx_ring(global_position, Color(1.0, 0.6, 0.25), r, 0.4, 6.0)
 				main.fx_burst(global_position, Vector2.ZERO, Color(1.0, 0.7, 0.3), 24, 280.0)
 				main.light_flash(global_position, Color(1.0, 0.6, 0.25), 1.6, 1.6, 0.3)
-				main.sfx("fire_blast", 0.85, -2.0)
+				main.sfx_at(global_position, "fire_blast", 0.85, -2.0)
 				main.shake(5.0)
 				if dist < r + p.radius:
 					p.receive_attack(dmg * float(g["flare_mult"]), self, true)
@@ -92,10 +92,10 @@ func _act(delta: float, dir: Vector2, dist: float, p) -> void:
 			if hot and flare_t <= 0.0 and dist < float(g["flare_radius"]) * 0.85 and main.request_attack(self):
 				flare_t = float(g["flare_every"])
 				_begin_wind("wind_flare", float(g["flare_wind"]))
-				main.sfx("charge", 0.6, -2.0)
+				main.sfx_at(global_position, "charge", 0.6, -2.0)
 			elif dist < float(g["slam_near"]) and main.request_attack(self):
 				_begin_wind("wind_slam", float(g["slam_wind"]))
-				main.sfx("warn_smith", 0.8, -2.0)
+				main.sfx_at(global_position, "warn_smith", 0.8, -2.0)
 			else:
 				velocity = dir * speed * (float(g["hot_speed"]) if hot else 1.0)
 
@@ -111,7 +111,7 @@ func _cool(seconds: float, quenched: bool) -> void:
 		heat = float(GOLEM["start_heat"])
 	main.fx_text(global_position + Vector2(0, -radius - 26.0), String(GOLEM_TEXT["quenched" if quenched else "venting"]), Color(0.75, 0.85, 0.95) if quenched else Color(1.0, 0.75, 0.45))
 	main.fx_burst(global_position, Vector2.UP, Color(0.9, 0.92, 0.95), 18, 140.0)
-	main.sfx("hiss", 0.8, -2.0)
+	main.sfx_at(global_position, "hiss", 0.8, -2.0)
 
 
 ## A water barrel's splash (scripts/towers/wyvern_floor.gd).
@@ -147,12 +147,12 @@ func _hurt_voice() -> void:
 	if now < voice_at:
 		return
 	voice_at = now + int(randf_range(500.0, 950.0))
-	main.sfx("hurt_smith", 0.7, -2.0)
+	main.sfx_at(global_position, "hurt_smith", 0.7, -2.0)
 
 
 func _leave_remains() -> void:
-	main.sfx("kill_smith", 0.75, -2.0)
-	main.sfx("hiss", 0.7, -6.0)
+	main.sfx_at(global_position, "kill_smith", 0.75, -2.0)
+	main.sfx_at(global_position, "hiss", 0.7, -6.0)
 	super._leave_remains()
 
 

@@ -331,7 +331,7 @@ func crumble(c: Dictionary) -> void:
 			rubble.append({"pos": p + Vector2(randf_range(-14, 14), randf_range(-14, 14)), "r": randf_range(3.5, 7.0), "rot": randf() * TAU})
 		Anim.wall(main, p)  # (chips and dust as it comes down)
 	main.shake(6.0)
-	main.sfx("slam", 0.75, -2.0)
+	main.sfx("stone_thud", 0.9, -2.0)
 	main.sfx("hit_heavy", 0.6, -4.0)
 	main.fx_text(_centre(c["tiles"][0]) + Vector2(0, -30), TEXT["loop"] if c["kind"] == "loop" else TEXT["crumble"], Color(0.95, 0.88, 0.7))
 	main.note_event("crack", main.notices.TEXT["crack"], null, false)

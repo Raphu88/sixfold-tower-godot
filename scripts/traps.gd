@@ -1637,7 +1637,7 @@ func _tick_trap(tr: Dictionary, delta: float) -> void:
 			if not tr.get("glint", false) and tr["timer"] <= GLINT_LEAD:
 				tr["glint"] = true
 				if _heard(tr) and bool(k.get("glint", true)):
-					_trap_sfx("glint", 1.25, -10.0, 0.05)
+					_trap_sfx(tr["pos"], "glint", 1.25, -10.0, 0.05)
 			if tr["timer"] <= 0.0:
 				_set_state(tr, "fire", val(tr, "fire") + tr["timer"])
 				tr["hit"] = []
@@ -1699,29 +1699,29 @@ func _warn_sound(tr: Dictionary) -> void:
 	main.tip("hidden_trap" if tr["hidden"] else ("gas" if tr["kind"] == "gas" else "traps"))  # the Entity, the first time
 	match tr["kind"]:
 		"spikes":
-			_trap_sfx("trap_click", 1.0, -2.0 if tr["trigger"] == "plate" else -16.0)  # the plate clicks
+			_trap_sfx(tr["pos"], "trap_click", 1.0, -2.0 if tr["trigger"] == "plate" else -16.0)  # the plate clicks
 		"thorns":
-			_trap_sfx("roll", 0.7, -8.0)  # a rustle
+			_trap_sfx(tr["pos"], "roll", 0.7, -8.0)  # a rustle
 		"flame", "ember":
-			_trap_sfx("burn", 0.8, -14.0)
+			_trap_sfx(tr["pos"], "burn", 0.8, -14.0)
 		"sluice":
-			_trap_sfx("hit_slime", 0.6, -14.0)
+			_trap_sfx(tr["pos"], "hit_slime", 0.6, -14.0)
 		"gust":
-			_trap_sfx("gust", 0.7, -14.0)
+			_trap_sfx(tr["pos"], "gust", 0.7, -14.0)
 		"dart":
-			_trap_sfx("trap_click", 1.6, -12.0)  # the slot cocks
+			_trap_sfx(tr["pos"], "trap_click", 1.6, -12.0)  # the slot cocks
 		"gas", "miasma":
-			_trap_sfx("hiss", 1.0, -6.0 if tr["trigger"] == "plate" else -14.0)  # a hiss
+			_trap_sfx(tr["pos"], "hiss", 1.0, -6.0 if tr["trigger"] == "plate" else -14.0)  # a hiss
 
 
 ## A trap's sound, but only once at a time: a whole row firing together
 ## makes one sound, not ten.
-func _trap_sfx(sound: String, pitch: float, db: float, variance := 0.06) -> void:
+func _trap_sfx(at: Vector2, sound: String, pitch: float, db: float, variance := 0.06) -> void:
 	var now := Time.get_ticks_msec()
 	if now - int(_last_sound.get(sound, -100000)) < 70:
 		return
 	_last_sound[sound] = now
-	main.sfx(sound, pitch, db, variance)
+	main.sfx_at(at, sound, pitch, db, variance)
 
 
 ## Only traps near the climber make noise.
@@ -1740,26 +1740,26 @@ func _fire_effects(tr: Dictionary) -> void:
 		return
 	match tr["kind"]:
 		"gust":
-			_trap_sfx("gust", 1.0, -6.0)
+			_trap_sfx(tr["pos"], "gust", 1.0, -6.0)
 		"sluice":
 			main.fx_burst(pos, tr["dir"] * 120.0, col, 6, 160.0)
-			_trap_sfx("hit_slime", 0.8, -8.0)
+			_trap_sfx(tr["pos"], "hit_slime", 0.8, -8.0)
 		"flame":
-			_trap_sfx("burn", 1.0, -8.0)
+			_trap_sfx(tr["pos"], "burn", 1.0, -8.0)
 		"dart":
-			_trap_sfx("bow", 1.5, -10.0)
+			_trap_sfx(tr["pos"], "bow", 1.5, -10.0)
 		"spikes":
 			main.fx_burst(pos, Vector2.ZERO, col, 4, 120.0)
-			_trap_sfx("trap_spikes", 1.0, -8.0 if tr["trigger"] == "plate" else -16.0)  # (quieter: a row fires many at once)
+			_trap_sfx(tr["pos"], "trap_spikes", 1.0, -8.0 if tr["trigger"] == "plate" else -16.0)  # (quieter: a row fires many at once)
 		"ember":
 			main.fx_burst(pos, Vector2.ZERO, col, 12, 260.0)
-			_trap_sfx("burn", 0.9, -6.0)
+			_trap_sfx(tr["pos"], "burn", 0.9, -6.0)
 		"thorns":
 			main.fx_burst(pos, Vector2.ZERO, col, 10, 160.0)
-			_trap_sfx("hit", 0.7, -6.0)
+			_trap_sfx(tr["pos"], "hit", 0.7, -6.0)
 		"gas", "miasma":
 			main.fx_burst(pos, Vector2.ZERO, col, 10, 90.0)
-			_trap_sfx("hiss", 0.8, -2.0 if tr["trigger"] == "plate" else -10.0)
+			_trap_sfx(tr["pos"], "hiss", 0.8, -2.0 if tr["trigger"] == "plate" else -10.0)
 
 
 ## While a trap fires: everyone in it is caught, once per firing (or per tick, for gas).

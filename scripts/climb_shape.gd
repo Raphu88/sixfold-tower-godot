@@ -278,7 +278,7 @@ func _offer_exit() -> void:
 	main.camp_choosing = true
 	main.card_focus = 1
 	main.tip("regard_exit")
-	main.sfx("ready", 0.6, -2.0, 0.0)
+	main.sfx("cards", 1.0, -2.0)
 
 
 func _offer_lethal() -> void:
@@ -290,7 +290,7 @@ func _offer_lethal() -> void:
 	main.card_focus = 0
 	main.player.set_physics_process(false)
 	main.tip("lethal_again")
-	main.sfx("ready", 0.6, -2.0, 0.0)
+	main.sfx("cards", 1.0, -2.0)
 
 
 ## A card on the exit or Lethal choice (main.gd camp_card).
@@ -327,7 +327,7 @@ func choose(i: int) -> void:
 			main._start_floor(main.floor_num)
 			main.banner = main.proving.arrival_banner([])
 			main.player.set_physics_process(true)
-			main.sfx("warn_knight", 0.5, 0.0, 0.0)
+			main.sfx("on_guard", 0.8, 0.0, 0.0)
 
 
 ## Leaving at the floor-6 Regard: the climb ends as a survived one (paid,
@@ -648,7 +648,7 @@ func spawn_horde(n: int) -> void:
 		main.fx_burst(e.global_position, Vector2.UP, Color(0.75, 0.3, 0.3), 10, 140.0)
 	horde_total += n
 	main.foes_changed()
-	main.sfx("warn_knight", 0.7, 0.0, 0.0)
+	main.sfx("on_guard", 0.9, 0.0, 0.0)
 	main.shake(5.0)
 
 
@@ -735,11 +735,12 @@ func _open() -> void:
 
 
 ## The barrier's sounds (`what`: "up", "hit", "broken", "slip"), by kind: the
-## iron gate clangs and its chains rattle; the ward is the tower's essence,
+## iron gate thuds down in its stone frame with a clang, and its chains rattle
+## (scenery: "slam" is only a beast's blow); the ward is the tower's essence,
 ## so it hums up, rings when struck and shatters like glass.
 const BARRIER_SOUNDS := {
-	"gate": {"up": [["slam", 0.8, -2.0], ["step_chain", 0.55, -4.0]], "hit": [["hit_heavy", 0.7, -4.0]],
-		"broken": [["slam", 0.5, 0.0], ["step_chain", 0.45, -2.0]], "slip": [["slam", 0.6, 0.0]]},
+	"gate": {"up": [["stone_thud", 1.0, -2.0], ["hit_armor", 0.6, -8.0], ["step_chain", 0.55, -4.0]], "hit": [["hit_heavy", 0.7, -4.0]],
+		"broken": [["stone_thud", 0.75, 0.0], ["hit_armor", 0.5, -4.0], ["step_chain", 0.45, -2.0]], "slip": [["stone_thud", 0.85, 0.0]]},
 	"ward": {"up": [["use_ward", 0.8, 0.0]], "hit": [["form_shell", 1.2, -4.0]],
 		"broken": [["glass_break", 0.6, 0.0], ["unmake", 0.8, -4.0]], "slip": [["use_ward", 1.2, -2.0], ["gust", 0.8, -6.0]]},
 }

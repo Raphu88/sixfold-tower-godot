@@ -45,7 +45,7 @@ func _voice(i: int) -> String:
 ## Its warning cry as a blow winds up.
 func _warn(pitch := 1.0, db := -2.0) -> void:
 	if main != null:
-		main.sfx(_voice(2), pitch, db)
+		main.sfx_at(global_position, _voice(2), pitch, db)
 
 
 func _hurt_voice() -> void:
@@ -53,7 +53,7 @@ func _hurt_voice() -> void:
 	if now < voice_at or main == null:
 		return
 	voice_at = now + int(randf_range(450.0, 900.0))
-	main.sfx(_voice(0), 1.0, -2.0)
+	main.sfx_at(global_position, _voice(0), 1.0, -2.0)
 
 
 ## The first time one is near and in sight, the Entity explains it (its tip,

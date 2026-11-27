@@ -398,7 +398,7 @@ func _tick(delta: float, p, hurt: bool) -> void:
 					if pc["t"] <= 0.0 and not done:
 						pc["state"] = "todo"
 						main.fx_text(pc["pos"] + Vector2(0, -30), Objectives.TEXT["lever_fell"], Color(0.85, 0.75, 0.6))
-						main.sfx("slam", 1.3, -8.0)
+						main.sfx_at(pc["pos"], "stone_thud", 1.4, -8.0)
 			if done_count() == pieces.size():
 				_complete()
 				return
@@ -652,7 +652,7 @@ func strike(from: Vector2, dir: Vector2, reach: float, arc_deg: float) -> void:
 		if to.length() > reach + 22.0 or absf(dir.angle_to(to)) > deg_to_rad(arc_deg + 20.0):
 			continue
 		_piece_done(pc)
-		main.sfx("slam", 0.9, -4.0)
+		main.sfx_at(pc["pos"], "stone_thud", 1.1, -4.0)
 		main.shake(2.0)
 
 

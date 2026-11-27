@@ -4,6 +4,7 @@
     tools/fetch_audio_sources.sh .audio_sources
     python3 tools/build_audio.py .audio_sources
     python3 tools/build_audio.py .audio_sources --only=menu,burn    (only these)
+    python3 tools/build_audio.py --shrink    (the 22.05 kHz rule on the files already built)
 
 Each game sound is one or more variants (one is picked at random when it
 plays). Each variant layers recorded clips, optionally with a synthesised
@@ -24,6 +25,15 @@ import sys
 import numpy as np
 
 SR = 32000
+# Effects with nothing to speak of above 10 kHz (most of their energy far
+# below: the low-passed thuds, roars, stone and wind) are written at 22.05
+# kHz instead of 32: about a third smaller on the phone, and nothing is lost
+# (22.05 kHz keeps everything up to about 10.7 kHz). The share of a sound's
+# energy above HIGH_HZ must be under HIGH_DB in every take; the rest stay
+# at 32 kHz. (`--shrink` applies the same rule to the files already built.)
+SR_SMALL = 22050
+HIGH_HZ = 10000
+HIGH_DB = -40.0
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 OUT_SFX = os.path.join(ROOT, "assets", "audio", "sfx")
 OUT_MUSIC = os.path.join(ROOT, "assets", "audio", "music")
@@ -47,6 +57,7 @@ RM = "rd_metalwood/"
 RB = "rd_break/"
 R2 = "rd_sfx2/"
 CB = "combat150/04_magic_spells/"  # lentikula's spell impacts (and CoMiGo's zaps)
+BOOM = "combat150/03_explosions_destruction/low_frequency_explosion_001_48kHz_16bit_1s_a63b8c61_s04.wav"
 AC = "accessory/sfx/"
 DR = "drink/qubodup-bottle-and-drink-sounds/"
 MG = "magical/magical_"
@@ -180,6 +191,14 @@ SOUNDS = {
         (XB_NUT + "3.10+0.25", 0, 300, 1.0), (XB_NUT + "1.90+0.25", -2, 450, 0.95))], "level": -9, "lp": 7000},
     "crossbow_load": {"variants": [v((XB_BOLT + "0.38+0.35", 0, 0, 1.0), (XB_LEVER + "2.34+0.25", -8, 0, 1.0))], "level": -7, "lp": 7000},
     "ready": {"variants": [v((K + "metalClick.ogg", 0, 0, 1.3))], "level": -10, "lp": 7000},
+    # Cards dealt (a camp's, a vault's, the belt's, the exit's and every other
+    # offer of cards): a soft rustle of parchment and two quick flips, not
+    # "ready"'s metal click (kept for things armed and ready).
+    "cards": {"variants": [
+        v((S + "paper_02.ogg", 0, 0, 1.1), (K + "bookFlip3.ogg", -4, 90, 1.15), (K + "bookFlip3.ogg", -6, 170, 1.25)),
+        v((S + "paper_04.ogg", 0, 0, 1.05), (K + "bookFlip2.ogg", -5, 80, 1.2), (K + "bookFlip3.ogg", -6, 160, 1.3)),
+        v((S + "paper_01.ogg", 0, 0, 1.0), (K + "bookFlip3.ogg", -4, 70, 1.1), (K + "bookFlip3.ogg", -7, 150, 1.2)),
+    ], "level": -10, "lp": 7000, "verb": -40},
     # Switching weapons: each kind sounds like what it is.
     "equip_sword": {"variants": [v(M + "Katana Draw Fast.wav@0.30+0.40")], "level": -4, "lp": 7000},
     "equip_dagger": {"variants": [v((T + "seax-unsheathe-02.wav", 0, 0, 1.15))], "level": -10, "lp": 7000},
@@ -215,7 +234,16 @@ SOUNDS = {
     # (two takes: every cast starts with it)
     "charge": {"variants": [v((R + "spell_01.ogg", 0, 0, 0.9)), v((R + "spell_01.ogg", 0, 0, 0.84), (MG + "5.ogg@0+0.5", -14, 0, 1.3))], "level": -9},
     "zap": {"variants": [v((R + "spell_02.ogg", 0, 0, 1.2), (A + "battle/magic1.wav", -6, 0, 1.4)), v((R + "spell_02.ogg", 0, 0, 1.35), (A + "battle/magic1.wav", -6, 0, 1.5))], "level": -5, "lp": 9000},
-    "gust": {"variants": [v(("synth:wind", 0, 0, 1.0), (W + "swish-7.wav", -4, 0, 0.6))], "level": -6},
+    # Wind (wind spells, rolls, traps, storms: about fifty callers): three
+    # recorded takes picked at random (audio.gd VARIANCE widens their pitch):
+    # a stretch of a real windy day swelled into a gust, under a soft breath
+    # of air (rubberduck's air releases, darkened so they read as wind, not
+    # a spray). The last is short, for rolls and quick moves.
+    "gust": {"variants": [
+        v(("windy/windy_ambiance.ogg@33.0+0.8", 0, 0, 1.5), (R2 + "sfx100v2_air_02.ogg@0+0.7", -5, 0, 0.7)),
+        v(("windy/windy_ambiance.ogg@82.0+0.7", 0, 0, 1.7), (R2 + "sfx100v2_air_01.ogg@0+0.6", -6, 0, 0.6)),
+        v(("windy/windy_ambiance.ogg@140.0+0.45", 0, 0, 1.6), (R2 + "sfx100v2_air_03.ogg", -4, 0, 0.75)),
+    ], "level": -7, "lp": 4500, "hp": 150, "verb": -22, "swell": True, "vtrim": [0, 0, -2]},
     # Fire catching and burning: a soft crackle of a real fire (short takes
     # of a crackling fire, a pan's sizzle under some, a breath of flame under
     # others), five takes a little apart in pitch so quick repeats never
@@ -241,6 +269,14 @@ SOUNDS = {
     # danger; good things ring the "chime" below instead.
     "glint": {"variants": [v((S + "metal_11.ogg", 0, 0, 1.25), (A + "inventory/metal-ringing.wav", -14, 0, 1.6))], "level": -7, "verb": -14, "lp": 7000},
     "warn_knight": {"variants": [v((A + "inventory/chainmail1.wav", 0, 0, 0.9), (A + "battle/sword-unsheathe2.wav", -6, 120, 0.85))], "level": -5, "lp": 8000},
+    # "On guard": a fight begins (a duel, a tournament's round, a rival's
+    # challenge, the barrier's horde, the Proving's lethal path, a sealed
+    # wing's rule), a mimic springs, the guardian speaks. A blade drawn over
+    # a low drum-like boom; the knight's armour rattle stays his own tell.
+    "on_guard": {"variants": [
+        v((A + "battle/sword-unsheathe3.wav", 0, 30, 0.95), ("synth:thump", -2, 0, 0.42), (BOOM, -8, 0, 0.9)),
+        v((A + "battle/sword-unsheathe5.wav", 0, 30, 0.9), ("synth:thump", -2, 0, 0.4), (BOOM, -8, 0, 0.85)),
+    ], "level": -5, "lp": 7000, "verb": -12},
     # An archer drawing: the same bow creak as yours, shorter.
     # Enemy archers drawing: the real bow stave only, a little low and soft
     # (the old creak layer and the sped-up draw read as a squeaky spring).
@@ -257,6 +293,13 @@ SOUNDS = {
         v((S + "slam_03.ogg", 0, 0, 0.6), (S + "slam_02.ogg", -4, 30, 0.55), ("synth:thump", 0, 0, 0.5), (R + "stones_01.ogg", -9, 40, 0.8)),
         v((S + "slam_02.ogg", 0, 0, 0.58), (S + "slam_03.ogg", -4, 30, 0.6), ("synth:thump", 0, 0, 0.5), (R + "stones_02.ogg", -9, 40, 0.8)),
     ], "level": -1, "verb": -9, "lp": 4000},
+    # Scenery in stone: walls rising, a lock-in's bars, a pillar or a slab
+    # falling, the stair's gate, an ambush's way shut. Rubble and a dull
+    # thud, no beast in it ("slam" is only a beast's blow you dodge).
+    "stone_thud": {"variants": [
+        v((RB + "bfh1_rock_falling_03.ogg", 0, 0, 0.7), ("synth:thump", -3, 0, 0.6), (R + "stones_03.ogg", -6, 20, 0.7)),
+        v((RB + "bfh1_rock_falling_05.ogg", 0, 0, 0.65), ("synth:thump", -3, 0, 0.55), (R + "stones_04.ogg", -6, 20, 0.7)),
+    ], "level": -4, "verb": -12, "lp": 3500},
     "kill": {"variants": [
         v((S + "slam_01.ogg", 0, 0, 0.8), ("synth:thump", -4, 0, 0.7)),
         v((S + "slam_01.ogg", 0, 0, 0.75), (R + "creature_hurt_02.ogg", -9, 20, 0.8), ("synth:thump", -4, 0, 0.7)),
@@ -746,7 +789,14 @@ def loudness(x):
     return 20 * np.log10(np.sqrt(np.mean(x[loud] ** 2)) + 1e-12)
 
 
-def build_variant(src_root, layers, level, verb, lp=None, hp=None):
+def high_share_db(x, sr=SR):
+    """How much of the sound's energy lies above HIGH_HZ, in dB."""
+    spec = np.abs(np.fft.rfft(x)) ** 2
+    f = np.fft.rfftfreq(len(x), 1 / sr)
+    return 10 * np.log10(spec[f > HIGH_HZ].sum() / (spec.sum() + 1e-20) + 1e-20)
+
+
+def build_variant(src_root, layers, level, verb, lp=None, hp=None, swell=False):
     parts = []
     for src, gain, delay, pitch in layers:
         x = load_layer(src_root, src, pitch)
@@ -759,6 +809,9 @@ def build_variant(src_root, layers, level, verb, lp=None, hp=None):
     mix = mix - np.convolve(mix, np.ones(64) / 64, "same")
     # Per-sound tone: a low-pass tames hiss and harsh highs, a high-pass rumble.
     mix = band(np.concatenate([mix, np.zeros(int(0.02 * SR))]), lp, hp)
+    if swell:  # (a gust: rises and falls away, instead of starting at full)
+        k = np.linspace(0, 1, len(mix))
+        mix *= np.sin(np.pi * k ** 0.7) ** 1.2  # (up in the first third, then dying away)
     # Level everything to the same loudness, then apply this sound's level.
     mix *= 10 ** ((-18 + level - loudness(mix)) / 20)
     mix = reverb(mix, verb)
@@ -770,10 +823,56 @@ def build_variant(src_root, layers, level, verb, lp=None, hp=None):
     return np.tanh(mix * 1.1) / 1.1
 
 
-def write_wav(path, x):
+def build_sound(src_root, name, spec):
+    """Builds every take of a sound and writes them (at 22.05 kHz when no take
+    has anything above HIGH_HZ to lose); returns their paths for the bank."""
+    takes = []
+    for i, layers in enumerate(spec["variants"]):
+        level = spec.get("level", -6) + (spec["vtrim"][i] if "vtrim" in spec else 0)
+        takes.append(build_variant(src_root, layers, level, spec.get("verb", -16), spec.get("lp"), spec.get("hp"), spec.get("swell", False)))
+    small = all(high_share_db(x) < HIGH_DB for x in takes)
+    paths = []
+    for i, x in enumerate(takes):
+        fname = "%s_%d.wav" % (name, i)
+        write_wav(os.path.join(OUT_SFX, fname), x, SR_SMALL if small else SR)
+        paths.append("res://assets/audio/sfx/" + fname)
+    return paths
+
+
+def shrink_existing():
+    """Applies the 22.05 kHz rule to the effects already built (and the hand-
+    made gong), sound by sound, without rebuilding them: a file at a higher
+    rate whose takes all have nothing above HIGH_HZ is resampled in place."""
+    by_sound = {}
+    for f in sorted(os.listdir(OUT_SFX)):
+        if f.endswith(".wav"):
+            by_sound.setdefault(f.rsplit("_", 1)[0], []).append(f)
+    before = after = 0
+    for name, files in by_sound.items():
+        takes = []
+        for f in files:
+            path = os.path.join(OUT_SFX, f)
+            rate = int(subprocess.run(["ffprobe", "-v", "error", "-show_entries", "stream=sample_rate", "-of", "csv=p=0", path],
+                                      capture_output=True, text=True, check=True).stdout.strip())
+            takes.append((path, rate, decode(path, rate)))
+        if all(rate > SR_SMALL and high_share_db(x, rate) < HIGH_DB for _, rate, x in takes):
+            for path, rate, x in takes:
+                before += len(x)
+                # (resampled by ffmpeg, whose filter keeps everything below ~10.7 kHz)
+                tmp = path + ".tmp.wav"
+                subprocess.run(["ffmpeg", "-v", "error", "-y", "-i", path, "-ar", str(SR_SMALL), "-c:a", "pcm_s16le", tmp], check=True)
+                os.replace(tmp, path)
+                after += int(len(x) * SR_SMALL / rate)
+            print("22.05 kHz:", name)
+    print("samples resampled: %d -> %d" % (before, after))
+
+
+def write_wav(path, x, rate=SR):
     pcm = (np.clip(x, -1, 1) * 32000).astype("<i2").tobytes()
-    subprocess.run(["ffmpeg", "-v", "error", "-y", "-f", "s16le", "-ar", str(SR), "-ac", "1", "-i", "-", path],
-                   input=pcm, check=True)
+    cmd = ["ffmpeg", "-v", "error", "-y", "-f", "s16le", "-ar", str(SR), "-ac", "1", "-i", "-"]
+    if rate != SR:
+        cmd += ["-ar", str(rate)]  # (built at SR, written at the smaller rate)
+    subprocess.run(cmd + [path], input=pcm, check=True)
     # Godot imports the effects with QOA compression (about a fifth of the
     # size in the web build, and it sounds the same): a new sound gets an
     # .import file asking for it; Godot fills in the rest on import.
@@ -1020,15 +1119,7 @@ def build_only(src_root, names):
     bank, music = {}, {}
     for name in names:
         if name in SOUNDS:
-            spec = SOUNDS[name]
-            paths = []
-            for i, layers in enumerate(spec["variants"]):
-                level = spec.get("level", -6) + (spec["vtrim"][i] if "vtrim" in spec else 0)
-                x = build_variant(src_root, layers, level, spec.get("verb", -16), spec.get("lp"), spec.get("hp"))
-                fname = "%s_%d.wav" % (name, i)
-                write_wav(os.path.join(OUT_SFX, fname), x)
-                paths.append("res://assets/audio/sfx/" + fname)
-            bank[name] = paths
+            bank[name] = build_sound(src_root, name, SOUNDS[name])
         elif name in MUSIC:
             music[name] = build_music(src_root, name, MUSIC[name])
         elif name.startswith("ambience_") and name[9:] in AMBIENCE:
@@ -1040,6 +1131,9 @@ def build_only(src_root, names):
 
 
 def main():
+    if "--shrink" in sys.argv[1:]:
+        shrink_existing()
+        return
     args = [a for a in sys.argv[1:] if not a.startswith("--only=")]
     only = [n for a in sys.argv[1:] if a.startswith("--only=") for n in a[7:].split(",") if n]
     src_root = args[0] if args else os.path.join(ROOT, ".audio_sources")
@@ -1054,15 +1148,9 @@ def main():
             os.remove(os.path.join(OUT_SFX, f))
     bank = dict(HAND_MADE)
     for name, spec in SOUNDS.items():
-        paths = []
-        for i, layers in enumerate(spec["variants"]):
-            level = spec.get("level", -6) + (spec["vtrim"][i] if "vtrim" in spec else 0)
-            x = build_variant(src_root, layers, level, spec.get("verb", -16), spec.get("lp"), spec.get("hp"))
-            fname = "%s_%d.wav" % (name, i)
-            write_wav(os.path.join(OUT_SFX, fname), x)
-            paths.append("res://assets/audio/sfx/" + fname)
-        bank[name] = paths
-        print("built", name, len(paths))
+        bank[name] = build_sound(src_root, name, spec)
+        print("built", name, len(bank[name]))
+    shrink_existing()  # (the hand-made gong too)
     music = {name: build_music(src_root, name, spec) for name, spec in MUSIC.items()}
     for name, spec in AMBIENCE.items():
         music["ambience_" + name] = build_ambience(src_root, name, spec)

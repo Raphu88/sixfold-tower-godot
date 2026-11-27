@@ -63,7 +63,7 @@ func _act(delta: float, dir: Vector2, dist: float, p) -> void:
 			if dist < float(RULES["nip"]) + 4.0 or state_t <= 0.0:
 				lunge_dir = dir
 				_begin_wind("wind_nip", float(RULES["nip_wind"]))
-				main.sfx("warn_lurker", 1.5, -6.0)
+				main.sfx_at(global_position, "warn_lurker", 1.5, -6.0)
 		"wind_nip":
 			velocity = Vector2.ZERO
 			if not glinted:
@@ -72,7 +72,7 @@ func _act(delta: float, dir: Vector2, dist: float, p) -> void:
 				var reach := float(RULES["nip"])
 				var arc := deg_to_rad(float(RULES["nip_arc"]))
 				main.fx_cone(global_position, lunge_dir, reach + 6.0, arc, Color(1.0, 0.5, 0.5))
-				main.sfx("swing_light", 1.3)
+				main.sfx_at(global_position, "swing_light", 1.3)
 				var to: Vector2 = p.global_position - global_position
 				if to.length() <= reach + p.radius and absf(lunge_dir.angle_to(to)) <= arc:
 					p.receive_attack(dmg, self)
@@ -87,11 +87,11 @@ func _act(delta: float, dir: Vector2, dist: float, p) -> void:
 				state = "puff"
 				state_t = float(RULES["puff"])
 				ink_spot = p.global_position
-				main.sfx("bubble", 0.7, -4.0)
+				main.sfx_at(global_position, "bubble", 0.7, -4.0)
 			elif dist < float(RULES["nip"]) + 4.0 and main.request_attack(self):
 				lunge_dir = dir
 				_begin_wind("wind_nip", float(RULES["nip_wind"]))
-				main.sfx("warn_lurker", 1.5, -6.0)
+				main.sfx_at(global_position, "warn_lurker", 1.5, -6.0)
 			else:
 				_circle(dir, dist, float(RULES["keep"]), speed)
 
@@ -105,7 +105,7 @@ func _spray() -> void:
 	m.beads.append({"pos": ink_spot, "t": float(RULES["cloud_t"]), "max": float(RULES["cloud_t"])})
 	main.fx_burst(global_position, (ink_spot - global_position).normalized(), C_INK, 14, 300.0)
 	main.fx_text(ink_spot + Vector2(0, -50), TEXT["ink"], Color(0.6, 0.5, 0.8))
-	main.sfx("hiss", 0.6, -4.0)
+	main.sfx_at(global_position, "hiss", 0.6, -4.0)
 
 
 ## True while `pos` is inside its cloud (tests, and the Entity's word).
