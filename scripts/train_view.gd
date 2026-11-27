@@ -2576,20 +2576,11 @@ class Volume extends Button:
 			var ring := UI.rounded(r.grow(1.5), 3.0)
 			ring.append(ring[0])
 			draw_polyline(ring, UI.GILT_HI, 1.4, true)
-		if has_focus() and not _touching():
+		if has_focus() and not UI.touch_above(self):
 			var ring := UI.rounded(r.grow(3.0), 4.0)
 			ring.append(ring[0])
 			draw_polyline(ring, Color(UI.GILT, 0.3), 5.0, true)
 			draw_polyline(ring, UI.GILT_HI, 1.6, true)
-
-	## On a phone nothing shows a focus outline.
-	func _touching() -> bool:
-		var n := get_parent()
-		while n != null:
-			if n.has_method("rail_showing"):
-				return n.main != null and n.main.touch_active
-			n = n.get_parent()
-		return false
 
 
 ## The outfitter (Joel: outfitter_name.gd) behind his counter, drawn in
@@ -2887,7 +2878,7 @@ class RuneArtist extends Button:
 		b.line(c + Vector2(r * 0.03, r * 0.12), c + Vector2(r * 0.08, r * 0.32), SKIN.darkened(0.22), maxf(1.0, r * 0.06))
 		b.arc(c + Vector2(0, r * 0.4), r * 0.2, 0.35, PI - 0.35, 8, Color(0.5, 0.22, 0.2), maxf(1.0, r * 0.06))
 		b.flush(self)
-		if hot and not _touching():
+		if hot and not UI.touch_above(self):
 			var ring := UI.rounded(Rect2(Vector2(1, 1), size - Vector2(2, 2)), 6.0)
 			ring.append(ring[0])
 			draw_polyline(ring, Color(UI.GILT, 0.3), 4.0, true)
@@ -2901,15 +2892,6 @@ class RuneArtist extends Button:
 				[0.82, -0.3], [0.5, -0.55], [0.12, -0.5], [-0.05, -0.62], [-0.4, -0.5], [-0.8, -0.3]]:
 			pts.append(c + Vector2(p[0], p[1]) * r)
 		return pts
-
-	## On a phone nothing shows the focus (a tap is its own highlight).
-	func _touching() -> bool:
-		var n := get_parent()
-		while n != null:
-			if n.has_method("rail_showing"):
-				return n.main != null and n.main.touch_active
-			n = n.get_parent()
-		return false
 
 
 ## The outfitter's (Joel's) face, small, beside what he says: drawn in code.

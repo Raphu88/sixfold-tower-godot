@@ -225,10 +225,12 @@ static func pick(_floor_num: int, tid: String) -> String:
 		for k in table:
 			if climb_used.is_empty() or k != climb_used[-1]:
 				fresh[k] = table[k]
-	return _weighted(fresh)
+	return weighted(fresh)
 
 
-static func _weighted(table: Dictionary) -> String:
+## A key of `table` picked at random, each as likely as its weight (floors.gd
+## and cracks.gd pick with it too).
+static func weighted(table: Dictionary) -> String:
 	var total := 0.0
 	for k in table:
 		total += float(table[k])

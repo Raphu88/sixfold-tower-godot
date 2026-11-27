@@ -561,7 +561,7 @@ static func _branching(bond, sp: Dictionary, p) -> void:
 	var rod_hop := maxf(hop, float(rod.get("reach", 0.0)))
 	var st := {"rod_used": false}
 	var range_v = bond.spell_stat(sp, "reach")
-	var first = bond._target_in_aim(p, float(range_v) if range_v != null else 320.0)
+	var first = bond.target_in_aim(p, float(range_v) if range_v != null else 320.0)
 	if first == null:
 		main.fx_text(p.global_position + Vector2(0, -34), TEXT["no_target"], col)
 		return
@@ -867,7 +867,7 @@ static func _seeking_shot(bond, sp: Dictionary, p) -> void:
 		dir = dir.rotated(randf_range(-0.4, 0.4))
 	var q = p.quarry if "quarry" in p and _alive(p.quarry) else null
 	if q == null:
-		q = bond._target_in_aim(p, 700.0)
+		q = bond.target_in_aim(p, 700.0)
 		if q != null:
 			p.quarry = q
 	var held := {"q": q}  # (a lambda mustn't capture a foe that may be freed)

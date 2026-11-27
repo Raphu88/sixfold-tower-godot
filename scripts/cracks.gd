@@ -14,6 +14,7 @@ extends Node2D
 ## (wings.gd). Planned by `plan` (floors.gd), run here (main.gd setup).
 
 const Rooms := preload("res://scripts/rooms.gd")
+const Objectives := preload("res://scripts/objectives.gd")
 const Palette := preload("res://scripts/palette.gd")
 const Essence := preload("res://scripts/essence.gd")
 const Gear := preload("res://scripts/gear.gd")
@@ -70,7 +71,7 @@ static func plan(infos: Array, loops: Array, walk: Array, _kept: Array, arena: R
 	for attempt in want * 8:
 		if out.size() >= want:
 			break
-		var kind := _weighted(style["crack_kinds"])
+		var kind := Objectives.weighted(style["crack_kinds"])
 		var c := {}
 		match kind:
 			"loop":
@@ -82,7 +83,7 @@ static func plan(infos: Array, loops: Array, walk: Array, _kept: Array, arena: R
 		if c.is_empty():
 			continue
 		if c["kind"] != "loop":
-			c["reward"]["kind"] = _weighted(style["alcove"])
+			c["reward"]["kind"] = Objectives.weighted(style["alcove"])
 		for r in c["walk"]:
 			taken.append(_tile_rect(r))
 		for t in c["tiles"]:
@@ -214,18 +215,6 @@ static func _tile_rect(r: Rect2) -> Rect2i:
 	return Rect2i(p, e - p)
 
 
-static func _weighted(table: Dictionary) -> String:
-	var total := 0.0
-	for k in table:
-		total += float(table[k])
-	var roll := randf() * total
-	for k in table:
-		roll -= float(table[k])
-		if roll <= 0.0:
-			return k
-	return table.keys()[0]
-
-
 ## --- in play ---------------------------------------------------------------------------
 
 func _ready() -> void:
@@ -241,10 +230,10 @@ func setup(plan: Dictionary) -> void:
 		c["broken"] = false
 		c["taken"] = false
 		c["dust_t"] = randf_range(RULES["dust_every"][0], RULES["dust_every"][1])
-		_set_solid(c["tiles"], true)
+		main.set_tiles_solid(c["tiles"], true)
 		# An alcove is rock to sight and paths until it opens.
 		if c.has("alcove"):
-			_set_solid(main._tiles_in(c["alcove"]), true)
+			main.set_tiles_solid(main._tiles_in(c["alcove"]), true)
 		c["body"] = _body(c["tiles"])
 		list.append(c)
 	queue_redraw()
@@ -261,16 +250,6 @@ func clear() -> void:
 	knocks = 0
 	broken_count = 0
 	queue_redraw()
-
-
-func _set_solid(tiles: Array, closed: bool) -> void:
-	var gs: Vector2i = main.grid_size
-	for t in tiles:
-		if t.x < 0 or t.y < 0 or t.x >= gs.x or t.y >= gs.y:
-			continue
-		main.solid[t.y * gs.x + t.x] = 1 if closed else 0
-		if main.astar != null:
-			main.astar.set_point_solid(t, closed)
 
 
 func _body(tiles: Array) -> StaticBody2D:
@@ -338,9 +317,9 @@ func crumble(c: Dictionary) -> void:
 		return
 	c["broken"] = true
 	broken_count += 1
-	_set_solid(c["tiles"], false)
+	main.set_tiles_solid(c["tiles"], false)
 	if c.has("alcove"):
-		_set_solid(main._tiles_in(c["alcove"]), false)
+		main.set_tiles_solid(main._tiles_in(c["alcove"]), false)
 	if c.get("body") != null and is_instance_valid(c["body"]):
 		c["body"].queue_free()
 	c["body"] = null

@@ -232,19 +232,11 @@ class Ribbon extends Button:
 		var fs := 15 if compact else 16
 		var tc := Color(1.0, 0.95, 0.82) if on or hot else Color(0.92, 0.85, 0.75, 0.85)
 		UI.draw_label(self, Vector2(6, h * 0.5 + fs * 0.25 - 2.0), text, fs, tc, HORIZONTAL_ALIGNMENT_CENTER, w - 12.0, 3, Color(0, 0, 0, 0.6))
-		if has_focus() and not _touching():
+		if has_focus() and not UI.touch_above(self):
 			var ring := pts.duplicate()
 			ring.append(ring[0])
 			draw_polyline(ring, Color(UI.GILT, 0.3), 5.0, true)
 			draw_polyline(ring, UI.GILT_HI, 1.6, true)
-
-	func _touching() -> bool:
-		var n := get_parent()
-		while n != null:
-			if n.has_method("rail_showing"):
-				return n.main != null and n.main.touch_active
-			n = n.get_parent()
-		return false
 
 
 ## A page turning: a leaf lifts from one side of the spread and sweeps over
@@ -384,16 +376,9 @@ class ClosedBook extends Button:
 				draw_line(s - d * 6.0 * pulse, s + d * 6.0 * pulse, UI.GILT_HI, 1.4, true)
 		var fs := 15 if h > 50.0 else 13
 		UI.draw_label(self, Vector2(0, h - 4.0), text, fs, UI.GOLD if hot else UI.TEXT, HORIZONTAL_ALIGNMENT_CENTER, w, 3, Color(0, 0, 0, 0.7))
-		if has_focus() and not _touching():
+		if has_focus() and not UI.touch_above(self):
 			var ring := UI.rounded(Rect2(Vector2(1, 1), size - Vector2(2, 2)), 6.0)
 			ring.append(ring[0])
 			draw_polyline(ring, Color(UI.GILT, 0.3), 5.0, true)
 			draw_polyline(ring, UI.GILT_HI, 1.6, true)
 
-	func _touching() -> bool:
-		var n := get_parent()
-		while n != null:
-			if n.has_method("rail_showing"):
-				return n.main != null and n.main.touch_active
-			n = n.get_parent()
-		return false

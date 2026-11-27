@@ -178,7 +178,7 @@ func setup(plan: Dictionary) -> void:
 		# Until it opens, the whole passage and room are rock (nothing shows
 		# through: walls, fog and paths all see solid stone), and its first
 		# tile is a wall with a body of its own.
-		_set_solid(_secret_tiles(s), true)
+		main.set_tiles_solid(_secret_tiles(s), true)
 		s["body"] = _close([s["mouth"][0]])
 		s["portal_out"] = _tile_center(s["mouth"][0])
 		Vaults.lay_out(s, main.floor_num, main.first_climb, main.Floors.CELL)  # (its portal back, three chests, its guard)
@@ -233,19 +233,10 @@ func _choose_challenge(w: Dictionary) -> void:
 
 # --- tiles that open and close -----------------------------------------------------
 
-func _set_solid(tiles: Array, closed: bool) -> void:
-	var gs: Vector2i = main.grid_size
-	for t in tiles:
-		if t.x < 0 or t.y < 0 or t.x >= gs.x or t.y >= gs.y:
-			continue
-		main.solid[t.y * gs.x + t.x] = 1 if closed else 0
-		if main.astar != null:
-			main.astar.set_point_solid(t, closed)
-
 
 ## Closes tiles: solid for sight and paths, and a body of their own.
 func _close(tiles: Array) -> StaticBody2D:
-	_set_solid(tiles, true)
+	main.set_tiles_solid(tiles, true)
 	var rect := _tile_rect(tiles)
 	var body := StaticBody2D.new()
 	body.collision_layer = 1
@@ -261,7 +252,7 @@ func _close(tiles: Array) -> StaticBody2D:
 
 
 func _open(tiles: Array, body) -> void:
-	_set_solid(tiles, false)
+	main.set_tiles_solid(tiles, false)
 	if body != null and is_instance_valid(body):
 		body.queue_free()
 	if main.fog != null:
@@ -789,7 +780,7 @@ func _open_secret(s: Dictionary, quiet := false) -> void:
 	Makers.feed(main, "secret_room")
 	var tiles := _secret_tiles(s)
 	tiles.erase(s["mouth"][0])
-	_set_solid(tiles, false)
+	main.set_tiles_solid(tiles, false)
 	if s.has("tithe_tile"):
 		s["tithe_body"] = _close([s["tithe_tile"]])  # (the Tithe Stone stands in the pocket)
 	_open([s["mouth"][0]], s.get("body"))

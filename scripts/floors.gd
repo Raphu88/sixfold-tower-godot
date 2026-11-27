@@ -1522,7 +1522,7 @@ static func _carve_kept(infos: Array, wings: Array, secrets: Array, walk: Array,
 		made_w.append(w)
 	var made_s: Array = []
 	for k in secrets:
-		var content := _weighted(SECRET_CONTENTS)
+		var content := Objectives.weighted(SECRET_CONTENTS)
 		var s := _carve_one(infos, k, SECRET_SIZE, false, 1, taken)
 		if s.is_empty():
 			continue
@@ -1790,7 +1790,7 @@ static func _locks(infos: Array, themes: Array, doors: Array, monsters: Array, w
 			monsters.append_array(kept)
 			if not infos[ri].has("vault_at"):
 				infos[ri]["vault_at"] = Objectives._spot(infos[ri], monsters, 1, true)
-		var kind := _weighted(LOCKS["kinds"])
+		var kind := Objectives.weighted(LOCKS["kinds"])
 		var lock := {"kind": kind, "id": out.size() + 1}
 		if kind == "carried":
 			var carriers: Array = []
@@ -1845,18 +1845,6 @@ static func _tiles_rect(tiles: Array) -> Rect2:
 	for t in tiles:
 		r = r.merge(Rect2(ORIGIN + Vector2(t) * CELL, Vector2(CELL, CELL)))
 	return r
-
-
-static func _weighted(table: Dictionary) -> String:
-	var total := 0.0
-	for k in table:
-		total += float(table[k])
-	var roll := randf() * total
-	for k in table:
-		roll -= float(table[k])
-		if roll <= 0.0:
-			return k
-	return table.keys()[0]
 
 
 ## Which tiles of the floor's grid a rect covers (the same way main.gd

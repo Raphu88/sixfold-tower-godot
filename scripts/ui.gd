@@ -238,6 +238,17 @@ static func theme() -> Theme:
 	return t
 
 
+## True if the menu above `n` (the node with the rail) is on a touch screen:
+## a focused button then draws no focus ring (book.gd, bestiary.gd, train_view.gd).
+static func touch_above(n: Node) -> bool:
+	var at := n.get_parent()
+	while at != null:
+		if at.has_method("rail_showing"):
+			return at.main != null and at.main.touch_active
+		at = at.get_parent()
+	return false
+
+
 # --- panels, buttons, slots ---------------------------------------------------------
 
 static func box(bg: Color, border: Color, radius := 6, border_w := 1, margin := 0.0) -> StyleBoxFlat:

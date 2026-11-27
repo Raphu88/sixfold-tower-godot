@@ -404,7 +404,7 @@ static func _tidebreak(bond, sp: Dictionary, p) -> void:
 static func _leech(bond, _sp: Dictionary, p) -> void:
 	var main = p.main
 	var col: Color = bond.color()
-	var target = bond._target_in_aim(p, float(bond.stat("reach")))
+	var target = bond.target_in_aim(p, float(bond.stat("reach")))
 	if target == null:
 		main.fx_text(p.global_position + Vector2(0, -34), TEXT["no_target"], col)
 		return
@@ -455,7 +455,7 @@ static func _leech(bond, _sp: Dictionary, p) -> void:
 static func _drown(bond, sp: Dictionary, p) -> void:
 	var main = p.main
 	var col: Color = bond.color()
-	var e = bond._target_in_aim(p, float(bond.stat("reach")))
+	var e = bond.target_in_aim(p, float(bond.stat("reach")))
 	if e == null:
 		main.fx_text(p.global_position + Vector2(0, -34), TEXT["no_target"], col)
 		return

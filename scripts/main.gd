@@ -717,6 +717,21 @@ func _is_solid_tile(x: int, y: int) -> bool:
 	return solid[y * grid_size.x + x] == 1
 
 
+## A tile turned to wall or opened (a door, a sealed wing, a cracked wall):
+## the walls and the monsters' paths both follow. Off the grid: nothing.
+func set_tile_solid(t: Vector2i, closed: bool) -> void:
+	if t.x < 0 or t.y < 0 or t.x >= grid_size.x or t.y >= grid_size.y:
+		return
+	solid[t.y * grid_size.x + t.x] = 1 if closed else 0
+	if astar != null:
+		astar.set_point_solid(t, closed)
+
+
+func set_tiles_solid(tiles: Array, closed: bool) -> void:
+	for t in tiles:
+		set_tile_solid(t, closed)
+
+
 func _near_walkable(x: int, y: int) -> bool:
 	for d in [Vector2i(1, 0), Vector2i(-1, 0), Vector2i(0, 1), Vector2i(0, -1), Vector2i(1, 1), Vector2i(-1, -1), Vector2i(1, -1), Vector2i(-1, 1)]:
 		if not _is_solid_tile(x + d.x, y + d.y):
