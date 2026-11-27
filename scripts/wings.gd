@@ -45,6 +45,7 @@ const Gear := preload("res://scripts/gear.gd")
 const Makers := preload("res://scripts/makers.gd")
 const Charms := preload("res://scripts/charms.gd")
 const Vaults := preload("res://scripts/vaults.gd")
+const Objectives := preload("res://scripts/objectives.gd")
 
 ## Every line the wings say, in one place.
 static var TEXT := {
@@ -224,9 +225,9 @@ func _choose_challenge(w: Dictionary) -> void:
 	for id in CONDITIONS:
 		if main.floor_num >= int(CONDITIONS[id]["from"]):
 			table[id] = float(CONDITIONS[id]["weight"])
-	w["condition"] = main.Floors._weighted(table)
+	w["condition"] = Objectives.weighted(table)
 	w["emblem"] = CONDITIONS[w["condition"]]["emblem"]
-	w["fail"] = main.Floors._weighted(FAIL_MODES)
+	w["fail"] = Objectives.weighted(FAIL_MODES)
 	w["waves"] = randi_range(int(WAVES["count"][0]), int(WAVES["count"][1]))
 	w["limit"] = float(CONDITIONS["swift"]["base"]) + float(CONDITIONS["swift"]["per_wave"]) * w["waves"]
 
@@ -669,7 +670,7 @@ func vault_choices(lesser: bool) -> Array:
 		table["scroll"] = float(REWARD["scroll"])
 	if not main.first_climb:
 		table["tincture"] = float(main.Flow.TINCTURE["vault_chance"])
-	match main.Floors._weighted(table):
+	match Objectives.weighted(table):
 		"gear":
 			out.append("gear:" + better_gear())
 		"scroll":
