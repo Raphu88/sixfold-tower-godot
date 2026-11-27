@@ -75,3 +75,5 @@ The interface's three typefaces are under the **SIL Open Font License 1.1** (fre
 | [Grenze Gotisch](https://fonts.google.com/specimen/Grenze+Gotisch) | Omnibus-Type (Renata Polastri, Pablo Ugerman) | every title, heading, label, button, tab and name, banners and the HUD's big words | `assets/fonts/grenze_gotisch/` (Bold) |
 | [Grenze](https://fonts.google.com/specimen/Grenze) | Omnibus-Type (Renata Polastri, Pablo Ugerman) | text: descriptions, hints, numbers and key badges | `assets/fonts/grenze/` (variable; Regular, Medium and SemiBold used) |
 | [Cormorant Garamond](https://fonts.google.com/specimen/Cormorant+Garamond) | Christian Thalmann (Catharsis Fonts) | inscriptions: words written in the world or quoted (rule panels, riddles, the Makers' words, room rules, mottos, the title's tagline) | `assets/fonts/cormorant_garamond/` (Italic, variable; SemiBold used) |
+
+- `assets/audio/sfx/gong_0.wav`: one toll cut from "Frost in the Northern Winter" (Kaiser, CC0), rung as a story scene changes.

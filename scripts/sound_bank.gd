@@ -51,6 +51,7 @@ const SFX := {
 	"burn": ["res://assets/audio/sfx/burn_0.wav", "res://assets/audio/sfx/burn_1.wav", "res://assets/audio/sfx/burn_2.wav", "res://assets/audio/sfx/burn_3.wav", "res://assets/audio/sfx/burn_4.wav"],
 	"hiss": ["res://assets/audio/sfx/hiss_0.wav", "res://assets/audio/sfx/hiss_1.wav"],
 	"glint": ["res://assets/audio/sfx/glint_0.wav"],
+	"gong": ["res://assets/audio/sfx/gong_0.wav"],  # (one of the story track's tolls, cut from story.ogg: a story scene changing)
 	"warn_knight": ["res://assets/audio/sfx/warn_knight_0.wav"],
 	"warn_archer": ["res://assets/audio/sfx/warn_archer_0.wav", "res://assets/audio/sfx/warn_archer_1.wav"],
 	"slime_hop": ["res://assets/audio/sfx/slime_hop_0.wav", "res://assets/audio/sfx/slime_hop_1.wav", "res://assets/audio/sfx/slime_hop_2.wav"],

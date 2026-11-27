@@ -866,7 +866,8 @@ class EndingView extends Control:
 			return
 		page += 1
 		t = 0.0
-		shape.main.sfx("ui_move", 0.6, -4.0, 0.0)
+		if shape.main.audio != null:
+			shape.main.audio.story_gong()  # (the gong rings only as the scene changes)
 
 	func _process(_d: float) -> void:
 		var now := Time.get_ticks_usec()
