@@ -117,7 +117,6 @@ static var TEXT := {
 		"The other will pass through you. Yours settles in your body as core essence and shows as your aura.",
 	],
 	"card_sub": "banked at stairs  ·  your aura grows in six steps",
-	"card_steps": "STEPS",
 	"tap_choose": "Tap to choose",
 	"tap_again": "Tap again to let it in",
 	"press_choose": "Press %d or Enter",

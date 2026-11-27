@@ -728,7 +728,6 @@ static func _fact_soak(main) -> Dictionary:
 ## Money: your crystals and the share that condenses at a stair.
 static func _fact_money(main) -> Dictionary:
 	var prof = main.profile if main != null else null
-	var M = load("res://scripts/menu.gd")
 	var share := Train.condense_share()
 	var sh: Dictionary = Flow.shares(share)
 	return {"crystals": int(prof.crystals_held()) if prof != null else 0, "condense": "%d%%" % int(round(share * 100.0)),

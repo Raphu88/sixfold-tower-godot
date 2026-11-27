@@ -115,9 +115,7 @@ static var TITLE_STOCK := {
 }
 
 static var TEXT := {
-	"rail_title": "Rail",
 	"title_line": "For %s",
-	"shelf_title": "For %s: %s",
 }
 
 # --- rank and title ------------------------------------------------------------------
@@ -134,13 +132,6 @@ static func flavour(profile) -> Dictionary:
 		return {}
 	var id := String(Renown.state(profile).get("worn", ""))
 	return TITLE_STOCK.get(id, {}) if Renown.TITLES.has(id) else {}
-
-
-## The title's name ("the Contender") when it flavours the stock, else "".
-static func flavour_title(profile) -> String:
-	if flavour(profile).is_empty():
-		return ""
-	return Renown.title_name(String(Renown.state(profile).get("worn", "")))
 
 
 ## The line said on the rail for the worn title ("" when it has none).

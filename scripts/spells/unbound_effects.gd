@@ -762,7 +762,7 @@ static func echo_strain(t: Dictionary) -> float:
 
 ## A technique that echoes a bond's spell: after its own cast, a weaker
 ## touch of that spell (ECHO_ACTS). True if it echoed.
-static func cast_echo(t: Dictionary, p, power: float, run) -> bool:
+static func cast_echo(t: Dictionary, p, power: float, _run) -> bool:
 	var r := echo_recipe(t)
 	if r.is_empty():
 		return false

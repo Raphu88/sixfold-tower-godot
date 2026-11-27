@@ -455,7 +455,7 @@ func lay_gauntlet() -> void:
 
 # --- the stages ---------------------------------------------------------------------------
 
-func _process(delta: float) -> void:
+func _process(_delta: float) -> void:
 	if not on or main == null or main.player == null:
 		return
 	var p = main.player

@@ -64,8 +64,6 @@ const RESUME_MS := 4000
 ## The opening's screens (opening.gd): the story track's toll they're on
 ## (-1: none yet). Each screen plays one toll, then holds there (story_toll).
 var toll_at := -1
-## The story track's six tolls: one every this many seconds from its start.
-const TOLL_EVERY := 3.0
 ## Where the story track's pads begin, after its six tolls: every story
 ## moment, the opening included, plays from here (the gongs are rung on their own).
 const STORY_PADS := 18.0

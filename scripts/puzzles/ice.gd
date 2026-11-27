@@ -186,24 +186,6 @@ static func moves(c: int, r: int, rk: Dictionary) -> Dictionary:
 	return dist
 
 
-## Whether every resting place can slide its way off the ice (no dead ends).
-static func escapable(c: int, r: int, rk: Dictionary, dist: Dictionary) -> bool:
-	var free := {}
-	var changed := true
-	while changed:
-		changed = false
-		for s in dist:
-			if free.has(s):
-				continue
-			for d in DIRS:
-				var t := slide_from(s, d, c, r, rk)
-				if t == EXIT or free.has(t):
-					free[s] = true
-					changed = true
-					break
-	return free.size() == dist.size()
-
-
 ## Whether EVERY tile of the ice that isn't rock can slide its way off
 ## (wherever the climber comes to rest: the end of a slide, a monster in
 ## the lane, a blink, the end of a flight). A search backward from the

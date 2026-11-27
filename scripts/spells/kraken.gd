@@ -210,7 +210,7 @@ static func _draw_water(n, at: Vector2, r: float, col: Color, a: float) -> void:
 
 ## Flood: a pool where foes wade slowly (a Coral Trident's chill: enemy.gd
 ## chill_t) and take a little damage every half second. Fliers pass over it.
-static func _flood(bond, sp: Dictionary, p) -> void:
+static func _flood(bond, _sp: Dictionary, p) -> void:
 	var main = p.main
 	var col: Color = bond.color()
 	var radius := float(bond.stat("radius"))
@@ -401,10 +401,10 @@ static func _tidebreak(bond, sp: Dictionary, p) -> void:
 
 ## Leech: clings to the foe you aim at; every second it takes `damage` and
 ## you drink `heal` of it back. Each cast is its own leech.
-static func _leech(bond, sp: Dictionary, p) -> void:
+static func _leech(bond, _sp: Dictionary, p) -> void:
 	var main = p.main
 	var col: Color = bond.color()
-	var target = bond._target_in_aim(p, float(bond.stat("reach")))
+	var target = bond.target_in_aim(p, float(bond.stat("reach")))
 	if target == null:
 		main.fx_text(p.global_position + Vector2(0, -34), TEXT["no_target"], col)
 		return
@@ -455,7 +455,7 @@ static func _leech(bond, sp: Dictionary, p) -> void:
 static func _drown(bond, sp: Dictionary, p) -> void:
 	var main = p.main
 	var col: Color = bond.color()
-	var e = bond._target_in_aim(p, float(bond.stat("reach")))
+	var e = bond.target_in_aim(p, float(bond.stat("reach")))
 	if e == null:
 		main.fx_text(p.global_position + Vector2(0, -34), TEXT["no_target"], col)
 		return

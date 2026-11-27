@@ -32,7 +32,6 @@ const C_SPOT := Color(0.25, 0.12, 0.1)
 
 var kindle_cd := 2.0
 var said_t := 0.0
-var goal_fire := Vector2.INF
 
 
 func setup(k: String, room) -> void:

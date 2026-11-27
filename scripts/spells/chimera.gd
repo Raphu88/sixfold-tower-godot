@@ -86,7 +86,6 @@ static var TEXT := {
 	"harvested": "Harvested: %s",
 	"bud": "Bud: %s",
 	"bud_bare": "Bud: your own flesh",
-	"crippled": "Crippled",
 	"asleep": "Asleep",
 	"woken": "Woken!",
 	"champion": "Champion: %d kills",
@@ -328,7 +327,7 @@ static func _flesh_shell(bond, sp: Dictionary, p) -> void:
 ## Arterial Cut: Sever as ever, bleeding hard (its "bleed" share, bond.gd _sever).
 static func _arterial(bond, _sp: Dictionary, p) -> void:
 	var main = p.main
-	var t = bond._target_in_aim(p, 130.0)
+	var t = bond.target_in_aim(p, 130.0)
 	bond._cast_type(p)
 	if t == null or not is_instance_valid(t) or t.dead:
 		return
@@ -533,7 +532,7 @@ static func _release(bond, p) -> void:
 static func _harvest(bond, p) -> void:
 	var main = p.main
 	var col: Color = bond.color()
-	var t = bond._target_in_aim(p, float(bond.stat("reach")))
+	var t = bond.target_in_aim(p, float(bond.stat("reach")))
 	if t == null:
 		main.fx_text(p.global_position + Vector2(0, -40), TEXT["no_one"], col)
 		return
@@ -608,7 +607,7 @@ static func _bud(bond, p) -> void:
 static func _bloodletting(bond, p) -> void:
 	var main = p.main
 	var col: Color = bond.color()
-	var t = bond._target_in_aim(p, float(bond.stat("reach")))
+	var t = bond.target_in_aim(p, float(bond.stat("reach")))
 	if t == null:
 		main.fx_text(p.global_position + Vector2(0, -40), TEXT["no_one"], col)
 		return
@@ -654,7 +653,7 @@ static func _bloodletting(bond, p) -> void:
 static func _anesthetize(bond, p) -> void:
 	var main = p.main
 	var col: Color = bond.color()
-	var t = bond._target_in_aim(p, float(bond.stat("reach")))
+	var t = bond.target_in_aim(p, float(bond.stat("reach")))
 	if t == null:
 		main.fx_text(p.global_position + Vector2(0, -40), TEXT["no_one"], col)
 		return

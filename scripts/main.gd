@@ -717,6 +717,21 @@ func _is_solid_tile(x: int, y: int) -> bool:
 	return solid[y * grid_size.x + x] == 1
 
 
+## A tile turned to wall or opened (a door, a sealed wing, a cracked wall):
+## the walls and the monsters' paths both follow. Off the grid: nothing.
+func set_tile_solid(t: Vector2i, closed: bool) -> void:
+	if t.x < 0 or t.y < 0 or t.x >= grid_size.x or t.y >= grid_size.y:
+		return
+	solid[t.y * grid_size.x + t.x] = 1 if closed else 0
+	if astar != null:
+		astar.set_point_solid(t, closed)
+
+
+func set_tiles_solid(tiles: Array, closed: bool) -> void:
+	for t in tiles:
+		set_tile_solid(t, closed)
+
+
 func _near_walkable(x: int, y: int) -> bool:
 	for d in [Vector2i(1, 0), Vector2i(-1, 0), Vector2i(0, 1), Vector2i(0, -1), Vector2i(1, 1), Vector2i(-1, -1), Vector2i(1, -1), Vector2i(-1, 1)]:
 		if not _is_solid_tile(x + d.x, y + d.y):
@@ -1070,25 +1085,37 @@ func _separate_bodies() -> void:
 	var bodies: Array = enemies().filter(func(e): return e.airborne <= 0.0 and not e.submerged)
 	if player != null and not player.dead:
 		bodies.append(player)
-	for i in bodies.size():
-		for j in range(i + 1, bodies.size()):
-			var a = bodies[i]
-			var b = bodies[j]
-			var d: Vector2 = b.global_position - a.global_position
-			var min_d: float = a.radius + b.radius
+	# Where each body stands and how big it is, read once (every pair below
+	# reads them; a push moves a body, and its place is read again then).
+	var count := bodies.size()
+	var at := PackedVector2Array()
+	var rad := PackedFloat64Array()
+	at.resize(count)
+	rad.resize(count)
+	for i in count:
+		at[i] = bodies[i].global_position
+		rad[i] = bodies[i].radius
+	for i in count:
+		for j in range(i + 1, count):
+			var d: Vector2 = at[j] - at[i]
+			var min_d: float = rad[i] + rad[j]
 			var dist := d.length()
 			if dist >= min_d:
 				continue
+			var a = bodies[i]
+			var b = bodies[j]
 			var n := d / dist if dist > 0.01 else Vector2.from_angle(randf() * TAU)
 			var overlap := min_d - dist
 			var share: float = b.weight / (a.weight + b.weight)  # a's part of the push
 			# (Never into a wall: walls built this frame don't stop a body yet.)
 			var da: Vector2 = -n * overlap * share
 			var db: Vector2 = n * overlap * (1.0 - share)
-			if not is_solid(a.global_position + da + da.normalized() * a.radius * 0.5):
+			if not is_solid(at[i] + da + da.normalized() * rad[i] * 0.5):
 				a.move_and_collide(da)
-			if not is_solid(b.global_position + db + db.normalized() * b.radius * 0.5):
+				at[i] = a.global_position
+			if not is_solid(at[j] + db + db.normalized() * rad[j] * 0.5):
 				b.move_and_collide(db)
+				at[j] = b.global_position
 
 
 # --- the climb -------------------------------------------------------------
@@ -1631,6 +1658,7 @@ func note_noticed(kind: String, grade: String) -> void:
 
 
 ## How many times the beast noticed you this climb (a grade of `at_least`).
+## (Nothing reads it yet: kept for the summit or the Regard, README "Scenario rooms".)
 func beast_noticed_count(at_least := "bronze") -> int:
 	var rank := {"bronze": 1, "silver": 2, "gold": 3}
 	return noticed.filter(func(n): return int(rank.get(n["grade"], 0)) >= int(rank.get(at_least, 1))).size()
@@ -4479,8 +4507,6 @@ func in_sigil(pos: Vector2) -> bool:
 		if pos.distance_to(s["pos"]) < s["r"]:
 			return true
 	return false
-
-
 
 
 ## Burning floor: hurts the climber standing in it, a little at a time.

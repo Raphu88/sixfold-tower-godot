@@ -88,7 +88,6 @@ static var TEXT := {
 	"makers_stir": "Three wells run wild. Far outside the towers, the Makers stir.",
 	"more_wells": "%d wells run wild now.",
 	"crest": "its well runs wild",
-	"map_sign": "Wild",
 	"help_line": "Its well runs wild: storms, tougher monsters, richer finds.",
 	"placard": "Its well runs wild: storms gather on its floors, its monsters are tougher, its finds richer.",
 	"placard_marked": "Wild essence burns marks.",

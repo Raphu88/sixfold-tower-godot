@@ -82,7 +82,6 @@ static var TEXT := {
 	"bonded": "%s is bonded to you for good",
 	"lead_floor": "Your lead: %s lies somewhere on this floor",
 	"lead_climb": "Your lead: %s lies on floor %d of this tower",
-	"power_fx": "%s",
 	"step": "Awakening %d of %d",
 	"woke": "%s awakens: step %d",
 	"awaken": "Awaken: step %d",

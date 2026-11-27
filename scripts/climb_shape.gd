@@ -151,7 +151,6 @@ static var TEXT := {
 	"horde_done_title": "THE HORDE HAS FALLEN",
 	"horde_done": "The stair opens. The floor's task is skipped.",
 	"refused_lines": ["You slipped past the tower's barrier with no mark.", "%s will not mark you.", "You are Unbound.", "Banked essence fills your six body parts raw."],
-	"maker_soon": "Something has noticed how often you go around the stairs.",
 }
 
 var main

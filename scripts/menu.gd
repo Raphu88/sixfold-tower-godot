@@ -90,7 +90,6 @@ const WIDTHS := {"pause": 440.0, "settings": 660.0, "controls": 660.0, "library"
 ## who carry no marks).
 ## (The Entity's Archive is the Library now: its own page, and a car on the train.)
 const CLIMBER_TABS := [["abilities", "Abilities"], ["tree", "Tree"], ["marks", "Marks"], ["essence", "Essence"], ["record", "Record"], ["deeds", "Deeds"]]
-const MARKS_TAB_INDEX := 2
 const UNBOUND_MARKS_TAB := "Body"
 ## The Unbound's tabs: their Nodes (Body), their Techniques (with what the
 ## Abilities tab shows a marked climber), their Essence (aura, core essence,
@@ -183,10 +182,8 @@ var train_store := "shop"  # the store car: its shelves ("shop") or selling ("se
 var train_bench := "brew"  # the workshop car's counter (bench.gd)
 var train_tower := ""  # the engine: the tower chosen for the next climb
 var bench_pick := 0  # Retrait: which of a piece's traits to replace
-var sell_ask := ""  # (kept for old callers: selling and the bench ask in a pop-up now, ask)
 var train_say := ""  # the outfitter's (or the Entity's) answer to the last choice
 var train_board := "towers"  # the engine's destination board: "towers" or "stations"
-var train_station := ""  # the engine: a station chosen instead of a tower ("" for none)
 # A station between towers (station_page.gd builds its page, station_view.gd
 # draws it behind): while you're at one, the rail lists its stops.
 var station_page
@@ -243,7 +240,6 @@ var pop: Control
 ## The flash on what was just bought, sold or chosen (press_flash.gd, feedback).
 var flash: Control
 var _built_view := ""  # the page (and tab) last built (_view_key): built again as it was, its scroll stays
-var _press_at := Vector2.ZERO  # where the last click or tap let go (feedback flashes the button there)
 var _press_ms := -100000
 var _press_rect := Rect2()  # the button that click or tap pressed
 var _fb_rect := Rect2()  # (Confirm in the pop-up: the button that opened it)
@@ -1071,10 +1067,6 @@ func backdrop_showing() -> bool:
 	return is_open() and backdrop.visible
 
 
-func _from_title() -> bool:
-	return opened_from_title
-
-
 func _wanted_height() -> float:
 	return box.get_combined_minimum_size().y + 4.0
 
@@ -1093,7 +1085,6 @@ func open(which: String, direct := false) -> void:
 	if which == "inventory" and _on_train():
 		which = "loadout"  # (on the train your gear is the Loadout: the pack and stash are the train's)
 	var was_closed := page == ""
-	var prev := page
 	# The same page (and tab) built again after a press: every scroll on it
 	# stays where it was (scroller.gd keep_from); another page starts at its top.
 	var view := _view_key(which)
@@ -1644,7 +1635,6 @@ func pressed_rect() -> Rect2:
 
 ## A click or tap let go at `at` (on `b`, if known): feedback flashes it.
 func _note_press(at: Vector2, b: Control = null) -> void:
-	_press_at = at
 	_press_ms = Time.get_ticks_msec()
 	if b == null:
 		for c in find_children("*", "BaseButton", true, false):

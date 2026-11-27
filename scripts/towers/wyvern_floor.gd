@@ -84,7 +84,6 @@ static var FORGE := {"time": 40.0, "decay": 0.055, "foe_drain": 0.09, "near": 56
 	"gold": 0, "silver": 1}
 static var TEXT := {
 	"crank": "The bridge comes down",
-	"crank_hint": "Strike the crank",
 	"quench": "Quenched",
 	"too_hot": "Too hot!",
 	"roar": "The furnace roars",
@@ -698,7 +697,6 @@ func is_molten(pos: Vector2) -> bool:
 	return molten.has(grid_tile(pos))
 
 
-
 ## main.is_solid: the metal (a raised bridge too) is no ground to stand on.
 func blocks_walking(t: Vector2i) -> bool:
 	return molten.has(t)
@@ -1015,18 +1013,6 @@ func scenario_status(s: Dictionary) -> Dictionary:
 		return {}
 	var lit: int = forge["fires"].filter(func(f): return f > 0.0).size()
 	return {"title": String(TEXT["forge"]), "line": String(TEXT["forge_line"]) % [lit, 3, maxi(0, int(ceil(float(FORGE["time"]) - s["t"])))]}
-
-
-## Where to go: the furnace burning lowest.
-func scenario_goal(s: Dictionary) -> Vector2:
-	if forge.is_empty():
-		return Vector2.INF
-	var fires: Array = forge["fires"]
-	var lo := 0
-	for i in fires.size():
-		if fires[i] < fires[lo]:
-			lo = i
-	return s["furnaces"][lo]
 
 
 # --- the floor bot (tests/floor_bot_driver.gd) ----------------------------------------

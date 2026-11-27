@@ -45,6 +45,7 @@ const Gear := preload("res://scripts/gear.gd")
 const Makers := preload("res://scripts/makers.gd")
 const Charms := preload("res://scripts/charms.gd")
 const Vaults := preload("res://scripts/vaults.gd")
+const Objectives := preload("res://scripts/objectives.gd")
 
 ## Every line the wings say, in one place.
 static var TEXT := {
@@ -178,7 +179,7 @@ func setup(plan: Dictionary) -> void:
 		# Until it opens, the whole passage and room are rock (nothing shows
 		# through: walls, fog and paths all see solid stone), and its first
 		# tile is a wall with a body of its own.
-		_set_solid(_secret_tiles(s), true)
+		main.set_tiles_solid(_secret_tiles(s), true)
 		s["body"] = _close([s["mouth"][0]])
 		s["portal_out"] = _tile_center(s["mouth"][0])
 		Vaults.lay_out(s, main.floor_num, main.first_climb, main.Floors.CELL)  # (its portal back, three chests, its guard)
@@ -224,28 +225,19 @@ func _choose_challenge(w: Dictionary) -> void:
 	for id in CONDITIONS:
 		if main.floor_num >= int(CONDITIONS[id]["from"]):
 			table[id] = float(CONDITIONS[id]["weight"])
-	w["condition"] = main.Floors._weighted(table)
+	w["condition"] = Objectives.weighted(table)
 	w["emblem"] = CONDITIONS[w["condition"]]["emblem"]
-	w["fail"] = main.Floors._weighted(FAIL_MODES)
+	w["fail"] = Objectives.weighted(FAIL_MODES)
 	w["waves"] = randi_range(int(WAVES["count"][0]), int(WAVES["count"][1]))
 	w["limit"] = float(CONDITIONS["swift"]["base"]) + float(CONDITIONS["swift"]["per_wave"]) * w["waves"]
 
 
 # --- tiles that open and close -----------------------------------------------------
 
-func _set_solid(tiles: Array, closed: bool) -> void:
-	var gs: Vector2i = main.grid_size
-	for t in tiles:
-		if t.x < 0 or t.y < 0 or t.x >= gs.x or t.y >= gs.y:
-			continue
-		main.solid[t.y * gs.x + t.x] = 1 if closed else 0
-		if main.astar != null:
-			main.astar.set_point_solid(t, closed)
-
 
 ## Closes tiles: solid for sight and paths, and a body of their own.
 func _close(tiles: Array) -> StaticBody2D:
-	_set_solid(tiles, true)
+	main.set_tiles_solid(tiles, true)
 	var rect := _tile_rect(tiles)
 	var body := StaticBody2D.new()
 	body.collision_layer = 1
@@ -261,7 +253,7 @@ func _close(tiles: Array) -> StaticBody2D:
 
 
 func _open(tiles: Array, body) -> void:
-	_set_solid(tiles, false)
+	main.set_tiles_solid(tiles, false)
 	if body != null and is_instance_valid(body):
 		body.queue_free()
 	if main.fog != null:
@@ -636,6 +628,7 @@ func wing_solved(id: String) -> void:
 		_finish(w, "open", "")
 
 
+## (No puzzle host fails a wing yet: kept for one, README "Sealed wings, vaults and secrets".)
 func wing_failed(id: String) -> void:
 	var w := _wing(id)
 	if w.is_empty() or w["state"] in ["idle", "done"]:
@@ -677,7 +670,7 @@ func vault_choices(lesser: bool) -> Array:
 		table["scroll"] = float(REWARD["scroll"])
 	if not main.first_climb:
 		table["tincture"] = float(main.Flow.TINCTURE["vault_chance"])
-	match main.Floors._weighted(table):
+	match Objectives.weighted(table):
 		"gear":
 			out.append("gear:" + better_gear())
 		"scroll":
@@ -798,7 +791,7 @@ func _open_secret(s: Dictionary, quiet := false) -> void:
 	Makers.feed(main, "secret_room")
 	var tiles := _secret_tiles(s)
 	tiles.erase(s["mouth"][0])
-	_set_solid(tiles, false)
+	main.set_tiles_solid(tiles, false)
 	if s.has("tithe_tile"):
 		s["tithe_body"] = _close([s["tithe_tile"]])  # (the Tithe Stone stands in the pocket)
 	_open([s["mouth"][0]], s.get("body"))

@@ -43,7 +43,6 @@ var start := Vector2i.ZERO
 var goal := Vector2i.ZERO
 var cell := Vector2i.ZERO  # where the crucible rests
 var pos := Vector2.ZERO  # where it's drawn (it slides)
-var slide_to := Vector2i(-1, -1)  # sliding: the cell it's heading for
 var slide_dir := Vector2i.ZERO
 var body: StaticBody2D
 var pours := 0.0  # solved: the pour's glow

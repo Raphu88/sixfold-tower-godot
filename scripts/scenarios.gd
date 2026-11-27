@@ -25,8 +25,8 @@ extends Node2D
 ##             the stones and reach the far gate
 ## A kind with "towers" only turns up in those towers; one with "module" is
 ## planned and run by that tower's floor script (main.tower_floor:
-## scenario_plan, scenario_begin, scenario_tick, scenario_status,
-## scenario_goal), and it draws it too. "seal": its doors shut while it runs.
+## scenario_plan, scenario_begin, scenario_tick, scenario_status), and it
+## draws it too. "seal": its doors shut while it runs.
 ## "weight": how many times likelier it is than one of the shared kinds.
 ## floors.gd fixes scenario rooms (in dead ends first) and asks `plan` for
 ## each one's marks; main.gd runs them through `setup`.
@@ -89,7 +89,6 @@ static var TEXT := {
 	"gauntlet_line": "Wave %d of %d  ·  %d s",
 	"failed": "It's over",
 	"left": "You left the room",
-	"cub": "A small grey creature, all ears",
 	"flood": "Turn the drain wheel before it fills",
 	"flood_line": "Water %d%%  ·  wheel %d%%",
 	"flood_full": "The water closes over you",
@@ -562,22 +561,6 @@ func status() -> Dictionary:
 		"gauntlet":
 			return {"title": TEXT["gauntlet"], "line": TEXT["gauntlet_line"] % [s["wave"], int(cfg["waves"]), int(s["t"])]}
 	return {}
-
-
-## Where the bot (or a test) should go next in the running scenario.
-func goal_point() -> Vector2:
-	if active.is_empty():
-		return Vector2.INF
-	if SCENARIOS[active["kind"]].has("module"):
-		return main.tower_floor.scenario_goal(active) if main.get("tower_floor") != null else Vector2.INF
-	match String(active["kind"]):
-		"collapse", "unseen":
-			return active["end"]
-		"rescue":
-			return cub["pos"] if not cub.get("free", false) else active["start"]
-		"defend":
-			return active["camp"]
-	return Vector2.INF
 
 
 # --- shutting the room ----------------------------------------------------------------

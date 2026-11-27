@@ -288,7 +288,7 @@ static func edit_name(m) -> void:
 
 
 ## Out of the name (Enter, Esc): on to the Dice.
-static func focus_after_name(m) -> void:
+static func focus_after_name(_m) -> void:
 	if _after_name != null and is_instance_valid(_after_name):
 		_after_name.grab_focus()
 

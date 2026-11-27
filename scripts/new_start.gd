@@ -149,10 +149,6 @@ static var TEXT := {
 	"title_empty": "This slot is empty. New Climber begins one here.",
 }
 
-## Placeholder titles from the start (renown.gd TITLES holds them too, with
-## rule "origin"). Their names are the owner's to write.
-const TITLE_IDS := {"family": "family", "hired": "hired"}
-
 
 # --- the settings file: made climbers, the one-time clearing ------------------------
 

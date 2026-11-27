@@ -97,7 +97,6 @@ static var FORKS := {
 ## The few words these spells show in the world.
 static var TEXT := {
 	"backdraft": "Backdraft",
-	"bonfire": "Bonfire",
 	"cauterize": "Cauterized +%d",
 }
 ## Meteor's crater (its Apex): patches of your burning ground in a ring and at the middle.
@@ -566,15 +565,11 @@ static func _flashpoint(bond, p) -> void:
 	var low := clampf(1.0 - p.hp / p.max_hp, 0.0, 1.0)
 	var dmg: float = bond.damage() * (1.0 + 1.5 * low)
 	var r := float(bond.stat("radius"))
-	var hits := 0
 	for e in main.targets():
 		var to: Vector2 = e.global_position - at
 		if to.length() < r + e.radius:
 			e.take_hit(dmg, to.normalized(), 260.0, true)
 			e.ignite(2.0 * bond.power(), 2.0)
-			hits += 1
-	if hits > 0:
-		p.rekindle_fought = true  # (it counts as fighting for Rekindle)
 	var paint := func(n):
 		var k := clampf(n.age / 0.25, 0.0, 1.0)
 		var rr: float = r * (1.0 - pow(1.0 - k, 3.0))

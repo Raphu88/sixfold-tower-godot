@@ -56,7 +56,6 @@ static var TEXT := {
 	"regrows": "Embers knit the bridge back",
 	"storm": "Ember storm! Get behind rock",
 	"sheltered": "Sheltered",
-	"singed": "Caught in the storm",
 }
 ## Monsters the storm doesn't burn (they're fire themselves, or fly above it).
 const FIERY := ["wisp", "cinder", "firebird", "ashwing", "bloomcap", "wyvern", "bat", "gryphon", "flamemoth", "salamander"]
@@ -616,10 +615,6 @@ func scenario_title(s: Dictionary) -> String:
 
 func scenario_status(s: Dictionary) -> Dictionary:
 	return TowerScenarios.status(null, s)
-
-
-func scenario_goal(s: Dictionary) -> Vector2:
-	return TowerScenarios.goal(null, s)
 
 
 ## A scenario that ended: the bridge knits back.

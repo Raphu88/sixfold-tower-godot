@@ -366,7 +366,7 @@ static func tower_back(b, lx: Vector2, f: Vector2, sd: Vector2, light: Vector2, 
 
 ## After the armour: the amulet's glint at the chest, a fine chest piece's
 ## glow along its edge, a named one's gilt line.
-static func tower_chest(b, lx: Vector2, f: Vector2, sd: Vector2, light: Vector2, lk: Dictionary, t := 0.0) -> void:
+static func tower_chest(b, lx: Vector2, f: Vector2, _sd: Vector2, _light: Vector2, lk: Dictionary, t := 0.0) -> void:
 	if not lk.get("gear_on", false):
 		return
 	var r: float = lk.get("torso_r", 8.5)
@@ -387,7 +387,7 @@ static func tower_chest(b, lx: Vector2, f: Vector2, sd: Vector2, light: Vector2,
 
 ## After the head: a miner's candle, a feathered cap's feather, a fine
 ## helm's crest in its rarity's colour.
-static func tower_head(b, hd: Vector2, f: Vector2, sd: Vector2, light: Vector2, lk: Dictionary, t := 0.0) -> void:
+static func tower_head(b, hd: Vector2, f: Vector2, sd: Vector2, _light: Vector2, lk: Dictionary, t := 0.0) -> void:
 	if not lk.get("gear_on", false):
 		return
 	var head: String = lk.get("head", "hood")
@@ -807,7 +807,6 @@ static func _front_weapon(b, lk: Dictionary) -> void:
 	var id: String = lk.get("in_hand", "")
 	if id == "" or id == "fists" or not Weapons.WEAPONS.has(id):
 		return
-	var w: Dictionary = Weapons.WEAPONS[id]
 	var col: Color = lk.get("weapon_col", Palette.STEEL)
 	var steel: Color = col if Weapons.WEAPONS[id]["kind"] == "melee" else Palette.STEEL
 	var edge := _edge(lk, "weapon")

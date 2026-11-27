@@ -52,7 +52,7 @@ static func mode_for(floor_num: int) -> String:
 
 
 ## The kind of test for a floor of a tower (`tid` is the tower's id).
-static func pick(floor_num: int, tid: String) -> String:
+static func pick(_floor_num: int, tid: String) -> String:
 	if forced != "" and TYPES.has(forced):
 		return forced
 	if SIGNATURE.has(tid) and randf() < SIGNATURE_CHANCE:

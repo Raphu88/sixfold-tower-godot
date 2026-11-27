@@ -200,7 +200,6 @@ static var TEXT := {
 	"coming_says": "Not written yet. It will come in a later update.",
 	"echoes": "echoes %s",
 	"variation": "Variation: %s",
-	"no_variation": "No variation",
 }
 
 ## Tower fork alternatives, merged from the content files: bond id -> FORKS entry.

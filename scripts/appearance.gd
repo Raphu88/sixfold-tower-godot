@@ -404,7 +404,6 @@ static var TEXT := {
 	"button": "Appearance",  # on the climber screen
 	"custom": "Your own",
 	"wheel_title": "%s: your own colour",
-	"wheel_hue": "Colour",
 	"wheel_shade": "Brightness",
 	"wheel_strength": "Strength",
 	"wheel_done": "Done",
@@ -504,14 +503,6 @@ static func has_colors(key: String) -> bool:
 ## A swatch that isn't a colour: no trim, or trousers like the tunic, or a beard like the hair.
 static func is_blank(key: String, id: String) -> bool:
 	return (key == "trim" and id == "none") or ((key == "trousers" or key == "beard_color") and id == "match")
-
-
-## The tab a row is on.
-static func tab_of(key: String) -> String:
-	for t in TABS:
-		if key in t[2]:
-			return t[0]
-	return String(TABS[0][0])
 
 
 ## A random look (the name and pronouns are kept).

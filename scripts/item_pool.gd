@@ -130,7 +130,6 @@ static var TEXT := {
 	"edge": "%s: %s",
 	"shot": "%s: %s (a full draw)",
 	"bolt": "%s: %s (every bolt)",
-	"gun_shot": "%s: %s (every shot)",
 	"gun_dry": "Its shots draw on its pool; dry, with no essence of yours, it fires lead and reloads.",
 	"emptied": "%s: its own essence is spent",
 	"filter": "Filter in %d essence",
