@@ -459,7 +459,9 @@ static func _lit(n: Vector3) -> float:
 
 ## The world: an ocean shaded as a sphere (a fine mesh, lit per point),
 ## its turning lands, clouds, the night side and the air round its rim.
-func _globe(b, c: Vector2, r: float, rot: float, ill: float) -> void:
+## (Static: the Regard's glimpse of the fracture draws the same world,
+## fracture.gd draw.)
+static func _globe(b, c: Vector2, r: float, rot: float, ill: float) -> void:
 	var ocean := Color(0.16, 0.34, 0.56)
 	var rings := 7
 	var seg := 36

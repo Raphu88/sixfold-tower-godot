@@ -244,29 +244,42 @@ func _draw() -> void:
 		else:
 			_draw_chest(cb, c, pulse, t)
 	cb.flush(self)
+	# (vaults, bedrolls and traders in the shading toolkit, lit from the
+	# top-left like the room; their rings stay flat)
+	var pb := Draw.Batch.new()
 	for v in vaults:
 		var at: Vector2 = v["pos"]
-		draw_rect(Rect2(at + Vector2(-12, -6), Vector2(24, 18)), Palette.OUTLINE)
-		draw_rect(Rect2(at + Vector2(-10, -4), Vector2(20, 14)), Color(0.48, 0.44, 0.4))
-		draw_rect(Rect2(at + Vector2(-14, -9), Vector2(28, 5)), Color(0.75, 0.62, 0.38))
+		pb.contact(at + Vector2(1, 13), 14.0, 0.38)
+		pb.rect(Rect2(at + Vector2(-12, -6), Vector2(24, 18)), Palette.OUTLINE)
+		pb.box(Rect2(at + Vector2(-10, -4), Vector2(20, 14)), Color(0.48, 0.44, 0.4))
+		pb.rect(Rect2(at + Vector2(-15, -10), Vector2(30, 7)), Palette.OUTLINE)
+		pb.box(Rect2(at + Vector2(-14, -9), Vector2(28, 5)), Color(0.75, 0.62, 0.38), Draw.Shade.METAL)
 		if not v["taken"]:
-			draw_circle(at + Vector2(0, -16), 5.0 + pulse * 1.5, Color(1.0, 0.84, 0.45, 0.9))
+			pb.soft(at + Vector2(0, -16), Vector2.ONE * (11.0 + pulse * 3.0), Color(1.0, 0.84, 0.45, 0.45))
+			pb.ball(at + Vector2(0, -16), 4.6 + pulse * 1.0, Color(1.0, 0.84, 0.45))
 	for r in rests:
 		var at: Vector2 = r["pos"]
 		# A bedroll and a low lamp.
-		draw_rect(Rect2(at + Vector2(-22, -8), Vector2(44, 16)), Color(0.35, 0.42, 0.55))
-		draw_rect(Rect2(at + Vector2(-22, -8), Vector2(12, 16)), Color(0.55, 0.6, 0.7))
-		draw_circle(at + Vector2(28, 0), 5.0, Color(0.7, 0.85, 1.0, 0.6 + 0.3 * pulse))
+		pb.contact(at + Vector2(2, 9), 22.0, 0.3, 0.35)
+		pb.rect(Rect2(at + Vector2(-23, -9), Vector2(46, 18)), Palette.OUTLINE)
+		pb.box(Rect2(at + Vector2(-22, -8), Vector2(44, 16)), Color(0.35, 0.42, 0.55), Draw.Shade.CLOTH)
+		pb.box(Rect2(at + Vector2(-22, -8), Vector2(12, 16)), Color(0.55, 0.6, 0.7), Draw.Shade.CLOTH)
+		pb.soft(at + Vector2(28, 0), Vector2.ONE * 12.0, Color(0.7, 0.85, 1.0, 0.3 + 0.2 * pulse))
+		pb.ball(at + Vector2(28, 0), 4.0, Color(0.7, 0.85, 1.0))
 	for tr in traders:
 		var at: Vector2 = tr["pos"]
 		# A cloaked figure beside a laden pack.
-		draw_circle(at + Vector2(0, 12), 13.0, Color(0, 0, 0, 0.3))
-		draw_colored_polygon(PackedVector2Array([at + Vector2(-11, 12), at + Vector2(0, -14), at + Vector2(11, 12)]), Color(0.36, 0.3, 0.42))
-		draw_circle(at + Vector2(0, -12), 6.0, Color(0.26, 0.22, 0.3))
-		draw_circle(at + Vector2(-2, -12), 1.2, Color(1.0, 0.85, 0.5))
-		draw_circle(at + Vector2(2, -12), 1.2, Color(1.0, 0.85, 0.5))
-		draw_rect(Rect2(at + Vector2(14, -2), Vector2(14, 14)), Color(0.5, 0.38, 0.24))
-		draw_rect(Rect2(at + Vector2(14, -2), Vector2(14, 14)), Palette.OUTLINE, false, 1.5)
+		pb.contact(at + Vector2(1, 12), 12.0, 0.4)
+		pb.poly(PackedVector2Array([at + Vector2(-11, 12), at + Vector2(0, -14), at + Vector2(11, 12)]), Color(0.36, 0.3, 0.42), 1.0, Draw.Shade.CLOTH)
+		pb.ball(at + Vector2(0, -12), 5.6, Color(0.3, 0.25, 0.35))
+		pb.circle(at + Vector2(-2, -12), 1.2, Color(1.0, 0.85, 0.5), 8)
+		pb.circle(at + Vector2(2, -12), 1.2, Color(1.0, 0.85, 0.5), 8)
+		pb.contact(at + Vector2(22, 12), 8.0, 0.35)
+		pb.rect(Rect2(at + Vector2(13, -3), Vector2(16, 16)), Palette.OUTLINE)
+		pb.box(Rect2(at + Vector2(14, -2), Vector2(14, 14)), Color(0.5, 0.38, 0.24), Draw.Shade.CLOTH)
+	pb.flush(self)
+	for tr in traders:
+		var at: Vector2 = tr["pos"]
 		if not tr["used"]:
 			draw_arc(at, 24.0, 0.0, TAU, 24, Color(1.0, 0.84, 0.45, 0.3 + 0.3 * pulse), 2.0)
 
@@ -274,7 +287,8 @@ func _draw() -> void:
 ## Planks across the chasm, rope along both sides (the band runs north-south
 ## when `vertical`, so you cross it east-west).
 func _draw_bridge(r: Rect2, vertical: bool) -> void:
-	draw_rect(r.grow(1.0), Color(0.08, 0.06, 0.05))
+	var b := Draw.Batch.new()  # (wood grain and a lit rope: the shading toolkit)
+	b.rect(r.grow(1.0), Color(0.08, 0.06, 0.05))
 	var wood := Color(0.46, 0.33, 0.2)
 	var n := 6
 	for k in n:
@@ -284,14 +298,15 @@ func _draw_bridge(r: Rect2, vertical: bool) -> void:
 			plank = Rect2(r.position.x + f * r.size.x + 1.0, r.position.y + 2.0, r.size.x / n - 2.0, r.size.y - 4.0)
 		else:
 			plank = Rect2(r.position.x + 2.0, r.position.y + f * r.size.y + 1.0, r.size.x - 4.0, r.size.y / n - 2.0)
-		draw_rect(plank, wood.lightened(0.06 * (k % 2)))
+		b.box(plank, wood.lightened(0.06 * (k % 2)), Draw.Shade.WOOD)
 	var rope := Color(0.7, 0.6, 0.42)
 	if vertical:
-		draw_line(r.position + Vector2(-4, 3), Vector2(r.end.x + 4, r.position.y + 3), rope, 2.0)
-		draw_line(Vector2(r.position.x - 4, r.end.y - 3), r.end + Vector2(4, -3), rope, 2.0)
+		b.bar(r.position + Vector2(-4, 3), Vector2(r.end.x + 4, r.position.y + 3), rope, 2.4)
+		b.bar(Vector2(r.position.x - 4, r.end.y - 3), r.end + Vector2(4, -3), rope, 2.4)
 	else:
-		draw_line(r.position + Vector2(3, -4), Vector2(r.position.x + 3, r.end.y + 4), rope, 2.0)
-		draw_line(Vector2(r.end.x - 3, r.position.y - 4), r.end + Vector2(-3, 4), rope, 2.0)
+		b.bar(r.position + Vector2(3, -4), Vector2(r.position.x + 3, r.end.y + 4), rope, 2.4)
+		b.bar(Vector2(r.end.x - 3, r.position.y - 4), r.end + Vector2(-3, 4), rope, 2.4)
+	b.flush(self)
 
 
 ## A chest (chest_art.gd): shut while its guards stand, its lock glowing and

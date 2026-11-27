@@ -917,11 +917,15 @@ func _draw_over() -> void:
 
 func _draw_brazier(pc: Dictionary, t: float) -> void:
 	var c: Vector2 = pc["pos"]
-	draw_circle(c + Vector2(0, 10), 12.0, Color(0, 0, 0, 0.3))
-	draw_line(c + Vector2(-8, 12), c + Vector2(0, 0), Palette.OUTLINE, 3.0)
-	draw_line(c + Vector2(8, 12), c + Vector2(0, 0), Palette.OUTLINE, 3.0)
-	draw_colored_polygon(PackedVector2Array([c + Vector2(-13, -4), c + Vector2(13, -4), c + Vector2(8, 4), c + Vector2(-8, 4)]), Color(0.32, 0.3, 0.34))
-	draw_line(c + Vector2(-13, -4), c + Vector2(13, -4), Color(0.55, 0.52, 0.56), 2.0)
+	# (the task's pieces use the shading toolkit, lit from the top-left like
+	# the room; their progress rings stay flat)
+	var b := Draw.Batch.new()
+	b.contact(c + Vector2(0, 11), 11.0, 0.4)
+	b.stroke(c + Vector2(-8, 12), c, Color(0.3, 0.28, 0.32), 1.6, Draw.Shade.METAL)
+	b.stroke(c + Vector2(8, 12), c, Color(0.3, 0.28, 0.32), 1.6, Draw.Shade.METAL)
+	b.poly(PackedVector2Array([c + Vector2(-13, -4), c + Vector2(13, -4), c + Vector2(8, 4), c + Vector2(-8, 4)]), Color(0.36, 0.34, 0.38), 1.2, Draw.Shade.METAL)
+	b.line(c + Vector2(-12, -4), c + Vector2(12, -4), Color(0.12, 0.1, 0.12), 2.0)  # (the bowl's dark mouth)
+	b.flush(self)
 	if pc["state"] == "done":
 		var f := 0.6 + 0.4 * sin(t * 10.0 + c.x)
 		draw_circle(c + Vector2(0, -9), 7.0 + 2.0 * f, Color(1.0, 0.5, 0.18, 0.9))
@@ -938,8 +942,11 @@ func _draw_tablet(t: float) -> void:
 	if tablet.is_empty():
 		return
 	var c: Vector2 = tablet["pos"]
-	draw_rect(Rect2(c + Vector2(-13, -18), Vector2(26, 26)), Palette.OUTLINE)
-	draw_rect(Rect2(c + Vector2(-11, -16), Vector2(22, 22)), Color(0.42, 0.4, 0.44))
+	var b := Draw.Batch.new()
+	b.contact(c + Vector2(1, 9), 13.0, 0.35)
+	b.rect(Rect2(c + Vector2(-13, -18), Vector2(26, 26)), Palette.OUTLINE)
+	b.box(Rect2(c + Vector2(-11, -16), Vector2(22, 22)), Color(0.42, 0.4, 0.44))
+	b.flush(self)
 	for i in 3:
 		draw_line(c + Vector2(-7, -11 + i * 6), c + Vector2(7, -11 + i * 6), Color(GOLD, 0.6 if tablet["read"] else 0.9), 1.5)
 	if not tablet["read"]:
@@ -991,12 +998,14 @@ func _glyph(c: Vector2, g: String, col: Color) -> void:
 func _draw_lever(pc: Dictionary, t: float) -> void:
 	var c: Vector2 = pc["pos"]
 	var up: bool = pc["state"] == "done"
-	draw_rect(Rect2(c + Vector2(-10, 2), Vector2(20, 10)), Palette.OUTLINE)
-	draw_rect(Rect2(c + Vector2(-8, 4), Vector2(16, 6)), Color(0.38, 0.35, 0.38))
+	var b := Draw.Batch.new()
+	b.contact(c + Vector2(1, 12), 11.0, 0.35)
+	b.rect(Rect2(c + Vector2(-10, 2), Vector2(20, 10)), Palette.OUTLINE)
+	b.box(Rect2(c + Vector2(-8, 4), Vector2(16, 6)), Color(0.38, 0.35, 0.38), Draw.Shade.METAL)
 	var tip := c + (Vector2(-6, -18) if up else Vector2(10, -6))
-	draw_line(c + Vector2(0, 4), tip, Palette.OUTLINE, 5.0)
-	draw_line(c + Vector2(0, 4), tip, Color(0.6, 0.5, 0.35), 3.0)
-	draw_circle(tip, 4.0, GOLD if up else Color(0.6, 0.3, 0.25))
+	b.stroke(c + Vector2(0, 4), tip, Color(0.6, 0.5, 0.35), 2.6, Draw.Shade.WOOD)
+	b.ball(tip, 3.4, GOLD if up else Color(0.6, 0.3, 0.25))
+	b.flush(self)
 	if up:
 		var k: float = clampf(pc["t"] / float(spec.get("hold", 20.0)), 0.0, 1.0)
 		draw_arc(c, 22.0, -PI * 0.5, -PI * 0.5 + TAU * k, 28, Color(GOLD, 0.8), 2.5)
@@ -1005,33 +1014,46 @@ func _draw_lever(pc: Dictionary, t: float) -> void:
 func _draw_pedestal(c: Vector2, filled: bool) -> void:
 	if c == Vector2.INF:
 		return
-	draw_rect(Rect2(c + Vector2(-11, -6), Vector2(22, 18)), Palette.OUTLINE)
-	draw_rect(Rect2(c + Vector2(-9, -4), Vector2(18, 14)), Color(0.45, 0.42, 0.46))
-	draw_rect(Rect2(c + Vector2(-13, -9), Vector2(26, 5)), Color(0.55, 0.52, 0.56))
+	var b := Draw.Batch.new()
+	b.contact(c + Vector2(1, 12), 13.0, 0.38)
+	b.rect(Rect2(c + Vector2(-11, -6), Vector2(22, 18)), Palette.OUTLINE)
+	b.box(Rect2(c + Vector2(-9, -4), Vector2(18, 14)), Color(0.45, 0.42, 0.46))
+	b.rect(Rect2(c + Vector2(-14, -10), Vector2(28, 7)), Palette.OUTLINE)
+	b.box(Rect2(c + Vector2(-13, -9), Vector2(26, 5)), Color(0.58, 0.55, 0.59))
+	b.flush(self)
 	if not filled:
 		draw_arc(c + Vector2(0, -12), 7.0, 0.0, TAU, 16, Color(GOLD, 0.6), 1.5)
 
 
 func _draw_orb(c: Vector2, t: float) -> void:
-	draw_circle(c, 10.0 + sin(t * 4.0), Color(1.0, 0.8, 0.35, 0.3))
-	draw_circle(c, 7.0, Color(1.0, 0.86, 0.5))
-	draw_circle(c + Vector2(-2, -2), 3.0, Color(1.0, 0.98, 0.85))
+	var b := Draw.Batch.new()
+	b.soft(c, Vector2.ONE * (14.0 + sin(t * 4.0)), Color(1.0, 0.8, 0.35, 0.45))
+	b.ball(c, 7.0, Color(1.0, 0.82, 0.45))
+	b.circle(c + Vector2(-2.4, -2.6), 2.2, Color(1.0, 0.98, 0.88, 0.9), 12)
+	b.flush(self)
 
 
 func _draw_key(c: Vector2, t: float) -> void:
 	var bob := sin(t * 4.0) * 2.0
-	draw_arc(c + Vector2(-5, bob), 4.0, 0.0, TAU, 12, GOLD, 2.5)
-	draw_line(c + Vector2(-1, bob), c + Vector2(9, bob), GOLD, 2.5)
-	draw_line(c + Vector2(6, bob), c + Vector2(6, 4 + bob), GOLD, 2.0)
-	draw_line(c + Vector2(9, bob), c + Vector2(9, 4 + bob), GOLD, 2.0)
+	var b := Draw.Batch.new()
+	b.contact(c + Vector2(2, 8), 8.0, 0.3 - 0.05 * bob)
+	b.soft(c + Vector2(2, bob), Vector2.ONE * 14.0, Color(GOLD, 0.25))
+	b.arc(c + Vector2(-5, bob), 4.0, 0.0, TAU, 12, Palette.OUTLINE, 4.6)
+	b.stroke(c + Vector2(-1, bob), c + Vector2(9, bob), GOLD, 1.8, Draw.Shade.METAL)
+	b.stroke(c + Vector2(6, bob), c + Vector2(6, 4 + bob), GOLD, 1.4, Draw.Shade.METAL)
+	b.stroke(c + Vector2(9, bob), c + Vector2(9, 4 + bob), GOLD, 1.4, Draw.Shade.METAL)
+	b.arc(c + Vector2(-5, bob), 4.0, 0.0, TAU, 12, GOLD, 2.4)
+	b.arc(c + Vector2(-5, bob), 4.0, PI * 1.0, PI * 1.5, 6, GOLD.lightened(0.45), 1.2)
+	b.flush(self)
 
 
 func _draw_stone(pc: Dictionary, t: float) -> void:
 	var c: Vector2 = pc["pos"]
-	draw_circle(c + Vector2(0, 14), 18.0, Color(0, 0, 0, 0.3))
 	var pts := PackedVector2Array([c + Vector2(-12, 14), c + Vector2(-9, -26), c + Vector2(0, -34), c + Vector2(9, -26), c + Vector2(12, 14)])
-	draw_colored_polygon(pts, Color(0.36, 0.33, 0.42))
-	draw_polyline(pts, Palette.OUTLINE, 2.0)
+	var b := Draw.Batch.new()
+	b.contact(c + Vector2(2, 15), 16.0, 0.4)
+	b.poly(pts, Color(0.38, 0.35, 0.44), 1.2)
+	b.flush(self)
 	var col := WARD if stone_awake or pc["state"] == "done" else Color(0.5, 0.45, 0.6)
 	for i in 3:
 		draw_line(c + Vector2(-5, -20 + i * 10), c + Vector2(5, -16 + i * 10), col, 2.0)
@@ -1043,8 +1065,12 @@ func _draw_stone(pc: Dictionary, t: float) -> void:
 func _draw_shard(c: Vector2, t: float) -> void:
 	var bob := sin(t * 3.0 + c.x) * 2.0
 	var pts := PackedVector2Array([c + Vector2(0, -12 + bob), c + Vector2(6, bob), c + Vector2(0, 8 + bob), c + Vector2(-6, bob)])
-	draw_colored_polygon(pts, Color(1.0, 0.85, 0.5, 0.9))
-	draw_polyline(pts + PackedVector2Array([pts[0]]), Palette.OUTLINE, 1.5)
+	var b := Draw.Batch.new()
+	b.contact(c + Vector2(1, 13), 6.0, 0.3)
+	b.soft(c + Vector2(0, bob - 2), Vector2.ONE * 15.0, Color(1.0, 0.85, 0.5, 0.3))
+	b.poly(pts, Color(1.0, 0.85, 0.5), 0.8)
+	b.line(pts[0], pts[2], Color(1.0, 0.97, 0.85, 0.6), 1.0)  # (the facet's edge)
+	b.flush(self)
 
 
 ## A rift: a jagged tear in the floor, violet light welling up, one pip for
@@ -1075,12 +1101,14 @@ func _draw_urn(pc: Dictionary, t: float) -> void:
 			var v := Vector2.from_angle(k * 1.3 + c.x)
 			draw_colored_polygon(PackedVector2Array([c + v * 10.0, c + v * 14.0 + v.orthogonal() * 3.0, c + v * 15.0 - v.orthogonal() * 2.0]), Color(0.55, 0.38, 0.28))
 		return
-	draw_circle(c + Vector2(0, 10), 11.0, Color(0, 0, 0, 0.3))
 	var body := PackedVector2Array([c + Vector2(-5, -14), c + Vector2(5, -14), c + Vector2(6, -10), c + Vector2(11, -2), c + Vector2(9, 9), c + Vector2(-9, 9), c + Vector2(-11, -2), c + Vector2(-6, -10)])
-	draw_colored_polygon(body, Color(0.62, 0.42, 0.3))
-	draw_polyline(body + PackedVector2Array([body[0]]), Palette.OUTLINE, 1.6)
-	draw_line(c + Vector2(-10, -1), c + Vector2(10, -1), Color(0.85, 0.7, 0.45), 2.0)
-	draw_line(c + Vector2(-9, 4), c + Vector2(9, 4), Color(0.4, 0.26, 0.2), 1.5)
+	var b := Draw.Batch.new()
+	b.contact(c + Vector2(1, 10), 10.0, 0.4)
+	b.poly(body, Color(0.62, 0.42, 0.3), 0.8, Draw.Shade.BALL)  # (round clay)
+	b.line(c + Vector2(-10, -1), c + Vector2(10, -1), Color(0.85, 0.7, 0.45), 2.0)
+	b.line(c + Vector2(-9, 4), c + Vector2(9, 4), Color(0.4, 0.26, 0.2), 1.5)
+	b.oval(c + Vector2(0, -13), Vector2(4.2, 1.4), 0.0, Color(0.12, 0.07, 0.05))  # (its mouth)
+	b.flush(self)
 	if pc.get("hum", false):
 		var k := fmod(t * 1.2, 1.0)
 		draw_arc(c, 14.0 + k * 26.0, 0.0, TAU, 24, Color(GOLD, 0.6 * (1.0 - k)), 2.0)
@@ -1103,9 +1131,15 @@ func _draw_wisp(c: Vector2, t: float) -> void:
 
 
 func _draw_reliquary(c: Vector2, taken: bool, pulse: float) -> void:
-	draw_rect(Rect2(c + Vector2(-13, -8), Vector2(26, 20)), Palette.OUTLINE)
-	draw_rect(Rect2(c + Vector2(-11, -6), Vector2(22, 16)), Color(0.5, 0.44, 0.34))
-	draw_rect(Rect2(c + Vector2(-15, -11), Vector2(30, 5)), Color(0.75, 0.62, 0.38))
+	var b := Draw.Batch.new()
+	b.contact(c + Vector2(1, 13), 14.0, 0.38)
+	b.rect(Rect2(c + Vector2(-13, -8), Vector2(26, 20)), Palette.OUTLINE)
+	b.box(Rect2(c + Vector2(-11, -6), Vector2(22, 16)), Color(0.5, 0.44, 0.34), Draw.Shade.WOOD)
+	b.rect(Rect2(c + Vector2(-16, -12), Vector2(32, 7)), Palette.OUTLINE)
+	b.box(Rect2(c + Vector2(-15, -11), Vector2(30, 5)), Color(0.75, 0.62, 0.38), Draw.Shade.METAL)
 	if not taken:
-		draw_circle(c + Vector2(0, -18), 6.0 + pulse * 1.5, Color(GOLD, 0.85))
+		b.soft(c + Vector2(0, -18), Vector2.ONE * (12.0 + pulse * 3.0), Color(GOLD, 0.45))
+		b.ball(c + Vector2(0, -18), 5.0 + pulse * 1.0, GOLD)
+	b.flush(self)
+	if not taken:
 		draw_arc(c, 26.0, 0.0, TAU, 28, Color(GOLD, 0.25 + 0.3 * pulse), 2.0)

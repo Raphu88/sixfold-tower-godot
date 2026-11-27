@@ -394,7 +394,7 @@ func setup_floor(plan: Dictionary) -> void:
 	bar = {"kind": k, "t": 0.0, "window": float(d["window"]), "hp": float(d["hp"]), "dmg": 0.0, "state": "forming",
 		"rect": Rect2(sp + Vector2(-40.0, -30.0), Vector2(80.0, 52.0)), "shudder": 0.0, "said": false}
 	if main.lighting != null:
-		_light = main.lighting.add_light(sp + Vector2(0, 10), 120.0, color(), 0.5, 0.25)
+		_light = main.lighting.add_light(sp + Vector2(0, 10), 120.0, color(), 0.5, 0.12)  # (a soft glow: with the stair's own light a stronger one washed the gate out)
 	queue_redraw()
 	over.queue_redraw()
 
@@ -414,6 +414,8 @@ func _clear() -> void:
 	if _light >= 0 and main.lighting != null:
 		main.lighting.remove_light(_light)
 	_light = -1
+	if main != null and main.room_view != null:
+		main.room_view.stair_barred = false
 	# Wipe the last floor's gate or ward off the screen at once. (It's only
 	# redrawn while a barrier stands, so on a floor with none, a camp, the
 	# practice room, the arena, the Proving or the summit, the old picture
@@ -999,6 +1001,8 @@ func _draw_over() -> void:
 	var r: Rect2 = bar["rect"]
 	drawn = r
 	var st: String = bar["state"]
+	if main.room_view != null:
+		main.room_view.stair_barred = st in ["forming", "up"]  # (a standing gate or ward hides the stair's chain: one sign at a time)
 	var col := color()
 	var b := Draw.Batch.new()
 	var c := r.get_center()
@@ -1032,6 +1036,10 @@ func _draw_over() -> void:
 	if st == "forming":
 		var left := maxf(0.0, float(bar["window"]) - float(bar["t"]))
 		var at := Vector2(c.x, r.position.y - 26.0)
+		# (near the top of the screen it would sit under the HUD's banner and
+		# task line: then it goes just below the barrier instead)
+		if (over.get_global_transform_with_canvas() * at).y < 110.0:
+			at = Vector2(c.x, r.end.y + 24.0)
 		var urgent := clampf(1.0 - left / 10.0, 0.0, 1.0)
 		var rc := UI.GOLD.lerp(Color(1.0, 0.3, 0.25), urgent)
 		over.draw_circle(at, 15.0, Color(0.03, 0.025, 0.05, 0.85))
@@ -1052,18 +1060,22 @@ func _gate_into(b, r: Rect2, k: float, st: String, t: float) -> void:
 	var iron := Color(0.5, 0.48, 0.54)
 	var dark := Color(0.06, 0.05, 0.07)
 	# Posts and lintel.
+	# (shaded iron, lit from the top-left: the shading toolkit's METAL and TUBE)
+	b.contact(Vector2(r.get_center().x, r.end.y + 2.0), r.size.x * 0.5, 0.3, 0.18)
 	for x in [r.position.x, r.end.x - 8.0]:
 		b.rect(Rect2(Vector2(x, r.position.y - 6.0), Vector2(8.0, r.size.y + 6.0)), dark)
-		b.rect(Rect2(Vector2(x + 1.0, r.position.y - 5.0), Vector2(6.0, r.size.y + 4.0)), post)
+		b.box(Rect2(Vector2(x + 1.0, r.position.y - 5.0), Vector2(6.0, r.size.y + 4.0)), post, Draw.Shade.METAL)
 	b.rect(Rect2(Vector2(r.position.x - 4.0, r.position.y - 12.0), Vector2(r.size.x + 8.0, 9.0)), dark)
-	b.rect(Rect2(Vector2(r.position.x - 3.0, r.position.y - 11.0), Vector2(r.size.x + 6.0, 7.0)), post.lightened(0.1))
+	b.box(Rect2(Vector2(r.position.x - 3.0, r.position.y - 11.0), Vector2(r.size.x + 6.0, 7.0)), post.lightened(0.1), Draw.Shade.METAL)
+	for x in [r.position.x + 4.0, r.end.x - 4.0]:
+		b.disc(Vector2(x, r.position.y - 7.5), 1.6, iron.lightened(0.2))  # (rivets)
 	if st == "broken":
 		# Bent bars on the ground before the stair.
 		for i in 6:
 			var x0 := r.position.x + 12.0 + i * 11.0
 			var y0 := r.end.y + 4.0 + float(i % 3) * 4.0
 			b.line(Vector2(x0, y0), Vector2(x0 + 14.0, y0 - 3.0 + float(i % 2) * 6.0), dark, 4.0)
-			b.line(Vector2(x0, y0), Vector2(x0 + 14.0, y0 - 3.0 + float(i % 2) * 6.0), iron, 2.0)
+			b.bar(Vector2(x0, y0), Vector2(x0 + 14.0, y0 - 3.0 + float(i % 2) * 6.0), iron, 2.2)
 		return
 	var bottom := r.position.y - 4.0 + (r.size.y + 2.0) * k
 	if st == "open":
@@ -1072,8 +1084,7 @@ func _gate_into(b, r: Rect2, k: float, st: String, t: float) -> void:
 	for i in bars:
 		var x := r.position.x + 12.0 + float(i) * (r.size.x - 24.0) / float(bars - 1)
 		b.line(Vector2(x, r.position.y - 4.0), Vector2(x, bottom), dark, 6.0)
-		b.line(Vector2(x, r.position.y - 4.0), Vector2(x, bottom), iron, 3.4)
-		b.line(Vector2(x - 0.8, r.position.y - 4.0), Vector2(x - 0.8, bottom), iron.lightened(0.3), 1.0)
+		b.bar(Vector2(x, r.position.y - 4.0), Vector2(x, bottom), iron, 3.6)
 		# Spiked feet.
 		if bottom > r.position.y + 4.0:
 			b.line(Vector2(x - 3.0, bottom - 3.0), Vector2(x, bottom + 4.0), dark, 3.0)
@@ -1084,7 +1095,7 @@ func _gate_into(b, r: Rect2, k: float, st: String, t: float) -> void:
 		var y: float = r.position.y - 4.0 + (bottom - r.position.y + 4.0) * float(yy)
 		if bottom - r.position.y > 10.0:
 			b.line(Vector2(r.position.x + 8.0, y), Vector2(r.end.x - 8.0, y), dark, 6.0)
-			b.line(Vector2(r.position.x + 8.0, y), Vector2(r.end.x - 8.0, y), iron.darkened(0.1), 3.0)
+			b.bar(Vector2(r.position.x + 8.0, y), Vector2(r.end.x - 8.0, y), iron.darkened(0.1), 3.2)
 	if st == "forming":
 		# The gap under it: where a roll goes. A glint along its lowest edge.
 		var glint := 0.5 + 0.5 * sin(t * 6.0)

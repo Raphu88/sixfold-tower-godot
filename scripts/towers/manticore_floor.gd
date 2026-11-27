@@ -1012,11 +1012,32 @@ func _draw() -> void:
 
 
 func _sand_tile(b, r: Rect2, tile: Vector2i, t: float) -> void:
-	b.rect(r, Color(C_SAND, 0.82))
+	# The drift fills the tile, but where it meets bare floor (no sand on
+	# that side) it thins out over a few pixels instead of ending in a hard
+	# square edge; a corner open on two sides comes out rounded.
+	var col := Color(C_SAND, 0.82)
+	var e := 8.0
+	var open := [not _sandy(tile + Vector2i.LEFT), not _sandy(tile + Vector2i.UP), not _sandy(tile + Vector2i.RIGHT), not _sandy(tile + Vector2i.DOWN)]
+	var core := r.grow_individual(-e if open[0] else 0.0, -e if open[1] else 0.0, -e if open[2] else 0.0, -e if open[3] else 0.0)
+	b.rect(core, col)
+	var clear := Color(C_SAND, 0.0)
+	if open[0]:
+		b.grad_rect(Rect2(core.position.x - e, core.position.y, e, core.size.y), clear, col, false)
+	if open[2]:
+		b.grad_rect(Rect2(core.end.x, core.position.y, e, core.size.y), col, clear, false)
+	if open[1]:
+		b.grad_rect(Rect2(core.position.x, core.position.y - e, core.size.x, e), clear, col)
+	if open[3]:
+		b.grad_rect(Rect2(core.position.x, core.end.y, core.size.x, e), col, clear)
 	for k in 3:
 		var y := r.position.y + 8.0 + k * 11.0 + sin(t * 0.4 + tile.x * 1.7 + k) * 1.5
 		b.line(Vector2(r.position.x + 4.0, y), Vector2(r.end.x - 4.0, y + 2.0), Color(C_SAND_DARK, 0.45), 1.5)
 	b.circle(r.position + Vector2(10.0 + (tile.x * 7 % 20), 12.0 + (tile.y * 5 % 18)), 2.0, Color(C_SAND_DARK, 0.5), 6)
+
+
+## Whether a tile holds sand (a drift, or a flagstone crumbled to sand).
+func _sandy(tile: Vector2i) -> bool:
+	return sand.has(tile) or float(crumbles.get(tile, 0.0)) < 0.0
 
 
 func _cracked(b, r: Rect2, tile: Vector2i, v: float) -> void:
