@@ -1569,6 +1569,15 @@ func touches(tr: Dictionary, point: Vector2, rad: float) -> bool:
 	return point.distance_to(tr["pos"]) < reach_of(tr) + rad * 0.5
 
 
+## How far from its spot a trap could reach anything at all (touches() is
+## never true farther than this plus twice the body's radius): a lane is
+## measured to its far end, a circle to its reach.
+func _reach_bound(tr: Dictionary) -> float:
+	if KINDS[tr["kind"]]["shape"] == "lane":
+		return C * (float(tr["len"]) + 1.5)
+	return reach_of(tr)
+
+
 # --- running -----------------------------------------------------------------
 
 ## Called every physics frame by main.gd.
@@ -1666,8 +1675,10 @@ func _stepped_on(tr: Dictionary) -> bool:
 	var p = main.player
 	if p != null and not p.dead and not p.in_air() and p.global_position.distance_to(tr["pos"]) < reach + p.radius * 0.4 and not tr.get("own", false):
 		return true
-	for e in _foes():
-		if _walks(e) and e.global_position.distance_to(tr["pos"]) < reach + e.radius * 0.4:
+	# (every idle plate asks each tick: no new list per plate, the nearness first)
+	var at: Vector2 = tr["pos"]
+	for e in main.enemies():
+		if e.global_position.distance_to(at) < reach + e.radius * 0.4 and not e.is_queued_for_deletion() and _walks(e):
 			return true
 	return false
 
@@ -1771,10 +1782,18 @@ func _hurt_inside(tr: Dictionary) -> void:
 					p.on_leap()
 			else:
 				_catch_player(tr, k)
-	for e in _foes():
-		if tr["hit"].has(e.get_instance_id()):
+	# Each foe: first a quick look whether it's anywhere near (a floor can
+	# hold a hundred traps, most far from every foe), then the real test.
+	var at: Vector2 = tr["pos"]
+	var bound := _reach_bound(tr)
+	for e in main.enemies():  # (not _foes(): no new list for every firing trap each tick)
+		var ep: Vector2 = e.global_position
+		var far: float = bound + 2.0 * float(e.radius)
+		if ep.distance_squared_to(at) > far * far:
 			continue
-		if not touches(tr, e.global_position, e.radius):
+		if e.is_queued_for_deletion() or tr["hit"].has(e.get_instance_id()):
+			continue
+		if not touches(tr, ep, e.radius):
 			continue
 		# Spikes and snares only catch feet; water, fire, darts and gas catch everyone near.
 		if tr["kind"] in ["spikes", "thorns", "sluice"] and not _walks(e):

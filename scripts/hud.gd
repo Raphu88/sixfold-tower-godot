@@ -263,12 +263,14 @@ func _core_signature() -> Array:
 	var p = main.player
 	if p == null or main.title_showing():
 		return [false]
+	var wk: String = p.wkind()  # (asked once each: this runs every frame)
+	var sel: String = p.selected_item()
 	var s := [true, hud_scale, get_viewport_rect().size, Layout.version, main.touch_active, main.pad_active, main.pad_ps,
 		int(ceil(p.hp)), int(round(p.max_health())), p.max_hp, int(p.sta), p.max_sta, int(p.fatigue), p.poison_t > 0.0,
 		snappedf(hp_trail, 0.004), snappedf(sta_trail, 0.01), int(ceil(p.barrier_hp)),
-		p.weapon, Gear.base_id(p.gear.get("offhand", {})), snappedf(p.reload_t, 0.05) if p.wkind() in ["crossbow", "gun"] else 0.0, p.ammo_left() if p.wkind() == "gun" else -1,
-		ItemPool.left(p.weapon_rec()) if p.weapon != "fists" else -1, p.item_power.duplicate(), p.gun_magic() if p.wkind() == "gun" else "",
-		p.selected_item(), p.item_count(p.selected_item()) if p.selected_item() != "" else 0,
+		p.weapon, Gear.base_id(p.gear.get("offhand", {})), snappedf(p.reload_t, 0.05) if wk in ["crossbow", "gun"] else 0.0, p.ammo_left() if wk == "gun" else -1,
+		ItemPool.left(p.weapon_rec()) if p.weapon != "fists" else -1, p.item_power.duplicate(), p.gun_magic() if wk == "gun" else "",
+		sel, p.item_count(sel) if sel != "" else 0,
 		main.profile.path, main.profile.flow_step(), int(main.profile.flow),
 		int(p.vessel.get("amount", 0.0)) if p.item_count("vessel") > 0 else -1]  # (the vessel's gauge)
 	for part in BondScript.Bonds.PARTS:
