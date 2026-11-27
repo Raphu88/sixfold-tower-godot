@@ -226,8 +226,6 @@ static var TEXT := {
 	"heard": "Heard tonight",
 }
 
-static var _rng_seed := 0
-
 
 # --- the climber's record (profile.gd `dining`) ----------------------------------------
 

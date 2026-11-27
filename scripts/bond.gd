@@ -1629,7 +1629,6 @@ func _rekindle(p) -> void:
 	p.rekindle_total = dur
 	p.rekindle_loss = p.max_hp * float(stat("loss"))
 	p.rekindle_lost = 0.0
-	p.rekindle_fought = false
 	p.rekindle_spread = bool(stat("spread"))
 	p.rekindle_burn = float(stat("burn")) * power() if stat("burn") != null else 3.0
 	p.rekindle_r = float(stat("radius")) if stat("radius") != null else 60.0

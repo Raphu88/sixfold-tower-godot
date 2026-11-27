@@ -92,7 +92,6 @@ var query := ""
 var shown := PAGE_ROWS
 var colour_open := ""  # the colour field whose sliders show
 var panel := ""  # "copy", "paste" or ""
-var ask_all := false  # Put all back was pressed once
 var status := ""  # the last thing done (saved, copied, pasted...)
 var notes := {}  # path -> a warning or refusal to show under its field
 var content: VBoxContainer
@@ -611,7 +610,6 @@ func revert_all() -> void:
 
 
 func revert_all_now() -> void:
-	ask_all = false
 	Reg.revert_all()
 	notes.clear()
 	status = TEXT["reverted_all"]
@@ -636,7 +634,6 @@ func set_tab(id: String) -> void:
 	section = ""
 	query = ""
 	shown = PAGE_ROWS
-	ask_all = false
 	m._want_focus = {"meta": "tab", "value": id}
 	m.open("data")
 
@@ -649,7 +646,6 @@ func cycle(by: int) -> void:
 	section = ""
 	query = ""
 	shown = PAGE_ROWS
-	ask_all = false
 	if not m.rail.has_focus_inside():
 		m._want_focus = {"meta": "tab", "value": id}
 	m.open("data")
@@ -954,7 +950,6 @@ func leave() -> void:
 		Reg.save()
 	_refresh_theme()
 	panel = ""
-	ask_all = false
 	said = ""
 	help = false
 

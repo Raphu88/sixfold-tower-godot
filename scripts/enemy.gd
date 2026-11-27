@@ -268,7 +268,6 @@ var overcharge_r := 0.0
 var flinch := 0.0  # knocked off balance by a hit (not open to ripostes)
 var glint := 0.0  # the white flash before a hit, for drawing
 var glinted := false
-var attack_from := Vector2.ZERO  # where a pounce or lunge started
 var face := Vector2.LEFT  # where it's looking, eased toward the climber
 var _venom := 0
 var venom: int:  # Venomist's poison stacks
@@ -796,7 +795,6 @@ func _slime(delta: float, dir: Vector2, dist: float, p) -> void:
 			if _wind(delta, maxf(0.0, dist - (radius + p.radius + 6.0)) / POUNCE_SPEED):
 				state = "pounce"
 				state_t = 0.3
-				attack_from = global_position
 				aim_dir = dir
 				lunge_hit = false
 				main.sfx("slime_hop", randf_range(0.9, 1.15))
@@ -872,7 +870,6 @@ func _knight(delta: float, dir: Vector2, dist: float, p) -> void:
 				state = "lunge"
 				state_t = 0.18
 				lunge_hit = false
-				attack_from = global_position
 		"lunge":
 			state_t -= delta
 			velocity = lunge_dir * LUNGE_SPEED

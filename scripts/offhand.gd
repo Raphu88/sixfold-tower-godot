@@ -459,7 +459,6 @@ static func _wand_hit(_shot, e, id: String, pw: Dictionary) -> void:
 static func tick(p, delta: float) -> void:
 	p.off_cd = maxf(0.0, p.off_cd - delta)
 	p.off_flash = maxf(0.0, p.off_flash - delta)
-	p.guard_on = guarding(p)
 	# The first time a two-handed weapon puts a worn off-hand away: the Entity says why.
 	if not p.has_meta("two_told") and not piece(p).is_empty() and two_handed(String(p.weapon)) and p.main != null and p.main.get("player") == p and not bool(p.main.get("on_train")):
 		p.set_meta("two_told", true)

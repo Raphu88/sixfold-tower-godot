@@ -240,7 +240,6 @@ var pop: Control
 ## The flash on what was just bought, sold or chosen (press_flash.gd, feedback).
 var flash: Control
 var _built_view := ""  # the page (and tab) last built (_view_key): built again as it was, its scroll stays
-var _press_at := Vector2.ZERO  # where the last click or tap let go (feedback flashes the button there)
 var _press_ms := -100000
 var _press_rect := Rect2()  # the button that click or tap pressed
 var _fb_rect := Rect2()  # (Confirm in the pop-up: the button that opened it)
@@ -1637,7 +1636,6 @@ func pressed_rect() -> Rect2:
 
 ## A click or tap let go at `at` (on `b`, if known): feedback flashes it.
 func _note_press(at: Vector2, b: Control = null) -> void:
-	_press_at = at
 	_press_ms = Time.get_ticks_msec()
 	if b == null:
 		for c in find_children("*", "BaseButton", true, false):

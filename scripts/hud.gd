@@ -81,7 +81,6 @@ var main
 var vignette: GradientTexture2D  # (the hurt flash)
 var panel: StyleBoxFlat
 var slot: StyleBoxFlat
-var slot_on: StyleBoxFlat
 var hp_trail := 1.0  # the lagging "damage taken" chunk
 var sta_trail := 1.0
 var show_help := false  # the keyboard controls panel (a setting)
@@ -130,7 +129,6 @@ func _ready() -> void:
 	vignette.height = 128
 	panel = UI.panel()
 	slot = UI.slot()
-	slot_on = UI.slot(true)
 	card_box = UI.card()
 	card_box_on = UI.card(UI.GOLD)
 	# The tooltip: a small ornate card, a gilt hairline inside its edge.
