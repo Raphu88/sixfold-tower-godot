@@ -50,6 +50,7 @@ const Gear := preload("res://scripts/gear.gd")
 const Controls := preload("res://scripts/controls.gd")
 const Unbound := preload("res://scripts/unbound.gd")
 const Story := preload("res://scripts/story_scenes.gd")
+const StairSeal := preload("res://scripts/stair_seal.gd")
 
 ## The first Regard opens this floor of the first climb.
 static var REGARD := {"floor": 6}
@@ -168,12 +169,18 @@ var story_view: Control = null  # the Makers' plea or the final meeting (story_v
 var final_deferred := false  # "Not yet" at the final meeting: it waits for another summit
 var _ending_frame := -1
 var _light := -1
-var over: Node2D  # drawn over the darkness: the barrier and its timer
+var over: Node2D  # drawn over the darkness: the barrier's timer and words
+var bar_node: Node2D  # drawn over the darkness, under `over`: the barrier itself, at the stair seal's weight (stair_seal.gd)
 var drawn := Rect2()  # where the barrier was last drawn (empty: nothing on screen; tests check it sits on the stair)
 
 
 func _ready() -> void:
 	z_index = -2  # (the gate's shadow on the floor; the rest is drawn over the darkness)
+	bar_node = Node2D.new()
+	bar_node.z_as_relative = false
+	bar_node.z_index = 44
+	bar_node.draw.connect(_draw_bar)
+	add_child(bar_node)
 	over = Node2D.new()
 	over.z_as_relative = false
 	over.z_index = 44
@@ -394,8 +401,9 @@ func setup_floor(plan: Dictionary) -> void:
 		"rect": Rect2(sp + Vector2(-40.0, -30.0), Vector2(80.0, 52.0)), "shudder": 0.0, "said": false}
 	if main.lighting != null:
 		_light = main.lighting.add_light(sp + Vector2(0, 10), 120.0, color(), 0.5, 0.12)  # (a soft glow: with the stair's own light a stronger one washed the gate out)
-	queue_redraw()
-	over.queue_redraw()
+	if main.room_view != null:
+		main.room_view.seal_tick(0.0)  # (the stair shows the barrier at once: stair_seal.gd)
+	_redraw_bar()
 
 
 ## A new climb (main.gd _note_climb_start): the death mark's floor starts over.
@@ -419,15 +427,31 @@ func _clear() -> void:
 	# redrawn while a barrier stands, so on a floor with none, a camp, the
 	# practice room, the arena, the Proving or the summit, the old picture
 	# used to linger where the last floor's stair had been.)
+	_redraw_bar()
+
+
+## Redraws the barrier and its words.
+func _redraw_bar() -> void:
 	queue_redraw()
 	if over != null:
 		over.queue_redraw()
+	if bar_node != null:
+		bar_node.modulate.a = _bar_weight()
+		bar_node.queue_redraw()
+
+
+## How much of the barrier shows: the stair seal's weight for it (it fades as
+## the next lock comes in once it lifts or breaks: stair_seal.gd).
+func _bar_weight() -> float:
+	if main == null or main.room_view == null:
+		return 1.0
+	return float(main.room_view.seal_mix.get("barrier", 1.0))
 
 
 ## The barrier's colour: iron for a gate, the tower's essence for a ward.
 func color() -> Color:
 	if bar.get("kind", "gate") == "ward":
-		return Essence.color(String(main.tower_data().get("essence", "air"))).lightened(0.15)
+		return StairSeal.ward_color(String(main.tower_data().get("essence", "air")))  # (saturated: an Iron or Air ward washed out to white)
 	return Color(0.62, 0.6, 0.66)
 
 
@@ -463,7 +487,7 @@ func _physics_process(delta: float) -> void:
 	var st: String = bar["state"]
 	if bar["shudder"] > 0.0:
 		bar["shudder"] = maxf(0.0, float(bar["shudder"]) - delta)
-	over.queue_redraw()
+	_redraw_bar()
 	if st in ["slipped", "broken"]:
 		if not refusing and horde_total > 0 and not horde_live():
 			_horde_fell()
@@ -992,17 +1016,15 @@ func _draw() -> void:
 	pass
 
 
-## Over the darkness: the gate or the ward as it forms, its timer, cracks.
-func _draw_over() -> void:
-	drawn = Rect2()
-	if bar.is_empty() or main == null:
+## Over the darkness, under the barrier's words: the gate or the ward as it
+## forms, and its cracks (stair_seal.gd draws them; this node's alpha is the
+## seal's weight for the barrier, so it fades as the next lock comes in).
+func _draw_bar() -> void:
+	if bar.is_empty() or main == null or bar_node.modulate.a <= 0.01:
 		return
 	var t := Time.get_ticks_msec() * 0.001
 	var r: Rect2 = bar["rect"]
-	drawn = r
 	var st: String = bar["state"]
-	if main.room_view != null:
-		main.room_view.stair_barred = st in ["forming", "up"]  # (a standing gate or ward hides the stair's chain: one sign at a time)
 	var col := color()
 	var b := Draw.Batch.new()
 	var c := r.get_center()
@@ -1015,9 +1037,9 @@ func _draw_over() -> void:
 	if st == "open":
 		k = 0.0
 	if bar["kind"] == "gate":
-		_gate_into(b, r, k, st, t)
+		StairSeal.gate_into(b, r, k, st, t)
 	else:
-		_ward_into(b, r, k, st, t, col)
+		StairSeal.ward_into(b, r, k, st, t, col)
 	# Cracks, by how much it has taken.
 	var dmg := float(bar["dmg"])
 	if dmg > 0.0 and st in ["forming", "up"]:
@@ -1030,7 +1052,22 @@ func _draw_over() -> void:
 			b.line(c, p1, Color(0.04, 0.03, 0.05, 0.85), 2.4)
 			b.line(p1, p2, Color(0.04, 0.03, 0.05, 0.85), 1.8)
 			b.line(c, p1, Color(col.lightened(0.4), 0.5 + 0.4 * dk), 1.0)
-	b.flush(over)
+	b.flush(bar_node)
+
+
+## Over the barrier: its timer counting down and what to do about it, or the
+## horde left to beat.
+func _draw_over() -> void:
+	drawn = Rect2()
+	if bar.is_empty() or main == null:
+		return
+	var r: Rect2 = bar["rect"]
+	drawn = r
+	var st: String = bar["state"]
+	if main.room_view != null:
+		main.room_view.stair_barred = st in ["forming", "up"]  # (a standing gate or ward: the stair's seal shows only it, stair_seal.gd)
+	var c := r.get_center()
+	var k := clampf(float(bar["t"]) / maxf(float(bar["window"]), 0.01), 0.0, 1.0)
 	# The timer: a ring over the barrier counting down, gold to red, and its seconds.
 	var font := UI.font("display")
 	if st == "forming":
@@ -1051,90 +1088,3 @@ func _draw_over() -> void:
 	elif st in ["slipped", "broken"] and horde_total > 0 and not refusing:
 		var label2 := String(TEXT["horde_left"]) % horde_left()
 		UI.draw_label(over, Vector2(c.x - 90.0, r.position.y - 20.0), label2, 14, Color(1.0, 0.5, 0.42), HORIZONTAL_ALIGNMENT_CENTER, 180.0, 4)
-
-
-## The iron gate: two posts and a lintel; its bars come down as it forms
-## (`k` 0..1), slammed shut behind a slip, bent and scattered once broken.
-func _gate_into(b, r: Rect2, k: float, st: String, t: float) -> void:
-	var post := Color(0.32, 0.3, 0.35)
-	var iron := Color(0.5, 0.48, 0.54)
-	var dark := Color(0.06, 0.05, 0.07)
-	# Posts and lintel.
-	# (shaded iron, lit from the top-left: the shading toolkit's METAL and TUBE)
-	b.contact(Vector2(r.get_center().x, r.end.y + 2.0), r.size.x * 0.5, 0.3, 0.18)
-	for x in [r.position.x, r.end.x - 8.0]:
-		b.rect(Rect2(Vector2(x, r.position.y - 6.0), Vector2(8.0, r.size.y + 6.0)), dark)
-		b.box(Rect2(Vector2(x + 1.0, r.position.y - 5.0), Vector2(6.0, r.size.y + 4.0)), post, Draw.Shade.METAL)
-	b.rect(Rect2(Vector2(r.position.x - 4.0, r.position.y - 12.0), Vector2(r.size.x + 8.0, 9.0)), dark)
-	b.box(Rect2(Vector2(r.position.x - 3.0, r.position.y - 11.0), Vector2(r.size.x + 6.0, 7.0)), post.lightened(0.1), Draw.Shade.METAL)
-	for x in [r.position.x + 4.0, r.end.x - 4.0]:
-		b.disc(Vector2(x, r.position.y - 7.5), 1.6, iron.lightened(0.2))  # (rivets)
-	if st == "broken":
-		# Bent bars on the ground before the stair.
-		for i in 6:
-			var x0 := r.position.x + 12.0 + i * 11.0
-			var y0 := r.end.y + 4.0 + float(i % 3) * 4.0
-			b.line(Vector2(x0, y0), Vector2(x0 + 14.0, y0 - 3.0 + float(i % 2) * 6.0), dark, 4.0)
-			b.bar(Vector2(x0, y0), Vector2(x0 + 14.0, y0 - 3.0 + float(i % 2) * 6.0), iron, 2.2)
-		return
-	var bottom := r.position.y - 4.0 + (r.size.y + 2.0) * k
-	if st == "open":
-		bottom = r.position.y + 2.0
-	var bars := 7
-	for i in bars:
-		var x := r.position.x + 12.0 + float(i) * (r.size.x - 24.0) / float(bars - 1)
-		b.line(Vector2(x, r.position.y - 4.0), Vector2(x, bottom), dark, 6.0)
-		b.bar(Vector2(x, r.position.y - 4.0), Vector2(x, bottom), iron, 3.6)
-		# Spiked feet.
-		if bottom > r.position.y + 4.0:
-			b.line(Vector2(x - 3.0, bottom - 3.0), Vector2(x, bottom + 4.0), dark, 3.0)
-			b.line(Vector2(x + 3.0, bottom - 3.0), Vector2(x, bottom + 4.0), dark, 3.0)
-			b.line(Vector2(x - 2.5, bottom - 3.0), Vector2(x, bottom + 3.5), iron.lightened(0.25), 1.6)
-			b.line(Vector2(x + 2.5, bottom - 3.0), Vector2(x, bottom + 3.5), iron.lightened(0.25), 1.6)
-	for yy in [0.3, 0.7]:
-		var y: float = r.position.y - 4.0 + (bottom - r.position.y + 4.0) * float(yy)
-		if bottom - r.position.y > 10.0:
-			b.line(Vector2(r.position.x + 8.0, y), Vector2(r.end.x - 8.0, y), dark, 6.0)
-			b.bar(Vector2(r.position.x + 8.0, y), Vector2(r.end.x - 8.0, y), iron.darkened(0.1), 3.2)
-	if st == "forming":
-		# The gap under it: where a roll goes. A glint along its lowest edge.
-		var glint := 0.5 + 0.5 * sin(t * 6.0)
-		b.line(Vector2(r.position.x + 8.0, bottom + 3.0), Vector2(r.end.x - 8.0, bottom + 3.0), Color(1.0, 0.85, 0.5, 0.35 + 0.4 * glint), 1.5)
-	if st == "slipped":
-		b.line(Vector2(r.position.x + 8.0, r.end.y), Vector2(r.end.x - 8.0, r.end.y), Color(1.0, 0.4, 0.3, 0.6 + 0.3 * sin(t * 5.0)), 2.0)
-
-
-## The ward: a pane of the tower's essence rising from the floor (`k`),
-## lattice-lit, pulsing once up; shards on the floor once broken.
-func _ward_into(b, r: Rect2, k: float, st: String, t: float, col: Color) -> void:
-	if st == "broken":
-		for i in 9:
-			var at := Vector2(r.position.x + 8.0 + fmod(i * 23.7, r.size.x - 16.0), r.end.y + 4.0 + fmod(i * 7.3, 12.0))
-			var fade := 0.6
-			b.line(at, at + Vector2(5.0, -3.0).rotated(i * 0.9), Color(col, fade), 2.0)
-		return
-	if st == "open":
-		return
-	var h := r.size.y * k
-	var top := r.end.y - h
-	var pulse := 0.5 + 0.5 * sin(t * (3.0 if st == "forming" else 1.6))
-	b.rect(Rect2(Vector2(r.position.x - 4.0, top), Vector2(r.size.x + 8.0, h)), Color(col, 0.26 + 0.12 * pulse))
-	b.rect(Rect2(Vector2(r.position.x - 4.0, top), Vector2(3.0, h)), Color(col.lightened(0.4), 0.8))
-	b.rect(Rect2(Vector2(r.end.x + 1.0, top), Vector2(3.0, h)), Color(col.lightened(0.4), 0.8))
-	# A lattice of light.
-	var step := 10.0
-	var x := r.position.x
-	while x <= r.end.x + 0.1:
-		b.line(Vector2(x, maxf(top, r.position.y)), Vector2(x, r.end.y), Color(col.lightened(0.3), 0.25 + 0.2 * pulse), 1.0)
-		x += step
-	var y := r.end.y
-	while y >= top:
-		b.line(Vector2(r.position.x, y), Vector2(r.end.x, y), Color(col.lightened(0.3), 0.2 + 0.15 * pulse), 1.0)
-		y -= step
-	# Its rising edge, bright, and runes at its feet.
-	b.line(Vector2(r.position.x, top), Vector2(r.end.x, top), Color(col.lightened(0.5), 0.7 + 0.3 * pulse), 2.0)
-	for i in 5:
-		var rx := r.position.x + 8.0 + i * (r.size.x - 16.0) / 4.0
-		b.dot(Vector2(rx, r.end.y + 3.0), 2.2, Color(col.lightened(0.4), 0.6 + 0.4 * sin(t * 4.0 + i)))
-	if st == "slipped":
-		b.line(Vector2(r.position.x, r.end.y), Vector2(r.end.x, r.end.y), Color(1.0, 0.4, 0.3, 0.6 + 0.3 * sin(t * 5.0)), 2.0)

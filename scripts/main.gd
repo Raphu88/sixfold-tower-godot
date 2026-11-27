@@ -463,6 +463,7 @@ func _ready() -> void:
 	player_start = Vector2(room.get_center().x, room.end.y - 60.0)
 	stair_pos = Vector2(room.get_center().x, room.position.y + 34.0)
 	room_view.stair_pos = stair_pos
+	room_view.seal_new_floor()  # (the new stair shows its lock at once: stair_seal.gd)
 	player = PlayerScript.new()
 	player.main = self
 	player.position = Vector2(300, 365)  # floor 1 starts on the left, facing the fight
@@ -1227,6 +1228,7 @@ func _start_floor(n: int) -> void:
 	player_start = start if plan.has("start") else open_start
 	stair_pos = plan.get("stair", Vector2(OPEN_ROOM.get_center().x, OPEN_ROOM.position.y + 34.0))
 	room_view.stair_pos = stair_pos
+	room_view.seal_new_floor()  # (the new stair shows its lock at once: stair_seal.gd)
 	# A good room's essence cache, if this floor has one.
 	side_room = plan.get("cache_room", Rect2())
 	cache = {}

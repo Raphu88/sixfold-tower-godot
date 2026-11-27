@@ -88,6 +88,7 @@ const STATION_FOOT := [["leave_station", "Back to the train", "Train", "", "trai
 const FOOT_QUIT := ["quit", "Quit game", "Quit", "", "quit"]
 const TEXT := {
 	"unnamed": "Unnamed climber",
+	"rank_line": "Renown: %s  ·  %d",  # under the marks in the rail's header (marks and best floor are the Climber's Book's line)
 	"on_train": "On the train",
 	"first_climb": "The first climb",
 	"place": "%s  ·  floor %d",
@@ -1175,11 +1176,19 @@ class RailIdent extends Button:
 			i += 1
 		b.flush(self)
 		if not narrow and not rail.on_end:
-			var line := "%d of 6 marks  ·  best floor %d" % [prof.bonds.size(), prof.best_floor]
+			# (marks and best floor are the Climber's Book's header line, and
+			# the medallions above show the marks: here, the renown rank)
+			var line := header_line(prof)
 			UI.draw_text(self, UI.font("body"), Vector2(x, cy + r + 18.0), line, HORIZONTAL_ALIGNMENT_LEFT, w, 13, UI.DIM)
 
 	## The smallest a climber's name is drawn before it's shortened: [phone, computer].
 	const NAME_MIN := [12, 18]
+
+	## The line under the header's marks: the renown rank and its points (the
+	## marks and the best floor are said once, in the Climber's Book's header).
+	static func header_line(prof) -> String:
+		var Renown = load("res://scripts/renown.gd")
+		return String(load("res://scripts/rail.gd").TEXT["rank_line"]) % [Renown.rank_name(Renown.rank(prof)), Renown.points(prof)]
 
 	static func _fit(f: Font, t: String, w: float, fs: int, ci: CanvasItem = null) -> String:
 		if f.get_string_size(t, HORIZONTAL_ALIGNMENT_LEFT, -1, fs).x <= w:

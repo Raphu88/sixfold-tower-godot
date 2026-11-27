@@ -1401,6 +1401,7 @@ func goal_line() -> String:
 
 
 var goal_rect := Rect2()  # the top lane's stack as last drawn (screen px): the stair arrow keeps off it
+var arrow_rect := Rect2()  # the edge arrow and its label as last drawn (screen px): words in the world fade under it (fx.gd)
 
 
 ## Where the arrow at the screen's edge points: the floor's task's nearest
@@ -1418,6 +1419,7 @@ func arrow_goal() -> Array:
 ## Rooms floors are bigger than the screen: an arrow at the screen edge
 ## points the way to the task's next piece, then to the open stair.
 func _draw_stair_arrow(size: Vector2, _font: Font) -> void:
+	arrow_rect = Rect2()
 	var goal := arrow_goal()
 	if goal.is_empty():
 		return
@@ -1446,6 +1448,7 @@ func _draw_stair_arrow(size: Vector2, _font: Font) -> void:
 	var lc := at - d * (28.0 + lw * 0.5 * absf(d.x))
 	lc.x = clampf(lc.x, lw * 0.5 + 6.0, size.x - lw * 0.5 - 6.0)
 	UI.draw_label(self, lc + Vector2(-lw * 0.5, 4), label, 16, Color(1.0, 0.85, 0.5, pulse), HORIZONTAL_ALIGNMENT_LEFT, -1, 3, Color(0, 0, 0, 0.7))
+	arrow_rect = Rect2(at - Vector2(16, 16), Vector2(32, 32)).merge(Rect2(lc + Vector2(-lw * 0.5, -12.0), Vector2(lw, 20.0)))
 
 
 ## Where the stair arrow sits and which way it points ([at, dir]) for a
@@ -1602,6 +1605,29 @@ func lane_left(real_size: Vector2) -> float:
 	return maxf(_corner_box(real_size).end.x / hs, e.end.x)
 
 
+## Where a beast is on the screen (HUD units): its body, wings and head
+## (drawn well past its radius, more above it than below), for its bar and
+## the banner to keep off it (notices.gd).
+func beast_rect(e) -> Rect2:
+	if not is_instance_valid(e) or main.get_viewport() == null:
+		return Rect2()
+	var r: float = e.radius
+	var world := Rect2(e.global_position - Vector2(r * 1.7, r * 2.3), Vector2(r * 3.4, r * 3.4))
+	var xf: Transform2D = main.get_viewport().get_canvas_transform()
+	var s := Rect2(xf * world.position, xf.basis_xform(world.size))
+	return Rect2(s.position / hud_scale, s.size / hud_scale)
+
+
+## How far aside a beast's bar may slide to keep off the beast (HUD units,
+## x from..to): the top's free span between the corner and the buttons on
+## the right (on a phone, where the bar is first in the lane, the top row's).
+func _beast_bar_room() -> Vector2:
+	var real := get_viewport_rect().size
+	var view := real / hud_scale
+	var short: bool = view.y < main.notices.SHORT_VIEW
+	return Vector2(lane_left(real) + 8.0, top_right_edge(view, LANE_BANNER_BAND if short else LANE_CHIPS_BAND) - 10.0)
+
+
 ## The status chips, most pressing first: single lines under the banner
 ## (notices.gd draws the first few). Each is {id, text, color, edge} and
 ## maybe {gauge, gauge_color, trail, tall, pulse, alpha}.
@@ -1627,7 +1653,8 @@ func status_chips() -> Array:
 			_boss_seen = e
 			_boss_trail = k
 		_boss_trail = k if _boss_trail < k else move_toward(_boss_trail, k, dt * 0.35)
-		out.append({"id": "beast", "text": name, "tall": true, "gauge": k, "trail": _boss_trail,
+		# (its bar keeps off the beast: first in the lane on a phone, aside of it when it's under: notices.gd)
+		out.append({"id": "beast", "text": name, "tall": true, "gauge": k, "trail": _boss_trail, "top": true, "avoid": beast_rect(e), "room": _beast_bar_room(),
 			"gauge_color": Color(0.62, 0.42, 0.9) if e.shade else Color(0.86, 0.26, 0.2),
 			"color": Color(0.85, 0.78, 1.0) if e.shade else UI.GILT_HI, "edge": UI.GILT})
 		break
@@ -1725,10 +1752,16 @@ func _draw_lanes(real_size: Vector2, feed_top: float) -> void:
 	# (with no room at the top, the lane goes on the left, under the essence counter's row)
 	var col: Rect2 = N.column(view, lane_left(real_size), top_right_edge(view), feed_top - 6.0)
 	N.chip_right = top_right_edge(view, LANE_CHIPS_BAND) - 10.0  # (the chips, lower down, keep left of Swap and the cast buttons)
-	var foot: float = N.draw_lane(self, unit, view, col, status_chips())
+	var chips := status_chips()
+	for c in chips:
+		if c.has("avoid"):  # (a beast's bar, when the beast is under the top lane: under the corner, where the feed starts)
+			c["alt"] = Rect2(BAR_X, feed_top, minf(N.FEED_W, view.x * 0.3 - BAR_X - 6.0), 0.0)
+	var foot: float = N.draw_lane(self, unit, view, col, chips)
 	goal_rect = N.rects["column"]
 	# With the lane under the corner (no room at the top) the feed goes under it.
 	var top := maxf(feed_top, foot + 4.0) if N.left_mode else feed_top
+	if N.beast_aside >= 0.0:
+		top = maxf(top, N.beast_aside + 6.0)  # (...and under a beast's bar stepped down there)
 	N.draw_feed(self, unit, view, Vector2(BAR_X, top))
 
 

@@ -245,7 +245,8 @@ static func tick(pf, delta: float, st: Dictionary) -> void:
 	st["ward"] = float(st.get("ward", 0.0)) - delta
 	if st["ward"] <= 0.0:
 		st["ward"] = num("world", "ward_every")
-		if m.ward and not m.stair_open and not m.in_camp and pf.visible_at(m.stair_pos):
+		# (only while the task's seal is the one shown: never under a gate or ward, stair_seal.gd)
+		if m.ward and not m.stair_open and not m.in_camp and load("res://scripts/stair_seal.gd").layer(m) == "task" and pf.visible_at(m.stair_pos):
 			m.fx_ring(m.stair_pos, Color(1.0, 0.84, 0.45, 0.7), 34.0, 0.9, 2.0)
 			Particles.burst(m, m.stair_pos, "ward_motes", 1.0)
 

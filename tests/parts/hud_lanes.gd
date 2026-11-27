@@ -42,6 +42,7 @@ func run(smoke) -> void:
 	await _panel()
 	await _tidbits()
 	await _puzzle_notes()
+	await _beast_clear()
 	await _end()
 
 
@@ -263,6 +264,41 @@ func _floating() -> void:
 	main.fx_text(p.global_position, "12", Color.WHITE)
 	_check(main.fx.texts.size() == 3, "the same word twice at once shows once; two hits are two numbers")
 	main.fx.texts.clear()
+	await _labels_clear()
+
+
+## Words in the world don't collide: a blow's number and "slain" said at one
+## spot step apart (fx.gd clear_text_spot), and a dropped piece's name under
+## the HUD's edge arrow and its "Stair" label gives way (fades: hud.gd arrow_rect).
+func _labels_clear() -> void:
+	print("lanes: numbers, words and names don't sit on each other")
+	var main = t.main
+	var fx = main.fx
+	var p = main.player
+	var font: Font = UI.font("display")
+	fx.texts.clear()
+	var at: Vector2 = p.global_position + Vector2(60, -40)
+	main.fx_text(at, "37", Color.WHITE)
+	main.fx_text(at, "slain", Color.WHITE)
+	main.fx_text(at, "Staggered", Color.WHITE)
+	var boxes: Array = fx.texts.map(func(x): return Rect2(Vector2(x["pos"]) - Vector2(font.get_string_size(String(x["text"]), HORIZONTAL_ALIGNMENT_LEFT, -1, 14).x * 0.5, 13.0), Vector2(font.get_string_size(String(x["text"]), HORIZONTAL_ALIGNMENT_LEFT, -1, 14).x, 14.0)))
+	var clash := false
+	for i in boxes.size():
+		for j in range(i + 1, boxes.size()):
+			clash = clash or Rect2(boxes[i]).intersects(boxes[j])
+	_check(boxes.size() == 3 and not clash, "a number, \"slain\" and a word said at one spot step apart, none on another (%s)" % [boxes])
+	fx.texts.clear()
+	# A dropped piece right under the edge arrow's label: its name gives way.
+	var spot: Vector2 = p.global_position + Vector2(0, 80)
+	var xf: Transform2D = fx.labels.get_global_transform_with_canvas()
+	var screen: Vector2 = xf * (spot + Vector2(0, -20))
+	var name_w := font.get_string_size("Rare Plate Armor of Vigor", HORIZONTAL_ALIGNMENT_LEFT, -1, 12).x
+	var keep := Rect2(screen - Vector2(30, 12), Vector2(60, 24))
+	_check(fx._label_alpha(keep, spot + Vector2(0, -20), name_w, 14.0) < 0.5, "a dropped piece's name under the HUD's edge arrow and its label fades: the arrow keeps its place")
+	_check(fx._label_alpha(Rect2(screen + Vector2(400, 300), Vector2(40, 20)), spot + Vector2(0, -20), name_w, 14.0) == 1.0 and fx._label_alpha(Rect2(), spot, name_w) == 1.0, "...and shows in full anywhere else")
+	var hud_src: String = FileAccess.get_file_as_string("res://scripts/hud.gd")
+	var fx_src: String = FileAccess.get_file_as_string("res://scripts/fx.gd")
+	_check(hud_src.contains("arrow_rect = Rect2(at") and fx_src.contains("_label_alpha(keep, gp"), "(the HUD keeps where its edge arrow was drawn, and the names over gear read it)")
 
 
 ## The lanes are layout elements; the old banner's ids are gone.
@@ -665,3 +701,62 @@ func _puzzle_notes() -> void:
 		p.global_position = away
 		await t._until(func(): return main.banner.is_empty(), 3.0)
 		_check(main.banner.is_empty(), "...and it fades when you walk away")
+
+
+## A beast's arrival on a phone (800 x 400, 844 x 390): its bar goes first,
+## at the top of the lane, the banner under it is its title alone and gives
+## way while the beast is under it, and the bar slides aside of the beast:
+## neither ever sits over the beast (hud.gd beast_rect, notices.gd).
+func _beast_clear() -> void:
+	print("lanes: a beast's bar keeps off the beast on a phone")
+	var main = t.main
+	var NS = main.notices
+	var hud = main.hud
+	hud.hud_scale = 1.0
+	M.settings["ui_size"] = "normal"
+	for sz in [Vector2i(800, 400), Vector2i(844, 390)]:
+		t.root.size = sz
+		main.touch._set_active(true)
+		main.pad._set_active(false)
+		main.apply_view_scale()
+		main.dev_beast("gryphon")
+		await t._frames(3)
+		var beast = null
+		for e in main.enemies():
+			if is_instance_valid(e) and e.is_boss():
+				beast = e
+			if is_instance_valid(e):
+				e.set_physics_process(false)
+		_check(beast != null, "%d x %d: the beast is there" % [sz.x, sz.y])
+		if beast == null:
+			continue
+		var cam_inv: Transform2D = main.get_viewport().get_canvas_transform().affine_inverse()
+		# Where it arrives, then up under the lane, a little to each side, and where the banner was.
+		var spots: Array = [null, Vector2(sz.x * 0.5, 95.0), Vector2(sz.x * 0.44, 60.0), Vector2(sz.x * 0.58, 70.0), Vector2(sz.x * 0.5, 130.0)]
+		for at in spots:
+			if at != null and is_instance_valid(beast):
+				beast.global_position = cam_inv * Vector2(at)
+			main.banner = {"title": "The Gryphon Awaits", "lines": ["Watch for the glint. A landing can't be parried."], "t": 3.0}
+			await t._wait(0.6)  # (the bar slides aside over a moment of real time: notices.gd _dodge_rect)
+			if not is_instance_valid(beast):
+				break
+			var br: Rect2 = hud.beast_rect(beast)
+			var body := Rect2(br.position * hud.hud_scale, br.size * hud.hud_scale)
+			var rects: Dictionary = NS.rects
+			var bar: Rect2 = rects["chips"][0] if not (rects["chips"] as Array).is_empty() else Rect2()
+			var on_screen := Rect2(Vector2.ZERO, Vector2(sz)).intersects(body)
+			var aside: bool = bar.position.x < 40.0 * hud.hud_scale  # (no room in the lane beside the beast: under the corner)
+			_check(bar.has_area() and (bar.position.y < 20.0 or aside), "%d x %d, the beast at %s: its bar is first, at the top of the lane or, with the beast there, under the corner (%s)" % [sz.x, sz.y, at, bar])
+			_check(not on_screen or not bar.intersects(body), "...and not over the beast (bar %s, beast %s)" % [bar, body])
+			var feed: Array = rects["feed"]
+			_check(not aside or feed.all(func(f): return not Rect2(f).intersects(bar)), "...nor under the feed's lines (%s)" % [feed])
+			var banner: Rect2 = rects["banner"]
+			_check(not banner.intersects(body), "...nor is the banner, which gives way over it (banner %s)" % banner)
+			_check(NS.current.is_empty() or (NS.current.get("_rows", []) as Array).is_empty(), "...the banner under the bar is its title alone: its words go to the feed")
+		main.banner = {}
+		for e in main.enemies():
+			if is_instance_valid(e):
+				e.queue_free()
+		await t._frames(2)
+		main.foes_changed()
+	main.touch._set_active(false)

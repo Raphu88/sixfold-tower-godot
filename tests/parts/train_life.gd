@@ -53,6 +53,7 @@ func run(smoke) -> void:
 	await _ambience(main)
 	await _arena(main)
 	await _diners(main)
+	_one_summary(main)
 	Particles.set_level(level)
 	t.root.size = was
 	main.touch._set_active(false)
@@ -62,6 +63,18 @@ func run(smoke) -> void:
 	main.on_train = false
 	t.paused = false
 	await t._frames(2)
+
+
+## The climber's summary ("2 of 6 marks · 3 climbs · best floor 4") is
+## said once, in the Climber's Book's header; the rail's header, which shows
+## the marks as medallions, says the renown rank under them instead.
+func _one_summary(main) -> void:
+	var prof = main.profile
+	var book: String = main.menu._climber_line()
+	var rail: String = load("res://scripts/rail.gd").RailIdent.header_line(prof)
+	t._check(book.contains("of 6 marks") and book.contains("best floor"), "the Climber's Book's header says the marks and the best floor (%s)" % book)
+	t._check(not rail.contains("of 6 marks") and not rail.contains("best floor") and rail.contains(load("res://scripts/renown.gd").rank_name(load("res://scripts/renown.gd").rank(prof))),
+		"...and the rail's header doesn't say them again: its renown rank instead (%s)" % rail)
 
 
 func _car(main, car: String) -> void:

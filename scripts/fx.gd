@@ -48,7 +48,7 @@ func text(pos: Vector2, s: String, color: Color) -> void:
 		live[i]["t"] = TEXT_FADE  # (the oldest fade at once to make room)
 	# A number pops up and arcs away to one side, then drifts up; a critical
 	# blow's is bigger and gold (anim.gd "text"). Other words rise as ever.
-	var item := {"pos": pos + Vector2(randf_range(-6.0, 6.0), 0), "text": s, "color": color, "t": TEXT_LIFE}
+	var item := {"pos": clear_text_spot(pos + Vector2(randf_range(-6.0, 6.0), 0), s, number), "text": s, "color": color, "t": TEXT_LIFE}
 	if number:
 		item["vel"] = Vector2(randf_range(-1.0, 1.0) * Anim.num("text", "drift"), -Anim.num("text", "pop"))
 		if Time.get_ticks_msec() < crit_until:
@@ -56,6 +56,29 @@ func text(pos: Vector2, s: String, color: Color) -> void:
 			item["crit"] = true
 			item["color"] = Anim.DATA["text"]["crit_color"]
 	texts.append(item)
+
+
+## Where floating words said at `at` go so they don't sit on others showing
+## there (a blow's number and "slain", a word and a word): they step up
+## until clear. Two numbers may meet (they arc away from each other).
+const TEXT_STEP := 18.0
+func clear_text_spot(at: Vector2, s: String, number: bool) -> Vector2:
+	var font: Font = preload("res://scripts/ui.gd").font("display")
+	var half := font.get_string_size(s, HORIZONTAL_ALIGNMENT_LEFT, -1, 14).x * 0.5
+	for step in 4:
+		var hit := false
+		for t in texts:
+			if float(t["t"]) <= TEXT_FADE or (number and t.has("vel")):
+				continue
+			var other := font.get_string_size(String(t["text"]), HORIZONTAL_ALIGNMENT_LEFT, -1, 14).x * 0.5
+			var tp: Vector2 = t["pos"]
+			if absf(tp.y - at.y) < TEXT_STEP - 1.0 and absf(tp.x - at.x) < half + other + 4.0:
+				hit = true
+				break
+		if not hit:
+			break
+		at.y -= TEXT_STEP
+	return at
 
 
 ## How many floating words are fully showing (the fading ones don't count).
@@ -214,6 +237,7 @@ func _process(delta: float) -> void:
 
 
 var _had_labels := false
+var label_fades := 0  # world labels drawn faint under the HUD's edge arrow last frame (tests)
 
 
 ## Whether words at `pos` would be in the climber's sight (not hidden in fog).
@@ -225,15 +249,43 @@ func _in_sight(pos: Vector2) -> bool:
 	return main.fog.sees(pos) or main.fog.sees(pos + Vector2(0, 40))
 
 
+## The HUD's edge arrow and its label (screen px), which words in the world
+## give way to: under it they fade (hud.gd keeps it, as last drawn).
+func _hud_keep() -> Rect2:
+	if main == null or main.get("hud") == null or main.hud == null:
+		return Rect2()
+	var r: Rect2 = main.hud.get("arrow_rect") if main.hud.get("arrow_rect") != null else Rect2()
+	return r.grow(4.0) if r.has_area() else Rect2()
+
+
+## How much of a world label at `pos` (`w` wide, centred, its baseline at
+## pos.y) shows: faint where the HUD's edge arrow is (`keep`, screen px).
+func _label_alpha(keep: Rect2, pos: Vector2, w: float, h := 16.0) -> float:
+	if not keep.has_area():
+		return 1.0
+	var xf := labels.get_global_transform_with_canvas()
+	var r := Rect2(xf * (pos - Vector2(w * 0.5, h * 0.8)), xf.basis_xform(Vector2(w, h)))
+	return LABEL_UNDER_HUD if r.intersects(keep) else 1.0
+
+
+const LABEL_UNDER_HUD := 0.15  # a world label's alpha under the HUD's edge arrow
+
+
 func _draw_labels() -> void:
 	# Words and numbers that pop up, and names over gear: the gothic face.
 	var font: Font = preload("res://scripts/ui.gd").font("display")
+	var keep := _hud_keep()
+	label_fades = 0
 	for t in texts:
 		var pos: Vector2 = t["pos"]
 		if not _in_sight(pos):
 			continue
 		var col: Color = t["color"]
 		var a := clampf(t["t"] / 0.4, 0.0, 1.0)
+		var under := 1.0 if not keep.has_area() else _label_alpha(keep, pos, font.get_string_size(t["text"], HORIZONTAL_ALIGNMENT_LEFT, -1, 16).x)
+		if under < 1.0:
+			label_fades += 1
+		a *= under
 		col.a = a
 		# Numbers pop in big, then settle.
 		var age: float = 0.9 - t["t"]
@@ -262,7 +314,12 @@ func _draw_labels() -> void:
 		var here: bool = main.gear_here == g
 		var label: String = main.Gear.display(r)
 		var lc: Color = (Color(1.0, 0.9, 0.65) if here else Color(0.9, 0.88, 0.85, 0.85)) if not fancy else Color(rc.lightened(0.25 if here else 0.1), 1.0 if here else 0.9)
-		labels.draw_string_outline(font, gp + Vector2(-90, -20), label, HORIZONTAL_ALIGNMENT_CENTER, 180, 12, 3, Color(0, 0, 0, 0.8))
+		# (under the HUD's edge arrow and its "Stair" label, the name gives way: hud.gd arrow_rect)
+		var under := 1.0 if not keep.has_area() else _label_alpha(keep, gp + Vector2(0, -20), minf(180.0, font.get_string_size(label, HORIZONTAL_ALIGNMENT_LEFT, -1, 12).x), 14.0)
+		if under < 1.0:
+			label_fades += 1
+		lc.a *= under
+		labels.draw_string_outline(font, gp + Vector2(-90, -20), label, HORIZONTAL_ALIGNMENT_CENTER, 180, 12, 3, Color(0, 0, 0, 0.8 * under))
 		labels.draw_string(font, gp + Vector2(-90, -20), label, HORIZONTAL_ALIGNMENT_CENTER, 180, 12, lc)
 		if fancy:
 			# A glint that turns and pulses over it: brighter for rarer finds.

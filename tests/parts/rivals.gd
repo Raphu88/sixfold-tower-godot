@@ -668,6 +668,25 @@ func _saves() -> void:
 	var rec: Dictionary = prof.rivals.get("old_1", {})
 	_check(Rv.history_text(rec) != "" and Rv.marks_text(rec).contains("Warden") and Rv.look_of(rec).has("cloak"), "...and a record missing its counters still reads")
 	DirAccess.remove_absolute(ProjectSettings.globalize_path(path))
+	# Old saves' rivals have no look kept: each gets one made from their id,
+	# distinct from the others and the same every time; a saved look stays.
+	var looks: Array = []
+	var keys := {}
+	for nm in ["Bryn", "Oren", "Sorrel", "Tam", "Ulla", "Wren"]:
+		var old := {"id": "%s_%d" % [nm.to_lower(), 4321], "name": nm, "bonds": [["warden", "heart", 2]]}
+		var lk: Dictionary = Rv.look_of(old)
+		looks.append(lk)
+		keys[[lk["cloak"], lk["hair"], lk["skin"], lk["tunic"], lk["hair_style"], lk["cloak_style"]]] = true
+		_check(lk == Rv.look_of(old.duplicate(true)) and not old.has("app"), "an old save's rival %s: a look made from their id, the same every time, nothing added to their record" % nm)
+	var hoods: Dictionary = {}
+	for lk in looks:
+		hoods[lk["cloak"]] = true
+	_check(keys.size() == looks.size() and hoods.size() >= 4, "...six old rivals, six different looks (%d), not all in one hood colour (%d colours)" % [keys.size(), hoods.size()])
+	var app: Dictionary = load("res://scripts/appearance.gd").random({})
+	var saved := {"id": "kept_1", "name": "Kept", "app": app, "bonds": []}
+	var mine: Dictionary = Rv.look_of(saved)
+	var plain: Dictionary = load("res://scripts/appearance.gd").look(app)
+	_check(mine["cloak"] == plain["cloak"] and mine["hair"] == plain["hair"] and mine["skin"] == plain["skin"], "...and a rival with a saved look keeps it")
 
 
 func _words() -> void:
