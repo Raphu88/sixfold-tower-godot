@@ -14,6 +14,8 @@ extends RefCounted
 
 const Gear := preload("res://scripts/gear.gd")
 const Palette := preload("res://scripts/palette.gd")
+const Draw := preload("res://scripts/draw_util.gd")
+const Shade := preload("res://scripts/shade.gd")
 const Rooms := preload("res://scripts/rooms.gd")
 const Themes := preload("res://scripts/themes.gd")
 const BasicGift := preload("res://scripts/basic_gift.gd")
@@ -213,33 +215,30 @@ static func spot(plan: Dictionary) -> Vector2:
 static func draw(c: CanvasItem, pos: Vector2, t: float, taken: bool) -> void:
 	var leather := Color(0.40, 0.27, 0.17) if not taken else Color(0.24, 0.18, 0.14)
 	var strap := leather.darkened(0.3)
-	# Its shadow.
-	c.draw_set_transform(pos + Vector2(2, 10), 0.0, Vector2(1.0, 0.42))
-	c.draw_circle(Vector2.ZERO, 24.0, Color(0, 0, 0, 0.4))
-	c.draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
+	# (leather, strap and steel in the shading toolkit, lit from the top-left
+	# like the room; the pale glimmer and its motes stay soft and flat)
+	var b := Draw.Batch.new()
+	b.contact(pos + Vector2(2, 10), 20.0, 0.42)
 	if not taken:
 		var pulse := 0.5 + 0.5 * sin(t * 1.6)
-		c.draw_circle(pos, 30.0 + pulse * 4.0, Color(LIGHT_COLOR, 0.06 + 0.05 * pulse))
-		c.draw_circle(pos, 18.0, Color(LIGHT_COLOR, 0.06 + 0.04 * pulse))
+		b.soft(pos, Vector2.ONE * (40.0 + pulse * 5.0), Color(LIGHT_COLOR, 0.14 + 0.08 * pulse))
 	# The broken strap: one end still on the pack, the torn end lying apart.
 	var s0 := pos + Vector2(10, 4)
-	c.draw_polyline(PackedVector2Array([s0, s0 + Vector2(8, 6), s0 + Vector2(15, 7)]), Palette.OUTLINE, 5.0)
-	c.draw_polyline(PackedVector2Array([s0, s0 + Vector2(8, 6), s0 + Vector2(15, 7)]), strap, 3.0)
+	b.stroke(s0, s0 + Vector2(8, 6), strap, 2.6, Shade.CLOTH)
+	b.stroke(s0 + Vector2(8, 6), s0 + Vector2(15, 7), strap, 2.6, Shade.CLOTH)
 	var s1 := pos + Vector2(-26, 12)
-	c.draw_polyline(PackedVector2Array([s1, s1 + Vector2(7, -3), s1 + Vector2(14, -1)]), Palette.OUTLINE, 5.0)
-	c.draw_polyline(PackedVector2Array([s1, s1 + Vector2(7, -3), s1 + Vector2(14, -1)]), strap, 3.0)
+	b.stroke(s1, s1 + Vector2(7, -3), strap, 2.6, Shade.CLOTH)
+	b.stroke(s1 + Vector2(7, -3), s1 + Vector2(14, -1), strap, 2.6, Shade.CLOTH)
 	for k in 3:  # frayed ends
 		var e0 := s0 + Vector2(15, 7)
-		c.draw_line(e0, e0 + Vector2(3, -2 + k * 2), strap.lightened(0.15), 1.0)
+		b.line(e0, e0 + Vector2(3, -2 + k * 2), strap.lightened(0.15), 1.0)
 		var e1 := s1 + Vector2(14, -1)
-		c.draw_line(e1, e1 + Vector2(3, -2 + k * 2), strap.lightened(0.15), 1.0)
+		b.line(e1, e1 + Vector2(3, -2 + k * 2), strap.lightened(0.15), 1.0)
 	# A blade poking out from under the flap.
 	if not taken:
 		var a := pos + Vector2(-4, -6)
-		var b := pos + Vector2(-20, -18)
-		c.draw_line(a, b, Palette.OUTLINE, 5.0)
-		c.draw_line(a, b, Palette.STEEL.darkened(0.25), 3.0)
-		c.draw_line(a.lerp(b, 0.15), b, Color(1, 1, 1, 0.35), 1.0)
+		var tip := pos + Vector2(-20, -18)
+		b.stroke(a, tip, Palette.STEEL.darkened(0.25), 2.6, Shade.METAL)
 	# The pack, fallen on its side.
 	var body := PackedVector2Array()
 	var squash := 1.0 if not taken else 0.6
@@ -248,18 +247,13 @@ static func draw(c: CanvasItem, pos: Vector2, t: float, taken: bool) -> void:
 		var v := Vector2(cos(ang) * 15.0, sin(ang) * 11.0 * squash)
 		v.x += signf(v.x) * 2.0  # (squarer than an egg)
 		body.append(pos + v.rotated(-0.3))
-	var rim := PackedVector2Array()
-	for v in body:
-		rim.append(pos + (v - pos) * 1.12)
-	c.draw_colored_polygon(rim, Palette.OUTLINE)
-	c.draw_colored_polygon(body, leather)
-	c.draw_circle(pos + Vector2(-5, -3).rotated(-0.3), 6.0, Color(leather.lightened(0.12), 0.8))
+	b.poly(body, leather, 1.4, Shade.BALL)
 	# Its flap, hanging open, and a dull buckle.
 	var flap := PackedVector2Array([pos + Vector2(-12, -4), pos + Vector2(4, -10), pos + Vector2(8, 0), pos + Vector2(-8, 4)])
 	for i in flap.size():
 		flap[i] = pos + (flap[i] - pos).rotated(-0.3)
-	c.draw_colored_polygon(flap, leather.darkened(0.18))
-	c.draw_polyline(PackedVector2Array([flap[0], flap[1], flap[2], flap[3], flap[0]]), Palette.OUTLINE, 1.2)
+	b.poly(flap, leather.darkened(0.18), 0.6, Shade.CLOTH)
+	b.flush(c)
 	var buckle := pos + Vector2(4, 2).rotated(-0.3)
 	c.draw_rect(Rect2(buckle - Vector2(2.5, 2.5), Vector2(5, 5)), Color(0.62, 0.52, 0.3) if not taken else Color(0.32, 0.28, 0.22), false, 1.5)
 	if taken:
