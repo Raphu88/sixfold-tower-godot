@@ -627,6 +627,16 @@ func wing_solved(id: String) -> void:
 		_finish(w, "open", "")
 
 
+## (No puzzle host fails a wing yet: kept for one, README "Sealed wings, vaults and secrets".)
+func wing_failed(id: String) -> void:
+	var w := _wing(id)
+	if w.is_empty() or w["state"] in ["idle", "done"]:
+		return
+	if w["state"] != "champion":
+		w["fail"] = "champion"
+		_break(w)
+
+
 func _wing(id: String) -> Dictionary:
 	for w in wings:
 		if w["id"] == id:

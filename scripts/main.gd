@@ -1645,6 +1645,13 @@ func note_noticed(kind: String, grade: String) -> void:
 	noticed.append({"floor": floor_num, "kind": kind, "grade": grade, "tower": tower})
 
 
+## How many times the beast noticed you this climb (a grade of `at_least`).
+## (Nothing reads it yet: kept for the summit or the Regard, README "Scenario rooms".)
+func beast_noticed_count(at_least := "bronze") -> int:
+	var rank := {"bronze": 1, "silver": 2, "gold": 3}
+	return noticed.filter(func(n): return int(rank.get(n["grade"], 0)) >= int(rank.get(at_least, 1))).size()
+
+
 ## Walking onto the open stair: fade out, rest, grow, fade into the next floor.
 func _climb() -> void:
 	if not painter_try.is_empty():
