@@ -92,10 +92,10 @@ func _menus_and_story() -> void:
 	menu_p.seek(40.0)
 	# The introduction's screens are a story moment: the six tolls from the top.
 	M.open("intro")
-	await t._frames(1)
+	await t._frames(3)
 	_check(_look() == "story" and A.track_playing() == "story", "the introduction plays the story track (%s)" % A.track_playing())
 	var story_p: AudioStreamPlayer = A.tracks["story"]["player"]
-	_check(story_p.get_playback_position() < 5.0, "...from its start, the six tolls")
+	_check(story_p.playing or story_p.stream_paused, "...(the opening's own toll a screen is checked in opening.gd)")
 	_check(menu_p.stream_paused and menu_p.volume_db <= -79.0, "...and Rising Moon waits, paused")
 	M.open("title")
 	await t._frames(1)
@@ -109,7 +109,9 @@ func _menus_and_story() -> void:
 	_check(float(A.tracks["menu"]["db"]) < float(Music.MOODS["menu"]["db"]) - 2.0, "...softer than in the menus (%.0f dB against %.0f)" % [float(A.tracks["menu"]["db"]), float(Music.MOODS["menu"]["db"])])
 	# The Regard (with its glimpse of the fracture) is a story moment.
 	main._begin_regard(false)
-	_check(_look() == "story" and A.track_playing() == "story" and story_p.get_playback_position() < 5.0, "the Regard plays the story track, from the tolls again (%.0f s)" % story_p.get_playback_position())
+	_check(_look() == "story" and A.track_playing() == "story" and story_p.get_playback_position() >= A.STORY_PADS - 0.5 and story_p.get_playback_position() < A.STORY_PADS + 5.0,
+		"the Regard plays the story track's pads, not its six tolls: the gong rings only as a scene changes (%.0f s)" % story_p.get_playback_position())
+	_check(Bank.SFX.has("gong") and ResourceLoader.exists(String(Bank.SFX["gong"][0])), "...one gong for the scene (a toll cut from the story track)")
 	main.regard = {}
 	main.player.set_physics_process(true)
 	_check(_look() == "calm" and A.track_playing() == "menu", "when it's over, the calm comes back")

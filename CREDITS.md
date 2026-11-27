@@ -11,7 +11,7 @@ All sound effects and music are **CC0** (public domain), from [OpenGameArt.org](
 | [100 CC0 SFX](https://opengameart.org/content/100-cc0-sfx) | rubberduck | slams, metal clangs, wood, gong |
 | [37 hits/punches](https://opengameart.org/content/37-hitspunches) | Independent.nu | punch and hit bodies |
 | [Fantasy: Rising Moon](https://opengameart.org/content/fantasy-rising-moon) | RandomMind | music: the title, the train and stations, and a climb's calm rooms (CC0) |
-| [Frost in the Northern Winter](https://opengameart.org/content/frost-in-the-northern-winter) | Kaiser (posted by The Oracle) | music: story moments (the introduction, the Regard, the Makers, the ending), cut to open with six tolls (CC0) |
+| [Frost in the Northern Winter](https://opengameart.org/content/frost-in-the-northern-winter) | Kaiser (posted by The Oracle) | music: story moments (the introduction, the Regard, the Makers, the ending), cut to open with six tolls; one toll also cut into `sfx/gong_0.wav`, rung as a story scene changes (CC0) |
 | [Great Labyrinth (Orchestral dungeon music)](https://opengameart.org/content/great-labyrinthorchestral-dungeon-music) | MintoDog | music: a climb's danger and the guardian's fight (CC0) |
 | [Medieval Sound Effects: Weapon Textures](https://opengameart.org/content/medieval-sound-effects-weapon-textures) | Still North Media (posted by MedicineStorm) | bow draw, nock and release, crossbow shot, reload and bolt, dagger and spear swings, blade draws |
 | [Fantasy Sound Effects (Tinysized SFX)](https://opengameart.org/content/fantasy-sound-effects-tinysized-sfx) | Vehicle (Jan Schupke) | dagger draw, pouch (pick-ups, inventory), spike trap scrape, gas hiss |
@@ -75,3 +75,4 @@ The interface's three typefaces are under the **SIL Open Font License 1.1** (fre
 | [Grenze Gotisch](https://fonts.google.com/specimen/Grenze+Gotisch) | Omnibus-Type (Renata Polastri, Pablo Ugerman) | every title, heading, label, button, tab and name, banners and the HUD's big words | `assets/fonts/grenze_gotisch/` (Bold) |
 | [Grenze](https://fonts.google.com/specimen/Grenze) | Omnibus-Type (Renata Polastri, Pablo Ugerman) | text: descriptions, hints, numbers and key badges | `assets/fonts/grenze/` (variable; Regular, Medium and SemiBold used) |
 | [Cormorant Garamond](https://fonts.google.com/specimen/Cormorant+Garamond) | Christian Thalmann (Catharsis Fonts) | inscriptions: words written in the world or quoted (rule panels, riddles, the Makers' words, room rules, mottos, the title's tagline) | `assets/fonts/cormorant_garamond/` (Italic, variable; SemiBold used) |
+

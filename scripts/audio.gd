@@ -63,6 +63,9 @@ const RESUME_MS := 4000
 var toll_at := -1
 ## The story track's six tolls: one every this many seconds from its start.
 const TOLL_EVERY := 3.0
+## Where the story track's pads begin, after its six tolls (a story moment
+## other than the opening starts here, with one gong for the scene).
+const STORY_PADS := 18.0
 
 
 func _ready() -> void:
@@ -199,7 +202,14 @@ func set_mood(new_mood: String, fade_time := -1.0) -> void:
 		tr["db"] = float(want["db"])
 		if name in Music.RESTART or not (p.playing or p.stream_paused):
 			p.stream_paused = false
-			p.play(0.0)
+			if name == "story":
+				# (the gong only rings as a scene changes: past the six tolls into
+				# the pads, and one gong now, unless the opening rings its own
+				# toll for each screen: story_toll takes over in the next frames)
+				p.play(STORY_PADS)
+				_gong_soon()
+			else:
+				p.play(0.0)
 		else:
 			p.stream_paused = false  # (carries on where it was left)
 	tr["db_to"] = float(want["db"])
@@ -455,3 +465,19 @@ func playing_count(sound: String) -> int:
 		if players[i].playing and voice_sound[i] == sound:
 			n += 1
 	return n
+
+
+## One gong as a story scene begins (not the opening, whose screens each ring
+## their own toll: story_toll sets toll_at within a frame or two).
+func _gong_soon() -> void:
+	if not is_inside_tree():
+		return
+	await get_tree().create_timer(0.15, true).timeout
+	if is_instance_valid(self) and mood == "story" and toll_at < 0:
+		play("gong", 1.0, -2.0, 0.0)
+
+
+## A story scene turning to its next page or scene (the ending's pages): one gong.
+func story_gong() -> void:
+	if mood == "story" and toll_at < 0:
+		play("gong", 1.0, -2.0, 0.0)
