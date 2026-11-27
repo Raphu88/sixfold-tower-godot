@@ -238,8 +238,11 @@ func _draw_labels() -> void:
 		# Numbers pop in big, then settle.
 		var age: float = 0.9 - t["t"]
 		var fsize := int((14.0 + 8.0 * maxf(0.0, 1.0 - age / 0.12)) * (Anim.num("text", "crit_scale") if t.get("crit", false) else 1.0))
-		labels.draw_string_outline(font, pos - Vector2(60, 0), t["text"], HORIZONTAL_ALIGNMENT_CENTER, 120, fsize, 4, Color(0, 0, 0, 0.75 * a))
-		labels.draw_string(font, pos - Vector2(60, 0), t["text"], HORIZONTAL_ALIGNMENT_CENTER, 120, fsize, col)
+		# (centred in a box as wide as the words: a long name, "Rare Plate
+		# Armor of Vigor", isn't cut short)
+		var half := maxf(60.0, ceilf(font.get_string_size(t["text"], HORIZONTAL_ALIGNMENT_LEFT, -1, fsize).x * 0.5) + 4.0)
+		labels.draw_string_outline(font, pos - Vector2(half, 0), t["text"], HORIZONTAL_ALIGNMENT_CENTER, half * 2.0, fsize, 4, Color(0, 0, 0, 0.75 * a))
+		labels.draw_string(font, pos - Vector2(half, 0), t["text"], HORIZONTAL_ALIGNMENT_CENTER, half * 2.0, fsize, col)
 	if main == null:
 		return
 	# Gear on the floor: its name over it, in its rarity's colour; a glint

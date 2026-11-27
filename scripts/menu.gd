@@ -1933,7 +1933,7 @@ func _page_pause() -> void:
 	elif practicing:
 		_header(main.practice.TEXT["paused"], main.practice.TEXT["pause_note"], "Paused")
 	else:
-		_header("Paused", "", "%s  ·  floor %d" % [main.tower_data()["name"], main.floor_num])
+		_header("Paused", "")  # (the tower and floor: the rows just below, and the rail's header)
 	var g := _grid(2, 10, 4 if compact() else 6)
 	if _on_train():
 		var nt: Dictionary = Towers.TOWERS.get(train_tower, {})

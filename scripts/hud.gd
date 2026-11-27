@@ -1012,31 +1012,23 @@ func _draw_regard(size: Vector2, font: Font) -> void:
 	open = open * open * (3.0 - 2.0 * open)
 	var w := minf(size.x * 0.36, 300.0)
 	var h := 70.0 * open
-	var lid := PackedVector2Array()
-	for i in 33:
-		var k := float(i) / 32.0
-		lid.append(c + Vector2(lerpf(-w, w, k), -sin(PI * k) * h))
-	for i in 33:
-		var k := float(i) / 32.0
-		lid.append(c + Vector2(lerpf(w, -w, k), sin(PI * k) * h))
-	draw_colored_polygon(lid, Color(0.95, 0.85, 0.55, 0.12 + 0.1 * open))
-	draw_polyline(lid + PackedVector2Array([lid[0]]), Color(1.0, 0.85, 0.5, 0.8 * open + 0.1), 2.5, true)
-	if open > 0.2:
-		var iris := 52.0 * minf(1.0, open * 1.2)
-		draw_circle(c, iris, Color(col, 0.55))
-		draw_circle(c, iris * 0.62, Color(col.lightened(0.3), 0.8))
-		draw_circle(c, iris * 0.28, Color(0.02, 0.02, 0.03, 0.95))
-		draw_arc(c, iris, 0.0, TAU, 48, Color(1, 1, 1, 0.35), 2.0, true)
-	# The mark grows beneath it.
+	# (the guardian's eye in its own tower's essence; the mark below in the bond's colour)
+	var eye_col: Color = Essence.color(String(main.tower_data().get("essence", "air"))).lerp(col, 0.25)
+	_regard_eye(c, w, h, open, eye_col, Vector2.ZERO, Color(1.0, 0.85, 0.5))
+	# The mark takes hold beneath it: its own medallion (the HUD's), its ring
+	# filling as it forms, with rays of its light (fewer and dimmer when faint).
 	var mk := clampf((t - 1.6) / 1.0, 0.0, 1.0)
 	if mk > 0.0:
 		var mc := c + Vector2(0, 130)
-		var mcol := Color(col, (0.55 if fell else 1.0) * mk)
-		draw_circle(mc, 10.0, mcol)
+		var grow := mk * mk * (3.0 - 2.0 * mk)
+		var mb := Draw.Batch.new()
+		mb.soft(mc, Vector2.ONE * 70.0 * grow, Color(col, (0.18 if fell else 0.32) * grow))
 		var lines := 3 if fell else 6
 		for i in lines:
 			var a := -PI / 2.0 + TAU * float(i) / float(lines)
-			draw_line(mc + Vector2.from_angle(a) * 14.0, mc + Vector2.from_angle(a) * (14.0 + 26.0 * mk), mcol, 3.0)
+			mb.line(mc + Vector2.from_angle(a) * 28.0, mc + Vector2.from_angle(a) * (28.0 + 22.0 * grow), Color(col.lightened(0.3), (0.35 if fell else 0.7) * grow), 2.0)
+		UI.medallion_into(mb, mc, 22.0 * grow, col, String(info.get("affinity", "")), mk, 0, 0.0, fell)
+		mb.flush(self)
 	var texts: Array = main.climb_shape.regard_lines(rg, info, part_name)  # (its words: climb_shape.gd TEXT)
 	var title_a := clampf((t - 0.2) / 0.6, 0.0, 1.0)
 	draw_string_outline(UI.font("display"), Vector2(0, size.y * 0.3 - 110), "The Regard", HORIZONTAL_ALIGNMENT_CENTER, size.x, 42, 7, Color(0, 0, 0, 0.8 * title_a))
@@ -1052,6 +1044,51 @@ func _draw_regard(size: Vector2, font: Font) -> void:
 		var pulse := 0.5 + 0.5 * sin(Time.get_ticks_msec() * 0.004)
 		var prompt: String = _say("Press Space, Enter or click", "Press {a}", "Tap") + " " + main.climb_shape.regard_prompt(main.regard)
 		draw_string(font, Vector2(0, size.y - 40), prompt, HORIZONTAL_ALIGNMENT_CENTER, size.x, 16, Color(DIM_TEXT, 0.5 + 0.5 * pulse))
+
+
+## The guardian's eye at the Regard (and a refused one): an almond of
+## shadowed white under a heavy lid, a shaded iris of `col` with fine
+## striations, a beast's slit pupil that narrows as it opens fully, and a
+## glint from the top-left. `look` turns the iris aside; `rim` is the lid's
+## line. `h` is how far it's open (0 shut). One batch, one draw call.
+func _regard_eye(c: Vector2, w: float, h: float, open: float, col: Color, look: Vector2, rim: Color) -> void:
+	var b := Draw.Batch.new()
+	b.soft(c, Vector2(w * 1.05, 40.0 + h * 1.4), Color(col, 0.1 * open))
+	var lid := PackedVector2Array()
+	for i in 33:
+		var k := float(i) / 32.0
+		lid.append(c + Vector2(lerpf(-w, w, k), -sin(PI * k) * h))
+	for i in 33:
+		var k := float(i) / 32.0
+		lid.append(c + Vector2(lerpf(w, -w, k), sin(PI * k) * h))
+	if h > 1.0:
+		# The white: dusky at the corners and under the lid, palest low in the middle.
+		b.polygon(lid, Color(0.13, 0.11, 0.1, 0.92 * open))
+		var inner := PackedVector2Array()
+		for p in lid:
+			inner.append(c + (p - c) * Vector2(0.86, 0.72) + Vector2(0, h * 0.1))
+		b.polygon(inner, Color(0.62, 0.55, 0.42, 0.32 * open))
+		var iris := minf(52.0 * minf(1.0, open * 1.2), h * 0.95)
+		if open > 0.2 and iris > 3.0:
+			var ic := c + look
+			b.disc(ic, iris + 1.6, Color(0.03, 0.025, 0.04, 0.9))
+			b.disc(ic, iris, col.darkened(0.35))
+			b.soft(ic + Vector2(iris * 0.08, iris * 0.12), Vector2.ONE * iris * 0.9, Color(col.lightened(0.35), 0.45))
+			for i in 18:
+				var a := TAU * float(i) / 18.0 + 0.1
+				b.line(ic + Vector2.from_angle(a) * iris * 0.34, ic + Vector2.from_angle(a + 0.05) * iris * 0.9, Color(col.lightened(0.5), 0.22), 1.2)
+			b.arc(ic, iris - 1.5, 0.0, TAU, 40, Color(col.darkened(0.65), 0.9), 3.0)
+			var slit := iris * lerpf(0.3, 0.14, clampf((open - 0.6) / 0.4, 0.0, 1.0))
+			b.oval(ic, Vector2(slit, iris * 0.7), 0.0, Color(0.02, 0.015, 0.03, 0.97))
+			b.circle(ic + Vector2(-iris * 0.36, -iris * 0.4), maxf(1.5, iris * 0.11), Color(1, 1, 1, 0.8), 16)
+			b.circle(ic + Vector2(iris * 0.3, iris * 0.34), maxf(1.0, iris * 0.05), Color(1, 1, 1, 0.35), 12)
+		# The upper lid's shadow on the eye.
+		var top := PackedVector2Array()
+		for i in 33:
+			top.append(lid[i] + Vector2(0, 3.5))
+		b.polyline(top, Color(0.02, 0.015, 0.03, 0.55 * open), 6.0)
+	b.polyline(lid + PackedVector2Array([lid[0]]), Color(rim, 0.8 * open + 0.1), 2.5)
+	b.flush(self)
 
 
 ## Under the Regard's words: what the outfitter paid for the first climb
@@ -1080,20 +1117,7 @@ func _draw_refused(size: Vector2, font: Font) -> void:
 	var shut := clampf((t - 1.5) / 0.7, 0.0, 1.0)
 	var w := minf(size.x * 0.36, 300.0)
 	var h := 70.0 * open * (1.0 - 0.75 * shut)
-	var lid := PackedVector2Array()
-	for i in 33:
-		var k := float(i) / 32.0
-		lid.append(c + Vector2(lerpf(-w, w, k), -sin(PI * k) * h))
-	for i in 33:
-		var k := float(i) / 32.0
-		lid.append(c + Vector2(lerpf(w, -w, k), sin(PI * k) * h))
-	draw_colored_polygon(lid, Color(0.75, 0.72, 0.8, 0.08 + 0.08 * open))
-	draw_polyline(lid + PackedVector2Array([lid[0]]), Color(0.85, 0.82, 0.9, 0.7 * open + 0.1), 2.5, true)
-	if open > 0.2 and h > 6.0:
-		var look := c + Vector2(w * 0.55 * shut, 0)
-		var iris := minf(52.0 * minf(1.0, open * 1.2), h * 0.95)
-		draw_circle(look, iris, Color(0.55, 0.52, 0.6, 0.6))
-		draw_circle(look, iris * 0.28, Color(0.02, 0.02, 0.03, 0.95))
+	_regard_eye(c, w, h, open, Color(0.55, 0.52, 0.6), Vector2(w * 0.55 * shut, 0), Color(0.85, 0.82, 0.9))
 	# Where a mark would grow: nothing takes hold; raw essence instead.
 	var mk := clampf((t - 1.8) / 1.0, 0.0, 1.0)
 	if mk > 0.0:

@@ -119,12 +119,18 @@ static func draw(c: CanvasItem, size: Vector2, font: Font, t: float, prompt: Str
 	var shake := Vector2(sin(t * 47.0), cos(t * 39.0)) * 5.0 * crack_p * (1.0 - clampf((t - 3.2) / 0.4, 0.0, 1.0))
 	var mid := Vector2(size.x / 2.0, size.y * 0.42) + shake
 	var appear := clampf(t / 0.5, 0.0, 1.0)
-	# The world: a shaded sphere with its lands, lit from the top-left.
-	b.contact(mid + Vector2(0, r * 1.05), r * 0.8, 0.3 * appear)
-	b.ball(mid, r, Color(0.2, 0.36, 0.52, appear))
-	var lands := [[-0.42, -0.3, 0.3, 0.17, 0.5], [0.3, -0.45, 0.2, 0.12, -0.3], [0.38, 0.12, 0.26, 0.2, 1.1], [-0.2, 0.42, 0.34, 0.14, -0.2], [-0.55, 0.15, 0.14, 0.1, 0.9]]
-	for l in lands:
-		b.oval(mid + Vector2(l[0], l[1]) * r, Vector2(l[2], l[3]) * r, l[4], Color(0.36, 0.5, 0.3, appear), Shade.BALL)
+	# The world: the same one the opening shows (opening.gd _globe: its lit
+	# ocean, turning lands, clouds and air), slowly turning; it fades in over
+	# the dark (drawn first in its own batch, then the dark laid over it).
+	var gb := Draw.Batch.new()
+	gb.soft(mid, Vector2.ONE * r * 2.1, Color(0.35, 0.5, 1.0, 0.16 * appear))
+	gb.circle(mid, r + 1.6, Color(0.03, 0.025, 0.04), 48)
+	load("res://scripts/opening.gd")._globe(gb, mid, r, t * 0.06, 1.0)
+	b.flush(c)
+	gb.flush(c)
+	b = Draw.Batch.new()
+	if appear < 1.0:
+		b.circle(mid, r * 1.12, Color(0.02, 0.015, 0.03, 1.0 - appear), 48)
 	# The cracks: dark rifts, each bleeding one of the six essences' light.
 	if crack_p > 0.0:
 		for i in 6:
