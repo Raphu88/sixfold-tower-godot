@@ -180,14 +180,12 @@ func build() -> void:
 	card_scrolls.clear()
 	inner_scrolls.clear()
 	var toast: String = m.toast
-	var ask: String = m.sell_ask
 	var pick: int = m.bench_pick
 	for c in _ids():
 		var here: bool = c == cur
 		m.train_car = c
 		m.inv_sel = m.train_sel.get(c, "")
 		m.toast = toast if here else ""
-		m.sell_ask = ask if here else ""
 		m.bench_pick = pick if here else 0
 		m.details = null
 		var root := VBoxContainer.new()
@@ -228,11 +226,9 @@ func build() -> void:
 		m.train_sel[c] = m.inv_sel
 		cards[c] = m.details
 		if here:
-			ask = m.sell_ask
 			pick = m.bench_pick
 	m.train_car = cur
 	m.toast = toast
-	m.sell_ask = ask
 	m.bench_pick = pick
 	m.inv_sel = m.train_sel.get(cur, "")
 	m.details = cards.get(cur)
@@ -309,7 +305,6 @@ func go_to(i: int, from_drag := false) -> void:
 	m.train_sel[m.train_car] = m.inv_sel
 	m.train_car = list[i]
 	m.toast = ""
-	m.sell_ask = ""
 	m.train_say = ""
 	m.main.sfx("train_car", 1.0, 0.0, 0.0)
 	view.go(i)
@@ -760,7 +755,6 @@ func _store(root: Node) -> void:
 func _set_store(id: String) -> void:
 	m.train_store = id
 	m.inv_sel = ""
-	m.sell_ask = ""
 	m.toast = ""
 	if id == "tree" and Entity.TIPS.has("shop_tree") and not Guide.told("shop_tree"):
 		tips.erase("store")  # (the Entity's first word on the tree, now it shows)
@@ -1024,7 +1018,6 @@ func _counters(parent: Node, size: Vector2, names: int) -> void:
 func _set_bench(id: String) -> void:
 	m.train_bench = id
 	m.inv_sel = ""
-	m.sell_ask = ""
 	m.toast = ""
 	m.bench_pick = 0
 	m.open("train")
@@ -2205,7 +2198,6 @@ func _unbrew(id: String) -> void:
 
 func _pick_trait(i: int) -> void:
 	m.bench_pick = i
-	m.sell_ask = ""
 	m.toast = ""
 	m.open("train")
 
@@ -2272,8 +2264,6 @@ func _bench_do(thing: String, ask: String) -> void:
 func details(key: String) -> void:
 	var kind := key.get_slice(":", 0)
 	var arg := key.get_slice(":", 1)
-	if key != m.sell_ask and not m.sell_ask.begins_with(key + "|"):
-		m.sell_ask = ""
 	match kind:
 		"bench":
 			_bench_card(key.substr(6))

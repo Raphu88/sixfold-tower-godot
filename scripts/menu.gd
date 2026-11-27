@@ -182,7 +182,6 @@ var train_store := "shop"  # the store car: its shelves ("shop") or selling ("se
 var train_bench := "brew"  # the workshop car's counter (bench.gd)
 var train_tower := ""  # the engine: the tower chosen for the next climb
 var bench_pick := 0  # Retrait: which of a piece's traits to replace
-var sell_ask := ""  # (kept for old callers: selling and the bench ask in a pop-up now, ask)
 var train_say := ""  # the outfitter's (or the Entity's) answer to the last choice
 var train_board := "towers"  # the engine's destination board: "towers" or "stations"
 # A station between towers (station_page.gd builds its page, station_view.gd

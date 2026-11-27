@@ -319,8 +319,6 @@ func _stash_strip(parent: Node) -> Array:
 func details(key: String) -> void:
 	var kind := key.get_slice(":", 0)
 	var arg := key.get_slice(":", 1)
-	if key != m.sell_ask:
-		m.sell_ask = ""
 	match kind:
 		"worn":
 			_worn_card(arg)
