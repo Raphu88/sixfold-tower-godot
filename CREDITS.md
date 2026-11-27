@@ -4,18 +4,18 @@ All sound effects and music are **CC0** (public domain), from [OpenGameArt.org](
 
 | Pack | Author | Used for |
 | --- | --- | --- |
-| [50 RPG Sound Effects](https://opengameart.org/content/50-rpg-sound-effects) | Kenney | chops, footsteps, cloth, creaks, knife slices, book pages (menus) |
+| [50 RPG Sound Effects](https://opengameart.org/content/50-rpg-sound-effects) | Kenney | chops, footsteps, cloth, creaks, knife slices, book pages (menus), doors, a book set down (a refusal) |
 | [RPG Sound Pack](https://opengameart.org/content/rpg-sound-pack) | artisticdude | sword swings, armour, cloth, metal ring |
 | [Swishes Sound Pack](https://opengameart.org/content/swishes-sound-pack) | artisticdude | punches, heavy swings, dodges |
 | [80 CC0 RPG SFX](https://opengameart.org/content/80-cc0-rpg-sfx) | rubberduck | spells, slime, creature sounds, arrow thunks, rubble |
-| [100 CC0 SFX](https://opengameart.org/content/100-cc0-sfx) | rubberduck | slams, metal clangs, wood, gong |
+| [100 CC0 SFX](https://opengameart.org/content/100-cc0-sfx) | rubberduck | slams, metal clangs, wood, gong (and a new mark's) |
 | [37 hits/punches](https://opengameart.org/content/37-hitspunches) | Independent.nu | punch and hit bodies |
 | [Fantasy: Rising Moon](https://opengameart.org/content/fantasy-rising-moon) | RandomMind | music: the title, the train and stations, and a climb's calm rooms (CC0) |
 | [Frost in the Northern Winter](https://opengameart.org/content/frost-in-the-northern-winter) | Kaiser (posted by The Oracle) | music: story moments (the introduction, the Regard, the Makers, the ending), cut to open with six tolls; one toll also cut into `sfx/gong_0.wav`, rung as a story scene changes (CC0) |
 | [Great Labyrinth (Orchestral dungeon music)](https://opengameart.org/content/great-labyrinthorchestral-dungeon-music) | MintoDog | music: a climb's danger and the guardian's fight (CC0) |
 | [Medieval Sound Effects: Weapon Textures](https://opengameart.org/content/medieval-sound-effects-weapon-textures) | Still North Media (posted by MedicineStorm) | bow draw, nock and release, crossbow shot, reload and bolt, dagger and spear swings, blade draws |
 | [Fantasy Sound Effects (Tinysized SFX)](https://opengameart.org/content/fantasy-sound-effects-tinysized-sfx) | Vehicle (Jan Schupke) | dagger draw, pouch (pick-ups, inventory), spike trap scrape, gas hiss |
-| [Interface Sounds](https://opengameart.org/content/interface-sounds) | Kenney | menu clicks |
+| [Interface Sounds](https://opengameart.org/content/interface-sounds) | Kenney | menu clicks, glass clinks (crystals), a faint error tone under a refusal |
 | [10 Impact/Shield Blocks](https://opengameart.org/content/10-impactshield-blocks) | StarNinjas | mace and war hammer hits |
 | [80 CC0 creature SFX](https://opengameart.org/content/80-cc0-creature-sfx) | rubberduck | monster growls, grunts, bugs, burbles, hurt cries, the howl of a beast's call |
 | [80 CC0 creture SFX #2](https://opengameart.org/content/80-cc0-creture-sfx-2) | rubberduck | monster grunts, deaths, bugs, human grunts (knight, archer) |
@@ -51,14 +51,14 @@ All sound effects and music are **CC0** (public domain), from [OpenGameArt.org](
 | [Fantasy Accessory SFX Library](https://opengameart.org/content/fantasy-accessory-sfx-library) | Vehicle (Jan Schupke) | coins (buying, selling), the lock's key, vials and oils |
 | [150 Combat Sound Effects](https://opengameart.org/content/150-combat-sound-effects) | untamedpixels (spell impacts by lentikula, zaps by CoMiGo, all CC0) | bond spells by family: lightning, wind, water, frost, fire, stone, life; the Unbound's bolts and shells |
 | [Electricity Game Sound Pack](https://opengameart.org/content/electricity-game-sound-pack) | faxcorp | thunderlings, lightning, the beam |
-| [Magic Spell SFX](https://opengameart.org/content/magic-spell-sfx) | JaggedStone | wisps, the Makers, runes, eyes, the vessel |
+| [Magic Spell SFX](https://opengameart.org/content/magic-spell-sfx) | JaggedStone | wisps, the Makers, runes, eyes, the vessel, the sparkle in a chime, a new mark swelling in |
 | [Teleport Spell](https://opengameart.org/content/teleport-spell) | Ogrebane | wisps, the rift |
 | [3 dark magic spells](https://opengameart.org/content/3-dark-magic-spells) | qubodup | Unmaking, the Proving's shadow |
 | [Energy Drain](https://opengameart.org/content/energy-drain) | qubodup | Unmaking, the Makers' meetings |
 | [Cure Magic](https://opengameart.org/content/cure-magic) | Someoneman | Life mending, Life's essence rising |
-| [Bell dings/chimes](https://opengameart.org/content/bell-dingschimes) | PWL | the Entity's tips, a summit won, puzzles solved, the shop bell, fragments |
+| [Bell dings/chimes](https://opengameart.org/content/bell-dingschimes) | PWL | the Entity's tips, a summit won, puzzles solved, the shop bell, fragments, the chime for good things, a new mark's bell |
 | [4 Atmospheric ghostly loops](https://opengameart.org/content/4-atmospheric-ghostly-loops) | qubodup (Independent.nu) | the Makers, the Regard, the statues, the shadow |
-| [Heartbeat sounds](https://opengameart.org/content/heartbeat-sounds) | bart | the Regard, the shadow, the Unbound's Heartbeat |
+| [Heartbeat sounds](https://opengameart.org/content/heartbeat-sounds) | bart | the Regard, the shadow, the Unbound's Heartbeat, a new mark |
 | [Ice breaking/shattering](https://opengameart.org/content/ice-breakingshattering) | IgnasD | frost, the ice puzzle, wisps |
 | [Sand spell](https://opengameart.org/content/sand-spell) | qubodup | sand spells |
 | [windy ambient noise](https://opengameart.org/content/windy-ambient-noise) | Some Weirdo | the Gryphon's, the Manticore's and the Firebird's ambience |
