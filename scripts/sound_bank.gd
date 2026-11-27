@@ -260,7 +260,6 @@ const SFX := {
 }
 
 const MUSIC := {
-	"ambience": "res://assets/audio/music/ambience.ogg",
 	"ambience_gryphon": "res://assets/audio/music/ambience_gryphon.ogg",
 	"ambience_kraken": "res://assets/audio/music/ambience_kraken.ogg",
 	"ambience_wyvern": "res://assets/audio/music/ambience_wyvern.ogg",

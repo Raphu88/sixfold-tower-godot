@@ -1,8 +1,12 @@
 extends Node
 ## Plays the game's sounds and music. The sounds are recorded CC0 effects,
 ## layered and levelled by tools/build_audio.py; sound_bank.gd lists them.
-## The music director (music.gd) says which track plays where; this plays
-## it, crossfading from one to the next, under each place's ambience.
+## The music director (music.gd) says which track plays where, and which
+## ambience loop goes under it (none on the title, the opening and in the
+## stations); this plays them, crossfading from one to the next. Every loop
+## is set from the Music slider the moment it starts (no tweens fight it),
+## and the music and ambience carry on where they were across a new floor or
+## a return to the train (the scene starts afresh: _note_resume / _resume).
 ## Each sound can have several variants; one is picked at random, with a
 ## little pitch variance, so repeats never sound identical.
 
@@ -40,9 +44,20 @@ var director = Music.new()
 var director_on := true  # (tests turn it off to set moods themselves)
 var _look_t := 0.0
 var _music_us := 0
+## The ambience heard now (no stream: none), and the one fading out after a
+## change (at most one: a third is stopped at once, so loops never pile up).
 var ambience: AudioStreamPlayer
-var ambience_key := "ambience"  # which loop plays: "ambience", or "ambience_<tower>" / "ambience_train"
+var ambience_key := ""  # which loop plays: "" (none), "ambience_<tower>" or "ambience_train"
+var amb_level := 1.0  # its share of the crossfade (0..1)
+var amb_rate := 1.0
+var ambience_old: AudioStreamPlayer = null
+var amb_old_level := 0.0
+var amb_old_rate := 1.0
 var music_on := true
+## What was playing when the scene last ended (a new floor, the train): the
+## next audio carries on from there if it starts right after.
+static var _resume := {}
+const RESUME_MS := 4000
 ## The opening's screens (opening.gd): the story track's toll they're on
 ## (-1: none yet). Each screen plays one toll, then holds there (story_toll).
 var toll_at := -1
@@ -66,13 +81,54 @@ func _ready() -> void:
 			if s != null:
 				list.append(s)
 		streams[sound] = list
-	ambience = _loop_player(Bank.MUSIC.get("ambience", ""), AMBIENCE_DB)
+	music_on = not Engine.has_meta("sixfold_music_off")  # (M's choice holds across floors)
+	ambience = _loop_player("")
 	_music_us = Time.get_ticks_usec()
-	set_mood("menu", 0.0)  # (the title shows first; the director looks from the next frame)
+	if not _resume_playing():
+		set_mood("menu", 0.0)  # (the title shows first; the director looks from the next frame)
 
 
-func _loop_player(path: String, db: float) -> AudioStreamPlayer:
+## Carries on what played before the scene started afresh: the same mood at
+## the same moment of its track, the same ambience at full.
+func _resume_playing() -> bool:
+	var r := _resume
+	_resume = {}
+	if r.is_empty() or Time.get_ticks_msec() - int(r.get("msec", -100000)) > RESUME_MS or not Music.MOODS.has(String(r.get("mood", ""))):
+		return false
+	set_mood(String(r["mood"]), 0.0)
+	var name := String(Music.MOODS[mood]["track"])
+	if tracks.has(name) and r.has("pos"):
+		var p: AudioStreamPlayer = tracks[name]["player"]
+		p.seek(float(r["pos"]))
+	var key := String(r.get("amb", ""))
+	if key != "" and Bank.MUSIC.has(key):
+		ambience_key = key
+		ambience.queue_free()
+		ambience = _loop_player(String(Bank.MUSIC[key]), float(r.get("amb_pos", 0.0)))
+		amb_level = 1.0
+		_apply_ambience()
+	return true
+
+
+## Notes, each frame, what plays (the players have already stopped by the
+## time the scene's nodes leave the tree, so it can't wait for that).
+func _note_resume() -> void:
+	_resume["msec"] = Time.get_ticks_msec()
+	_resume["mood"] = mood
+	_resume["amb"] = ambience_key if amb_level > 0.5 else ""
+	_resume.erase("pos")
+	_resume.erase("amb_pos")
+	if music != null and is_instance_valid(music) and music.playing and not music.stream_paused:
+		_resume["pos"] = music.get_playback_position()
+	if ambience != null and is_instance_valid(ambience) and ambience.playing:
+		_resume["amb_pos"] = ambience.get_playback_position()
+
+
+## A looping player for `path` ("": a silent one), started at `from` seconds.
+## It starts silent: _apply_ambience sets its level.
+func _loop_player(path: String, from := 0.0) -> AudioStreamPlayer:
 	var p := AudioStreamPlayer.new()
+	p.volume_db = -80.0
 	add_child(p)
 	if path == "":
 		return p
@@ -82,8 +138,7 @@ func _loop_player(path: String, db: float) -> AudioStreamPlayer:
 	if "loop" in s:
 		s.loop = true
 	p.stream = s
-	p.volume_db = db
-	p.play()
+	p.play(from)
 	return p
 
 
@@ -93,6 +148,10 @@ var sound_level := 1.0
 
 func toggle_music() -> bool:
 	music_on = not music_on
+	if music_on:
+		Engine.remove_meta("sixfold_music_off")
+	else:
+		Engine.set_meta("sixfold_music_off", true)
 	_apply_music()
 	return music_on
 
@@ -107,7 +166,7 @@ func set_levels(music_frac: float, sound_frac: float) -> void:
 func _apply_music() -> void:
 	for name in tracks:
 		_track_volume(tracks[name])
-	ambience.volume_db = _ambience_db()
+	_apply_ambience()
 
 
 func music_muted() -> bool:
@@ -190,11 +249,19 @@ func _process(_delta: float) -> void:
 			tr["db"] = move_toward(float(tr["db"]), float(tr["db_to"]), float(tr["db_rate"]) * dt)
 			_settle(tr)
 			_track_volume(tr)
+	if amb_level < 1.0 or ambience_old != null:
+		amb_level = move_toward(amb_level, 1.0, amb_rate * dt)
+		amb_old_level = move_toward(amb_old_level, 0.0, amb_old_rate * dt)
+		if ambience_old != null and amb_old_level <= 0.0:
+			_drop_old_ambience()
+		_apply_ambience()
 	if director_on:
 		_look_t -= dt
 		if _look_t <= 0.0:
 			_look_t = float(Music.RULES["check_every"])
 			set_mood(director.update(get_parent(), float(Music.RULES["check_every"])))
+			update_ambience()
+	_note_resume()
 
 
 ## A track that has faded all the way out pauses (it carries on from there).
@@ -244,27 +311,72 @@ func track_playing() -> String:
 
 
 func _ambience_db() -> float:
-	return -80.0 if not music_on or music_level <= 0.01 else AMBIENCE_DB + linear_to_db(music_level)
+	return -80.0 if music_muted() else AMBIENCE_DB + linear_to_db(music_level)
+
+
+## The ambience players' levels: the Music slider times each one's share of
+## the crossfade, set every frame of a fade (nothing else touches them).
+func _apply_ambience() -> void:
+	if ambience != null and is_instance_valid(ambience):
+		ambience.volume_db = _amb_db(amb_level)
+	if ambience_old != null and is_instance_valid(ambience_old):
+		ambience_old.volume_db = _amb_db(amb_old_level)
+
+
+func _amb_db(share: float) -> float:
+	var base := _ambience_db()
+	return -80.0 if base <= -79.0 or share <= 0.001 else maxf(-80.0, base + linear_to_db(share))
+
+
+func _drop_old_ambience() -> void:
+	if ambience_old != null and is_instance_valid(ambience_old):
+		ambience_old.stop()
+		ambience_old.queue_free()
+	ambience_old = null
+	amb_old_level = 0.0
+
+
+## The ambience the director wants here (music.gd ambience_of).
+func update_ambience(fade_time := 2.0) -> void:
+	set_ambience(Music.ambience_of(get_parent()), fade_time)
 
 
 ## Each place has its own ambience under the music: a tower's id ("kraken"),
-## "train", or anything else for the default loop. The old loop fades out as
-## the new one fades in.
+## "train", or "" (or anything without a loop) for none. The old loop fades
+## out as the new one fades in.
 func set_ambience(place: String, fade_time := 2.0) -> void:
 	var key := "ambience_" + place
-	if not Bank.MUSIC.has(key):
-		key = "ambience"
-	if key == ambience_key or ambience == null:
+	if place == "" or not Bank.MUSIC.has(key):
+		key = ""
+	if ambience == null:
+		return
+	if key == ambience_key:
+		if fade_time <= 0.0 and (amb_level < 1.0 or ambience_old != null):
+			amb_level = 1.0  # (at once: a fade under way is finished)
+			_drop_old_ambience()
+			_apply_ambience()
 		return
 	ambience_key = key
-	var old := ambience
-	ambience = _loop_player(Bank.MUSIC[key], -60.0)
-	var tw := create_tween()
-	tw.tween_property(ambience, "volume_db", _ambience_db(), fade_time)
-	if old != null:
-		var out := create_tween()
-		out.tween_property(old, "volume_db", -60.0, fade_time)
-		out.tween_callback(old.queue_free)
+	_drop_old_ambience()  # (one still fading from before: gone at once)
+	ambience_old = ambience
+	amb_old_level = amb_level
+	amb_old_rate = 1.0 / maxf(fade_time, 0.001)
+	ambience = _loop_player(String(Bank.MUSIC[key]) if key != "" else "")
+	amb_level = 0.0
+	amb_rate = 1.0 / maxf(fade_time, 0.001)
+	if fade_time <= 0.0:
+		amb_level = 1.0
+		_drop_old_ambience()
+	_apply_ambience()
+
+
+## How many ambience loops are playing and can be heard (for tests).
+func ambience_heard() -> int:
+	var n := 0
+	for p in [ambience, ambience_old]:
+		if p != null and is_instance_valid(p) and p.playing and p.stream != null and p.volume_db > -79.0:
+			n += 1
+	return n
 
 
 func has_sound(sound: String) -> bool:

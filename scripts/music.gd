@@ -67,6 +67,31 @@ static var DANGER := {
 	"themes": ["post", "proving_sentinel", "proving_shadow"],
 }
 
+## The ambience loop under the music in each place (ambience_of): "train"
+## (ambience_train.ogg), "tower" for the tower's own (ambience_<tower>.ogg),
+## or "" for none (music alone). There's no city loop, so the stations have
+## none; nor does the dripping cavern loop that once played everywhere else.
+##   title      the title and its pages, the opening, a new climber's pages
+##   story      the Regard, a Maker's meeting, the plea, the ending
+##   train      the train's cars
+##   station    a station's pages
+##   waiting    a new climber's tower choice, before the first climb
+##   practice   the practice room (off the train)
+##   arena      the station's arena (a room of the event's tower)
+##   arena_car  a duel from the Dining car's Arena car (on the train)
+##   climb      a tower's floors (with any page opened from play)
+static var AMBIENCE := {
+	"title": "",
+	"story": "",
+	"train": "train",
+	"station": "",
+	"waiting": "",
+	"practice": "",
+	"arena": "tower",
+	"arena_car": "train",
+	"climb": "tower",
+}
+
 ## A monster in one of these states hasn't noticed anyone yet.
 const ASLEEP := ["idle", "rest", "sub", "ally"]
 
@@ -123,6 +148,37 @@ static func place_of(main) -> String:
 	if bool(main.get("on_train")) or bool(main.get("choosing_tower")):
 		return "menu"
 	return "climb"
+
+
+## Where the climber is, for the ambience (AMBIENCE's places).
+static func ambience_place(main) -> String:
+	if main == null or not is_instance_valid(main):
+		return "title"
+	var menu = main.get("menu")
+	if menu != null and is_instance_valid(menu):
+		if String(menu.page) == "intro" or menu.backdrop_showing() or (menu.is_open() and bool(menu.opened_from_title)):
+			return "title"
+	if story_showing(main):
+		return "story"
+	var arena = main.get("arena")
+	if arena != null and is_instance_valid(arena) and bool(arena.on):
+		return "arena_car" if arena.ev is Dictionary and arena.ev.has("car") else "arena"
+	var practice = main.get("practice")
+	if practice != null and is_instance_valid(practice) and bool(practice.on):
+		return "practice"
+	if bool(main.get("on_train")):
+		return "station" if menu != null and is_instance_valid(menu) and menu.at_station() else "train"
+	if bool(main.get("choosing_tower")):
+		return "waiting"
+	return "climb"
+
+
+## The ambience loop to play here: a tower's id, "train", or "" (none).
+static func ambience_of(main) -> String:
+	var want := String(AMBIENCE.get(ambience_place(main), ""))
+	if want == "tower":
+		return String(main.get("tower")) if main.get("tower") != null else ""
+	return want
 
 
 ## A story moment is playing: the Regard (with its glimpse of the

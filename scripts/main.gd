@@ -378,6 +378,10 @@ func _ready() -> void:
 	# and this player's own arrangement, loaded once.
 	preload("res://scripts/layout.gd").ensure_loaded(Engine.has_meta("sixfold_test"))
 	audio = AudioScript.new()
+	# The saved Music and Sounds levels, before anything plays a note (the
+	# menu applies them again with the rest of the settings).
+	MenuScript.load_settings()
+	audio.set_levels(float(MenuScript.settings["music"]), float(MenuScript.settings["sounds"]))
 	add_child(audio)
 	_build_walls()
 
@@ -2892,7 +2896,7 @@ func await_tower() -> void:
 	choosing_tower = true
 	on_train = profile.regarded or Training.lives_on_train(profile)  # (a new climber waits at their station until their first climb)
 	if on_train:
-		sfx_ambience("train")
+		sfx_ambience()
 		Train.stock(profile)
 		profile.save()
 	card_focus = maxi(Towers.ORDER.find(tower), 0)
@@ -2907,7 +2911,7 @@ func open_train() -> void:
 	on_train = true
 	choosing_tower = true
 	Floors.wild_tough = Vector2.ONE  # (off the climb: the Bestiary's numbers are plain)
-	sfx_ambience("train")
+	sfx_ambience()
 	player.set_physics_process(false)
 	for e in enemies():
 		e.set_physics_process(false)
@@ -2995,7 +2999,7 @@ func _greet() -> void:
 ## Each tower's stone, light and torches.
 func _apply_tower_look() -> void:
 	var t := tower_data()
-	sfx_ambience(tower)
+	sfx_ambience()
 	lighting.set_tower_look(tower)
 	room_view.self_modulate = t["stone"] * Palette.TOWER_TINT.get(tower, Color.WHITE)
 	if WildTowersScript.is_wild(profile, tower) and not first_climb:
@@ -4759,10 +4763,14 @@ func sfx_kind(what: String, kind: String, fallback := "", pitch := 1.0, volume_d
 		sfx(fallback, pitch, volume_db)
 
 
-## The ambience under the music: a tower's own, the train's, or the default.
-func sfx_ambience(place: String) -> void:
-	if audio != null:
-		audio.set_ambience(place)
+## The ambience under the music, for where the climber is now (music.gd
+## ambience_of: a tower's own, the train's, or none on the title, the
+## opening and in the stations). While the scene is still being built (no
+## menu yet) the director's first look picks it instead, once the title or
+## the train's page is showing.
+func sfx_ambience() -> void:
+	if audio != null and is_instance_valid(audio) and menu != null and is_instance_valid(menu):
+		audio.update_ambience()
 
 
 func fx_ring(pos: Vector2, color: Color, reach: float, dur := 0.3, width := 3.0) -> void:

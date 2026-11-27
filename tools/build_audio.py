@@ -477,10 +477,13 @@ AMBIENCE = {
     # Wind-swept halls, and something with wings far above.
     "gryphon": {"beds": [("windy/windy_ambiance.ogg@10+44", 0, 1.0, 3000, 80)],
                 "scatter": [(SCREECH + "1.94+0.94", -24, 0.6, 1800, 200, 14), ("dragonflap/dragonflap.wav", -20, 0.9, 1500, 60, 11)]},
-    # Flooded halls: dripping, lapping water, a bubble, something huge below.
-    "kraken": {"beds": [("drip/atmosbasement.mp3_.flac", 0, 1.0, 6000, 100), (RW + "loop_water_02.ogg", -10, 0.9, 2500, 100)],
-               "scatter": [(RW + "bubble_01.ogg", -16, 0.8, 3000, 100, 7), (RW + "bubble_02.ogg", -16, 0.7, 3000, 100, 9),
-                           ("deeproar/monster_roar.wav@0.18+4.0", -24, 0.55, 700, 40, 19)]},
+    # Flooded halls: lapping water, a deep bubble now and then, something
+    # huge below. (No dripping: the owner found the old drip loop wearing
+    # over the music, so it was taken out, and the bubbles kept low and soft
+    # so they can't read as drips.)
+    "kraken": {"beds": [(RW + "loop_water_02.ogg", 0, 0.9, 2000, 80)],
+               "scatter": [(RW + "bubble_01.ogg", -24, 0.5, 1200, 80, 13), (RW + "bubble_02.ogg", -24, 0.45, 1200, 80, 17),
+                           ("deeproar/monster_roar.wav@0.18+4.0", -22, 0.55, 700, 40, 19)]},
     # The forge: a boiler's roar, the fire, an anvil somewhere, steam.
     "wyvern": {"beds": [("steam/generator_loop.wav", -2, 0.9, 1800, 40), ("firecrackle/fire-1.wav", -8, 1.0, 5000, 200)],
                "scatter": [("anvil/blacksmithhammer.wav", -20, 0.8, 3000, 200, 7), (STEAM + "1.wav", -24, 0.8, 4000, 300, 11)]},
@@ -536,7 +539,6 @@ MUSIC = {
     # and the guardian: "Great Labyrinth" (MintoDog), made to loop: 118 bars
     # of 3/4 at 160 bpm, kept whole so the loop stays on the beat.
     "climb_intense": {"src": "music/great_labyrinth_bpm160.flac", "fade": 0.0, "q": 1, "mono": True},
-    "ambience": {"src": "music/dark_cavern_ambient_001.ogg", "fade": 6.0, "tempo": 1.0},
 }
 
 

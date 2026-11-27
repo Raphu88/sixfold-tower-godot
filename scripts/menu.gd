@@ -3998,13 +3998,15 @@ func at_station() -> bool:
 
 
 ## To a station (the engine's lever, or back from its arena): its page, on
-## stop `stop` (else its first), the card `pick` showing `said`.
-func go_station(id: String, stop := "", pick := "", said: Array = []) -> void:
+## stop `stop` (else its first), the card `pick` showing `said`. The whistle
+## blows as the train pulls in (`whistle`: not when walking back in from the
+## station's arena, which never left it).
+func go_station(id: String, stop := "", pick := "", said: Array = [], whistle := true) -> void:
 	if not _on_train():
 		return
 	var arriving: bool = station_page.station == ""
 	station_page.arrive(id, stop, pick, said)
-	if arriving and said.is_empty() and main != null:
+	if whistle and arriving and said.is_empty() and main != null:
 		main.sfx("train_whistle", 1.1, -4.0, 0.0)
 	opened_direct = false
 	_rail_focus = true

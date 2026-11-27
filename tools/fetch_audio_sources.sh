@@ -47,7 +47,6 @@ get_file independent_hits hit.mp3                    # Independent.nu: 37 hits/p
 get_file music Rising_Moon_0.mp3                     # RandomMind: Fantasy: Rising Moon (menus, calm rooms)
 get_file music 01_frost_in_the_northern_winter.flac  # Kaiser: Frost in the Northern Winter (story moments)
 get_file music great_labyrinth_bpm160.flac           # MintoDog: Great Labyrinth (a climb's danger, the guardian)
-get_file music dark_cavern_ambient_001.ogg           # Paul Wortmann: Dark Cavern Ambient
 
 # --- monsters, the train, the bench, puzzles, the Makers, bonds and towers ---
 get_zip rd_creature 80-CC0-creature-SFX_0.zip        # rubberduck: 80 CC0 creature SFX
@@ -97,7 +96,6 @@ get_zip icebreak IceShatters_0.zip                   # IgnasD: Ice breaking/shat
 get_file sandspell sand-spell.flac                   # qubodup: Sand spell
 get_file windy windy_ambiance.ogg                    # Some Weirdo: windy ambient noise
 get_7z forestbirds forest_birds.7z                   # pauliuw: Forest bird sounds
-get_file drip atmosbasement.mp3_.flac                # qubodup: Dripping water loop
 get_file firecrackle fire-1.wav                      # AntumDeluge: Fire Crackling
 get_file flame flame.ogg                             # themightyglider: Catching fire
 # The train's ambience: allh, "Steam Train Interior" (freesound.org/s/133099, CC0)
