@@ -63,8 +63,8 @@ const RESUME_MS := 4000
 var toll_at := -1
 ## The story track's six tolls: one every this many seconds from its start.
 const TOLL_EVERY := 3.0
-## Where the story track's pads begin, after its six tolls (a story moment
-## other than the opening starts here, with one gong for the scene).
+## Where the story track's pads begin, after its six tolls: every story
+## moment, the opening included, plays from here (the gongs are rung on their own).
 const STORY_PADS := 18.0
 
 
@@ -292,23 +292,15 @@ func _track_volume(tr: Dictionary) -> void:
 
 
 ## The opening's screen `i` (0..5) is showing (opening.gd calls this each
-## frame): the story track plays its toll `i` once, then waits, silent, for
-## the next screen; the sixth toll carries on into the pads. So the six
-## screens ring the six tolls, one each, however long each is read.
+## frame). The music under the opening is the story track's pads only (its
+## own tolls are skipped: set_mood starts it at STORY_PADS); the gong is a
+## sound of its own, rung once as each screen comes up, and only then.
 func story_toll(i: int) -> void:
-	if mood != "story" or not tracks.has("story"):
-		return
-	var p: AudioStreamPlayer = tracks["story"]["player"]
-	if not p.playing and not p.stream_paused:
+	if mood != "story":
 		return
 	if toll_at != i:
 		toll_at = i
-		p.stream_paused = false
-		p.seek(TOLL_EVERY * float(i))
-		return
-	# (its ring has died away just before the next toll: it waits there)
-	if i < 5 and not p.stream_paused and p.get_playback_position() >= TOLL_EVERY * float(i + 1) - 0.08:
-		p.stream_paused = true
+		play("gong", 1.0, -2.0, 0.0)
 
 
 ## The track heard now (the one fading in), or "".
