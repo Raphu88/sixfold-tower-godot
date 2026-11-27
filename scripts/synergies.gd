@@ -119,7 +119,6 @@ static var TEXT := {
 	"shelf": "Synergies",
 	"locked": "???",
 	"shelf_note": "A named synergy forms when you carry both of its marks. Those you have formed are written here.",
-	"lent_head": "Lent traits",
 	"lent": "%s's spells take %s from %s: %s",
 	"lent_short": "Lent: %s",
 	"lent_formed": "Synergy: your marks lend each other traits",

@@ -54,7 +54,6 @@ const LEVEL_ORDER := ["low", "medium", "high"]
 static var level := "medium"
 
 static var TEXT := {
-	"wield": "Enchanted: it shows its essence, and lights a little of the dark.",
 	"setting": "Effects",
 }
 

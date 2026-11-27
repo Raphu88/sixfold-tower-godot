@@ -86,7 +86,6 @@ static var TEXT := {
 	"harvested": "Harvested: %s",
 	"bud": "Bud: %s",
 	"bud_bare": "Bud: your own flesh",
-	"crippled": "Crippled",
 	"asleep": "Asleep",
 	"woken": "Woken!",
 	"champion": "Champion: %d kills",

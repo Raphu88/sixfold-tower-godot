@@ -220,7 +220,6 @@ static var TEXT := {
 	# The Renown Board.
 	"board": "Climbers met",
 	"board_none": "No other climbers yet. Some climb the same towers.",
-	"board_line": "%s  ·  %s",
 	"history_met": "Met %d %s",
 	"history_duels": "duels won %d, lost %d",
 	"history_teamed": "teamed up %d",

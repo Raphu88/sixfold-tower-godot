@@ -82,8 +82,6 @@ static var TEXT := {
 	"full": "You hold as many contracts as you can (%d).",
 	"none": "No contracts held. The Noble at a station gives them.",
 	"held": "Held",
-	"offer": "On offer",
-	"locked_kind": "The Noble offers these from the rank of %s",
 	"thing": "Contract",
 }
 

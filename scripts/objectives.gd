@@ -124,7 +124,6 @@ static var TEXT := {
 	"done_title": "THE STAIR IS UNSEALED",
 	"done": "Gold light rises on the stair. Take your pick before you climb.",
 	"announce": "%s: %s",  # the task in the arrival banner: its name, and how
-	"reliquary": "Reliquary",
 	"reliquary_title": "THE RELIQUARY",
 	"reliquary_sub": "One of three, for unsealing the stair.",
 	"sealed": "Sealed: %s",

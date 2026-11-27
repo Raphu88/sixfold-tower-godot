@@ -69,7 +69,6 @@ static var TEXT := {
 		"locked": "%s", "placeholder": "Coming soon", "later": "Coming soon"},
 	"in_use_bud": "in use",
 	"opens": "opens %s",
-	"only_train": "Choices are made on the train.",
 	"spell_cost": "costs %d",
 	"strain": "+%d strain",
 	"press": "press %s",

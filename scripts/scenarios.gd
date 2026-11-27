@@ -89,7 +89,6 @@ static var TEXT := {
 	"gauntlet_line": "Wave %d of %d  ·  %d s",
 	"failed": "It's over",
 	"left": "You left the room",
-	"cub": "A small grey creature, all ears",
 	"flood": "Turn the drain wheel before it fills",
 	"flood_line": "Water %d%%  ·  wheel %d%%",
 	"flood_full": "The water closes over you",

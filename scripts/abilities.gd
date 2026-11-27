@@ -59,8 +59,6 @@ const TEXT := {
 	# The button to press: [keys, controller, touch].
 	"press": ["%s", "%s + %s", "tap"],
 	"hold": ["hold %s", "hold %s + %s", "hold, slide"],
-	"press_caption": "to cast",
-	"hold_caption": "to pick it",
 	"ring_note": "hold for the wheel",
 	"selected": "on the button",
 	"learned": "learned  ·  step %d",

@@ -494,9 +494,7 @@ const ESSENCE_SHOT_DEFAULT := "iron"
 static var GUN_TEXT := {
 	"shot": "%s: %s",  # "Fire shot: it bursts in flame..."
 	"refills": "Its chambers fill themselves while it has essence: no reloading",
-	"reloading": "Reloading",
 	"broken_off": "Reload broken off",
-	"loaded": "Loaded",
 	"shots": "%d of %d",
 }
 

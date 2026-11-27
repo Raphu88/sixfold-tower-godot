@@ -404,7 +404,6 @@ static var TEXT := {
 	"button": "Appearance",  # on the climber screen
 	"custom": "Your own",
 	"wheel_title": "%s: your own colour",
-	"wheel_hue": "Colour",
 	"wheel_shade": "Brightness",
 	"wheel_strength": "Strength",
 	"wheel_done": "Done",

@@ -223,7 +223,6 @@ static var TEXT := {
 	"result_draw": "A draw",
 	"arena_banner": "THE ARENA CAR",
 	"arena_line": "A duel with %s: the first to yield loses",
-	"rumor_tag": "A rumor",
 	"heard": "Heard tonight",
 }
 

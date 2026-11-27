@@ -407,7 +407,6 @@ static var TEXT := {
 	"packed": "Into your pack: %s",
 	"pack_full": "Your pack is full",
 	"took": "Took the %s",
-	"camp_desc": "%s",
 	"carrying": "carrying: %s",
 	"none": "no armor",
 	"empty": "nothing",

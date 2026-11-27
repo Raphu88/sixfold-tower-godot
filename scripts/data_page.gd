@@ -43,7 +43,6 @@ const TEXT := {
 	"edit": "Edit",
 	"default_button": "Default",
 	"default": "Default: %s",
-	"unchanged": "default",
 	"sections": "All sections",
 	"more": "Show %d more (%d left)",
 	"found": "%d found",

@@ -115,9 +115,7 @@ static var TITLE_STOCK := {
 }
 
 static var TEXT := {
-	"rail_title": "Rail",
 	"title_line": "For %s",
-	"shelf_title": "For %s: %s",
 }
 
 # --- rank and title ------------------------------------------------------------------

@@ -42,12 +42,9 @@ static var TEXT := {
 	"banked_full": "Banked %d %s: your body is saturated with core essence",
 	"saturated": "Your body is saturated with core essence",
 	"ascendance": "Ascendance: coming soon",
-	"ascendance_says": "Core essence past saturation will one day start to replace your other essence. Coming soon.",
-	"per_part": "%d core essence in each body part",
 	"total": "%d core essence in your body, of %d it can hold",
 	"absorbed": "Your core-led %s absorbs %d %s",
 	"aura_step": "Aura step %d of %d",
-	"aura_none": "No aura yet: it shows once %d core essence has settled",
 }
 
 

@@ -97,7 +97,6 @@ static var FORKS := {
 ## The few words these spells show in the world.
 static var TEXT := {
 	"backdraft": "Backdraft",
-	"bonfire": "Bonfire",
 	"cauterize": "Cauterized +%d",
 }
 ## Meteor's crater (its Apex): patches of your burning ground in a ring and at the middle.

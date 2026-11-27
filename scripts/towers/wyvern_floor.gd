@@ -84,7 +84,6 @@ static var FORGE := {"time": 40.0, "decay": 0.055, "foe_drain": 0.09, "near": 56
 	"gold": 0, "silver": 1}
 static var TEXT := {
 	"crank": "The bridge comes down",
-	"crank_hint": "Strike the crank",
 	"quench": "Quenched",
 	"too_hot": "Too hot!",
 	"roar": "The furnace roars",

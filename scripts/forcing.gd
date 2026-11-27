@@ -83,7 +83,6 @@ static var TEXT := {
 	"force_state": "%s  ·  %s",
 	"force_head": "Full: Force it pushes past full (%dx the essence, and strain)",
 	"tincture_force": "Force",
-	"node_full": "%s is full",
 	# The pop-up (menu.gd ask).
 	"ask_title": "Force it?",
 	"ask_confirm": "Force it",
