@@ -76,6 +76,11 @@ const CHIP_SIZE := 14
 const CHIP_H := 22.0
 const CHIP_GAP := 4.0
 const CHIPS_MAX := 3
+## A screen this short (HUD units) is a phone's: a beast's bar goes first in
+## the lane, and a banner under it shows its title alone (its lines go to
+## the feed), so the stack stays off the beast.
+const SHORT_VIEW := 560.0
+const DODGE_MIN_W := 120.0  # the narrowest a beast's bar gets as it slides aside of the beast
 const FEED_SIZE := 13
 const FEED_H := 18.0
 ## The feed: how long a line stays, how many show, how wide.
@@ -178,6 +183,9 @@ var lane_w := LANE_W  # the lane's width as last laid out (HUD units)
 var chip_right := INF  # the chips keep left of this (HUD units): a phone's Swap or cast button beside them
 var left_mode := false  # no room at the top: the lane sits under the corner
 var _shift := 0.0  # how far the chips have slid down for a banner (0..1)
+var _yield := 1.0  # the banner's alpha while it gives way to a beast under it (0..1)
+var _dodge_side := 0  # which side of the beast its bar has stepped to (-1 left, 1 right, 2 under the corner, 0 in its place)
+var beast_aside := -1.0  # while a beast's bar is under the corner: its foot (HUD units; the feed goes under it), else -1
 var _banner_h := 0.0
 var _draw_ms := 0
 var _batch := {}  # essence kind -> {entry, t, room, floor}
@@ -290,7 +298,8 @@ func tick(delta: float) -> void:
 ## go to the feed (once each).
 func _split(b: Dictionary) -> Array:
 	var lines: Array = b.get("lines", [])
-	var key := [lines.hash(), String(b.get("line", "")), int(lane_w)]
+	var compact: bool = b.get("_compact", false)  # (a beast's bar on a phone: the title alone, its lines to the feed)
+	var key := [lines.hash(), String(b.get("line", "")), int(lane_w), compact]
 	if b.get("_key") == key:
 		return b["_rows"]
 	var font: Font = UI.font("inscription") if b.get("inscribed", false) else UI.font("body")
@@ -303,6 +312,10 @@ func _split(b: Dictionary) -> Array:
 		# Words to read: every line, each wrapped on its own.
 		for l in lines:
 			rows.append_array(wrap_text(font, String(l), fs, w))
+	elif compact:
+		over = lines.duplicate()
+		if String(b.get("line", "")) != "" and not (b["line"] in over):
+			over.push_front(b["line"])
 	elif String(b.get("line", "")) != "":
 		rows = wrap_text(font, String(b["line"]), fs, w)
 		if rows.size() > max_rows + 1:
@@ -505,22 +518,49 @@ func draw_lane(ci: CanvasItem, unit: Transform2D, view: Vector2, col: Rect2, chi
 	var y := col.position.y
 	var cx := col.position.x + col.size.x * 0.5
 	var b := current
+	# A beast on the screen (its rect, HUD units): its bar and the banner keep
+	# off it. On a phone its bar goes first, at the top, and the banner under
+	# it is its title alone.
+	var shown: Array = chips.slice(0, CHIPS_MAX)
+	var avoid := Rect2()
+	for c in shown:
+		if c.get("avoid") is Rect2 and (c["avoid"] as Rect2).has_area():
+			avoid = c["avoid"]
+	var first: Array = []
+	if view.y < SHORT_VIEW and not left_mode and not shown.is_empty() and shown[0].get("top", false):
+		first = [shown.pop_front()]
 	if not b.is_empty():
+		b["_compact"] = not first.is_empty() and not b.get("note", false)
 		_banner_h = _banner_height(b)
+	ci.draw_set_transform_matrix(sx)
+	beast_aside = -1.0
+	for c in first:
+		var r0 := _draw_chip(ci, c, cx, y, col, avoid)
+		rects["chips"].append(sx * r0)
+		if _dodge_side == 2:
+			beast_aside = r0.end.y  # (stepped under the corner: the lane goes on without it)
+		else:
+			y = r0.end.y + CHIP_GAP
 	_shift = move_toward(_shift, 1.0 if not b.is_empty() else 0.0, dt / 0.18)
-	if chips.is_empty():
+	if shown.is_empty():
 		_shift = 1.0 if not b.is_empty() else 0.0  # (nothing to slide: no wait)
 	if not b.is_empty():
 		a = minf(a, _shift)
 		var br := Rect2(col.position.x, y, col.size.x, _banner_h)
+		# (over the beast, the banner gives way: it fades while the beast is under it)
+		var over_beast := avoid.has_area() and _banner_box(b, br).intersects(avoid.grow(6.0))
+		_yield = move_toward(_yield, 0.0 if over_beast else 1.0, dt / 0.15)
+		a *= _yield
 		ci.draw_set_transform_matrix(bx)
 		_draw_banner(ci, b, br, a)
 		if a > 0.01:
 			rects["banner"] = bx * _banner_box(b, br)
+	else:
+		_yield = 1.0
 	y += (_banner_h + CHIP_GAP) * _shift
 	ci.draw_set_transform_matrix(sx)
-	for c in chips.slice(0, CHIPS_MAX):
-		var r := _draw_chip(ci, c, cx, y, col)
+	for c in shown:
+		var r := _draw_chip(ci, c, cx, y, col, avoid if c.has("avoid") else Rect2())
 		rects["chips"].append(sx * r)
 		y = r.end.y + CHIP_GAP
 	ci.draw_set_transform_matrix(Transform2D.IDENTITY)
@@ -580,7 +620,7 @@ func _draw_banner(ci: CanvasItem, b: Dictionary, br: Rect2, a: float) -> void:
 
 ## A status chip: one line in a small cartouche (a gauge under it for a
 ## champion's or a beast's health). Returns its box.
-func _draw_chip(ci: CanvasItem, c: Dictionary, cx: float, y: float, col: Rect2) -> Rect2:
+func _draw_chip(ci: CanvasItem, c: Dictionary, cx: float, y: float, col: Rect2, dodge := Rect2()) -> Rect2:
 	var font: Font = UI.font("display")
 	var a := float(c.get("alpha", 1.0))
 	var tall: bool = c.get("tall", false)
@@ -601,6 +641,15 @@ func _draw_chip(ci: CanvasItem, c: Dictionary, cx: float, y: float, col: Rect2) 
 	var h := CHIP_H + ((12.0 if tall else 8.0) if has_gauge else 0.0)
 	var x := col.position.x if left_mode else cx - w * 0.5
 	var r := Rect2(x, y, w, h)
+	if c.has("avoid") and not left_mode:
+		var room: Vector2 = c.get("room", Vector2(col.position.x, col.position.x + max_w))
+		r = _dodge_rect(r, dodge, minf(room.x, col.position.x), maxf(room.y, col.position.x + max_w), c.get("alt", Rect2()))
+		if r.size.x < w - 0.5:
+			fs = UI.fit_floor(font, words, fs, r.size.x - 34.0, 11)
+			text = clip(font, words, fs, r.size.x - 34.0)
+		w = r.size.x
+		if dodge.has_area() and r.intersects(dodge.grow(2.0)):
+			a *= 0.4  # (no room either side of the beast: it shows through)
 	var edge: Color = c.get("edge", UI.GILT)
 	var pulse := 0.8 + 0.2 * sin(Time.get_ticks_msec() * 0.004) if c.get("pulse", false) else 1.0
 	var batch := Draw.Batch.new()
@@ -616,6 +665,35 @@ func _draw_chip(ci: CanvasItem, c: Dictionary, cx: float, y: float, col: Rect2) 
 	var tc: Color = c.get("color", UI.GOLD)
 	UI.draw_label(ci, Vector2(r.position.x, r.position.y + CHIP_H * 0.5 + fs * 0.36), text, fs, Color(tc, a), HORIZONTAL_ALIGNMENT_CENTER, w, 3, Color(0, 0, 0, 0.7 * a))
 	return r
+
+
+## Where a beast's bar goes (`r` its place) so it isn't over the beast
+## (`dodge`, HUD units): aside of it, narrower if need be (never under
+## DODGE_MIN_W), within `lo`..`hi`, keeping to the side it took while that
+## side has room (no flicking across as the beast moves); back in its place
+## once the beast has gone.
+func _dodge_rect(r: Rect2, dodge: Rect2, lo: float, hi: float, alt := Rect2()) -> Rect2:
+	if not dodge.has_area() or not r.intersects(dodge.grow(6.0)):
+		_dodge_side = 0
+		return r
+	var d := dodge.grow(6.0)
+	var lw := d.position.x - lo
+	var rw := hi - d.end.x
+	var side := _dodge_side
+	if side == 0 or side == 2 or (side < 0 and lw < DODGE_MIN_W) or (side > 0 and rw < DODGE_MIN_W):
+		side = -1 if lw >= rw else 1
+	if (lw if side < 0 else rw) < DODGE_MIN_W:
+		# No room either side (a phone's lane is narrow): under the corner,
+		# on the left, over the feed (hud.gd moves the feed down for it).
+		var a := Rect2(alt.position.x, alt.position.y, minf(alt.size.x, r.size.x), r.size.y)
+		if alt.size.x > 0.0 and not a.intersects(d):
+			_dodge_side = 2
+			return a
+		_dodge_side = 0
+		return r  # (nowhere clear: it stays, and shows the beast through: _draw_chip)
+	_dodge_side = side
+	var w := minf(r.size.x, lw if side < 0 else rw)
+	return Rect2(d.position.x - w, r.position.y, w, r.size.y) if side < 0 else Rect2(d.end.x, r.position.y, w, r.size.y)
 
 
 ## Draws the left feed from `top` down (HUD units). Returns its foot.

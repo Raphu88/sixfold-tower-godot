@@ -30,6 +30,18 @@ static var HOLE_HAZE := {
 	"chimera": Color(0.45, 0.8, 0.4, 0.06),
 	"other": Color(0.45, 0.5, 0.65, 0.04),
 }
+## Each tower's ward on the stair (stair_seal.gd ward_color), by essence: the
+## essence's own colour pushed to a saturated hue that keeps its colour in
+## its own light and against the floor (Iron and Air, near-white as essences,
+## washed out to white). The essences keep their colours everywhere else.
+static var WARD := {
+	"air": Color(0.4, 0.78, 1.0),
+	"water": Color(0.16, 0.6, 0.92),
+	"iron": Color(0.5, 0.52, 1.0),
+	"stone": Color(0.95, 0.66, 0.24),
+	"fire": Color(1.0, 0.45, 0.16),
+	"blade": Color(1.0, 0.34, 0.45),
+}
 # Doors (doors.gd)
 static var DOOR_WOOD := Color(0.36, 0.24, 0.15)
 static var DOOR_IRON := Color(0.32, 0.31, 0.35)

@@ -82,7 +82,7 @@ var gates: Array = []  # {rect, open, body}
 var rewards: Array = []  # world positions
 var bodies: Array = []
 var light_ids: Array = []
-var ward_glow := 0.0  # fades out when the ward lifts
+var ward_glow := 0.0  # fades out when the ward lifts (its ring is the stair seal's now: stair_seal.gd)
 var redraw_t := 0.0
 var glow: Node2D  # what pulses (redrawn 30 times a second while unsolved)
 var over: Node2D  # glow drawn over the darkness (the beam's core, lit stones)
@@ -656,16 +656,8 @@ func _draw_glow() -> void:
 	var t := Time.get_ticks_msec() * 0.001
 	if cur != null:
 		cur.draw_glow(glow, t)
-	# The ward on the stair: a ring of runes until it lifts.
-	if ward_glow > 0.0 and main.layout_on:
-		var c: Vector2 = main.stair_pos
-		var col := Color(0.75, 0.55, 1.0, 0.75 * ward_glow)
-		glow.draw_arc(c, 34.0, 0.0, TAU, 40, col, 2.5)
-		glow.draw_arc(c, 26.0, t * 0.6, t * 0.6 + TAU * 0.8, 32, Color(col, col.a * 0.6), 1.5)
-		for i in 6:
-			var a := TAU * i / 6.0 - t * 0.4
-			var p := c + Vector2.from_angle(a) * 34.0
-			glow.draw_rect(Rect2(p - Vector2(3, 3), Vector2(6, 6)), col)
+	# (The ward on the stair, its ring of runes, is the stair's one seal now:
+	# stair_seal.gd, drawn by room.gd while main.ward holds.)
 
 
 func _draw_over() -> void:

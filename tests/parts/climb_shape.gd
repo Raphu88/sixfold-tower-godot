@@ -22,6 +22,10 @@ const Unbound := preload("res://scripts/unbound.gd")
 const Entity := preload("res://scripts/entity.gd")
 const Talk := preload("res://scripts/entity_talk.gd")
 const ProfileScript := preload("res://scripts/profile.gd")
+const StairSeal := preload("res://scripts/stair_seal.gd")
+const Objectives := preload("res://scripts/objectives.gd")
+const Palette := preload("res://scripts/palette.gd")
+const Essence := preload("res://scripts/essence.gd")
 
 const BANNED := ["attunement", "spire", "trial", "judgment", "mana"]
 
@@ -39,6 +43,8 @@ func run(smoke) -> void:
 	await _lethal_again()
 	await _gate()
 	await _barrier_on_stair()
+	await _one_seal()
+	_ward_colours()
 	await _ward()
 	await _maker_after_three()
 	await _unbound_maker()
@@ -538,6 +544,78 @@ func _barrier_on_stair() -> void:
 	_check(cs.bar.is_empty() and cs.drawn == Rect2(), "the Proving's floor: no barrier, and none left drawn")
 	main.proving.enabled = false
 	cs.barriers_on = false
+
+
+## The stair's one seal (stair_seal.gd): a barrier, a task's ward and the
+## chain never show stacked. The gate alone while it stands; the task's
+## ring around the chain once it breaks; the open glow once the task is
+## done (each fading as the next comes in); a floor with no task, the chain alone.
+func _one_seal() -> void:
+	await _fresh()
+	var main = t.main
+	var cs = main.climb_shape
+	var rv = main.room_view
+	main.grant_test_bonds()
+	main.player.iframes = 9999.0
+	cs.barriers_on = true
+	Objectives.forced = "plates"
+	main._start_floor(3)
+	Objectives.forced = ""
+	await t._frames(3)
+	_check(main.ward and cs.bar.get("state", "") == "forming", "(a floor with a puzzle for its task, and the gate forming: %s, %s)" % [main.ward, cs.bar.get("state", "")])
+	_check(rv.seal == "barrier" and StairSeal.shown(rv.seal_mix) == ["barrier"], "the gate stands: the stair shows it alone, no rune ring or chain under it (%s)" % [StairSeal.shown(rv.seal_mix)])
+	cs.bar["t"] = 999.0
+	await t._ticks(2)
+	_check(cs.bar["state"] == "up" and StairSeal.shown(rv.seal_mix) == ["barrier"], "...up, still alone")
+	cs.bar["state"] = "broken"  # (broken with no horde, for the seal alone)
+	await t._frames(2)
+	var mid: Dictionary = rv.seal_mix.duplicate()
+	_check(rv.seal == "task" and absf(float(mid["barrier"]) + float(mid["task"]) - 1.0) < 0.15, "broken: the gate fades as the task's seal comes in, one into the other (%s)" % [mid])
+	await t._wait(StairSeal.FADE + 0.3)
+	_check(StairSeal.shown(rv.seal_mix) == ["task", "chain"] and cs.bar_node.modulate.a <= 0.02, "...then the task's ring of runes around the chain, and nothing of the gate (%s)" % [StairSeal.shown(rv.seal_mix)])
+	cs.horde_total = 6
+	_check(StairSeal.layer(main) == "chain", "broken with a horde to beat: the chain (the horde holds the stair, not the task it skips)")
+	cs.horde_total = 0
+	main.lift_ward()
+	main.banner = {}
+	await t._wait(StairSeal.FADE + 0.3)
+	_check(rv.seal == "open" and StairSeal.shown(rv.seal_mix) == ["open"], "the task done: the open stair's glow alone (%s)" % [StairSeal.shown(rv.seal_mix)])
+	# A floor whose stair waits for its monsters, no task: the chain alone.
+	cs.barriers_on = false
+	main._start_floor(2)
+	await t._frames(3)
+	for e in main.enemies():
+		if is_instance_valid(e):
+			e.set_physics_process(false)  # (its monsters all standing: the stair waits for them)
+	main.ward = false
+	main.stair_open = false
+	main.room_view.stair_open = false
+	main.room_view.seal_new_floor()
+	await t._frames(3)
+	_check(rv.seal == "chain" and StairSeal.shown(rv.seal_mix) == ["chain"], "no task: the chain alone (%s)" % [StairSeal.shown(rv.seal_mix)])
+	main.stair_open = true
+	main.room_view.stair_open = true
+	await t._frames(2)
+	var falling: Dictionary = rv.seal_mix.duplicate()
+	_check(absf(float(falling["chain"]) + float(falling["open"]) - 1.0) < 0.15, "...and as it opens, the chain drops away as the glow comes in (%s)" % [falling])
+	await t._wait(StairSeal.FADE + 0.3)
+	_check(StairSeal.shown(rv.seal_mix) == ["open"], "...then the glow alone")
+
+
+## Every tower's ward on the stair is drawn in a saturated colour that reads
+## against its floor and keeps its colour in its own light (an Iron or Air
+## ward washed out to white); the essences keep their own colours elsewhere.
+func _ward_colours() -> void:
+	for tid in Towers.TOWERS:
+		var td: Dictionary = Towers.TOWERS[tid]
+		var ess := String(td.get("essence", ""))
+		var c: Color = StairSeal.ward_color(ess)
+		var lit: Color = c.lightened(0.2)  # (its lit edges: stair_seal.gd ward_into)
+		var floor_c: Color = Palette.FLOOR * Color(td.get("stone", Color.WHITE)) * Color(Palette.TOWER_TINT.get(tid, Color.WHITE))
+		var lum := func(k: Color) -> float: return 0.2126 * k.r + 0.7152 * k.g + 0.0722 * k.b
+		var contrast: float = (float(lum.call(c)) + 0.05) / (float(lum.call(floor_c)) + 0.05)
+		_check(c.s >= 0.45 and lit.s >= 0.35 and contrast >= 3.0, "%s's ward (%s): saturated (%.2f, lit %.2f) and %.1f times its floor's brightness" % [tid, ess, c.s, lit.s, contrast])
+		_check(Essence.color(ess) != c, "...its essence keeps its own colour elsewhere")
 
 
 ## The barrier is up on this floor, over the stair's steps, and drawn there.
