@@ -67,7 +67,6 @@ static var SEND_LINES := {
 
 var maker := ""
 var t := 0.0
-var main_ref
 
 
 # --- status ---------------------------------------------------------------------------------
@@ -229,7 +228,6 @@ static func try_rescue(main, roll := -1.0) -> bool:
 	if is_instance_valid(p) and main is Node:
 		var fig = load("res://scripts/sworn.gd").new()
 		fig.maker = m
-		fig.main_ref = main
 		main.add_child(fig)
 		fig.global_position = p.global_position + Vector2(-34.0 if randf() < 0.5 else 34.0, -6.0)
 		if main.has_method("light_flash"):
