@@ -173,7 +173,16 @@ func build(mode: String) -> void:
 		most = maxi(most, (t[2] as Array).size())
 	var rh := _row_h()
 	rows_box.custom_minimum_size.y = most * rh + (most - 1) * (4 if small else 6)
-	right.add_child(rows_box)
+	# (a little room on the right, so the focused row's gold frame, which
+	# reaches past its edge, isn't cut off by the page)
+	var rows_pad := MarginContainer.new()
+	rows_pad.add_theme_constant_override("margin_right", 5)
+	rows_pad.add_theme_constant_override("margin_left", 0)
+	rows_pad.add_theme_constant_override("margin_top", 0)
+	rows_pad.add_theme_constant_override("margin_bottom", 0)
+	rows_pad.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	rows_pad.add_child(rows_box)
+	right.add_child(rows_pad)
 	if tab == "" or Appearance.TABS.all(func(t): return t[0] != tab):
 		tab = Appearance.TABS[0][0]
 	show_tab(tab, false)
