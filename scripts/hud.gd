@@ -163,16 +163,6 @@ func _ready() -> void:
 	add_child(rings)
 
 
-func _box(bg: Color, border: Color, radius: int) -> StyleBoxFlat:
-	var b := StyleBoxFlat.new()
-	b.bg_color = bg
-	b.border_color = border
-	b.set_border_width_all(1)
-	b.set_corner_radius_all(radius)
-	b.anti_aliasing = true
-	return b
-
-
 func _process(delta: float) -> void:
 	if Input.is_action_just_pressed("toggle_help"):
 		show_help = not show_help

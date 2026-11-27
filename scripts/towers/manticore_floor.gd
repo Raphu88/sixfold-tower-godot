@@ -628,7 +628,6 @@ func pit_at(pos: Vector2) -> Dictionary:
 	return {}
 
 
-
 ## main.is_solid: sand is walked on like stone.
 func blocks_walking(_t: Vector2i) -> bool:
 	return false
@@ -886,10 +885,6 @@ func scenario_status(s: Dictionary) -> Dictionary:
 	if sink.is_empty():
 		return {}
 	return {"title": String(TEXT["sinking"]), "line": String(TEXT["sinking_line"]) % [int(sink["hits"]), maxi(0, int(ceil(float(s.get("limit", 0.0)) - s["t"])))]}
-
-
-func scenario_goal(s: Dictionary) -> Vector2:
-	return s["end"]
 
 
 # --- the floor bot (tests/floor_bot_driver.gd) ----------------------------------------

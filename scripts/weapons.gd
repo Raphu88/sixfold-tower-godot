@@ -505,10 +505,6 @@ static func info(id: String) -> Dictionary:
 	return WEAPONS.get(id, {})
 
 
-static func is_weapon(id: String) -> bool:
-	return WEAPONS.has(id)
-
-
 ## True for weapons that shoot (bows and crossbows).
 static func is_ranged(id: String) -> bool:
 	return WEAPONS.has(id) and WEAPONS[id]["kind"] != "melee"

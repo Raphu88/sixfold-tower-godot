@@ -44,15 +44,10 @@ const ANCHORS := {
 	"l": Vector2(0.0, 0.5), "c": Vector2(0.5, 0.5), "r": Vector2(1.0, 0.5),
 	"bl": Vector2(0.0, 1.0), "b": Vector2(0.5, 1.0), "br": Vector2(1.0, 1.0),
 }
-const ANCHOR_NAMES := {
-	"tl": "top left", "t": "top", "tr": "top right", "l": "left", "c": "centre", "r": "right",
-	"bl": "bottom left", "b": "bottom", "br": "bottom right", "own": "its own place",
-}
 ## The anchor of a menu's, the rail's or the train's element (arrange_ui.gd):
 ## x and y are shares of the screen it moved from its built-in place.
 const OWN := "own"
 const SETS := ["desktop", "touch"]
-const SET_NAMES := {"desktop": "computer", "touch": "phone"}
 const FORMAT := 1
 
 ## Touch buttons stay tappable: at least 44 px across on the phone, which

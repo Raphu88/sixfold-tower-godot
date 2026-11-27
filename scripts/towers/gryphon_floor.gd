@@ -103,7 +103,6 @@ var gust_dir := Vector2.RIGHT
 var gust_force := 100.0
 var forced := {}  # a scenario's gust: {dir, force}
 var streaks: Array = []
-var scn_t := 0.0
 
 
 # --- planning (floors.gd) ------------------------------------------------------------
@@ -888,10 +887,6 @@ func scenario_tick(s: Dictionary, delta: float, p, scn) -> void:
 func scenario_status(s: Dictionary) -> Dictionary:
 	var S = load("res://scripts/scenarios.gd")
 	return {"title": S.TEXT["bridge"], "line": S.TEXT["bridge_line"] % [int(s.get("hits", 0)), int(s.get("t", 0.0))]}
-
-
-func scenario_goal(s: Dictionary) -> Vector2:
-	return s["end"]
 
 
 # --- drawing --------------------------------------------------------------------------

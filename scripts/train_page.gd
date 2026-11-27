@@ -1502,15 +1502,6 @@ func _on_rail(at: Vector2) -> bool:
 	return m.rail.visible and m.rail.get_global_rect().has_point(at)
 
 
-## True if the focus can't move further that way inside this car.
-func _at_edge(side: int) -> bool:
-	var f: Control = m.get_viewport().gui_get_focus_owner()
-	if f == null or not _in_car(f):
-		return true
-	var n: Control = f.find_valid_focus_neighbor(side)
-	return n == null or not _in_car(n)
-
-
 func _in_car(c: Node) -> bool:
 	var root = roots.get(m.train_car)
 	return root != null and is_instance_valid(root) and (c == root or root.is_ancestor_of(c))
@@ -2274,7 +2265,6 @@ func _bench_do(thing: String, ask: String) -> void:
 		_done(B["cant"] % why, "", "denied")
 
 
-
 # --- the detail card ------------------------------------------------------------------
 
 ## The card for a slot on the train (menu.gd _show_details hands these over;
@@ -2312,18 +2302,6 @@ func _head(kind: String, id, title: String, col: Color) -> void:
 	m._detail_head(kind, id, title, col)
 	if m.toast != "":
 		m._detail_text(m.toast, UI.GOLD)
-
-
-## What a piece is set against: your heirloom for its slot, else what you
-## chose to wear there (the basic sword or bow, maybe), else nothing.
-func _start_piece(g):
-	var kept: Array = Gear.heirloom_pieces(_prof().heirlooms, Gear.heirloom_slot(g))
-	if not kept.is_empty():
-		return kept[0]
-	var worn = _prof().wear.get(Gear.carry_slots(Gear.slot_of(g))[0], null)
-	if Gear.is_gear(worn):
-		return worn
-	return "" if Gear.slot_of(g) == "armor" else null
 
 
 ## A price on the card: a gem, the amount and its kind; then why you can't

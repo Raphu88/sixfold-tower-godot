@@ -249,7 +249,6 @@ var bleed_dps := 0.0
 var bleed_tick := 0.0
 var wade_t := 0.0  # how long it has stood in water (a moment soaks it)
 var flash := 0.0
-var contact_cd := 0.0
 var aim_dir := Vector2.ZERO
 var lunge_dir := Vector2.RIGHT
 var lunge_hit := false
@@ -1974,8 +1973,6 @@ func add_venom(stacks: int) -> void:
 	venom = mini(venom + stacks, 12)
 	venom_t = maxf(venom_t, 3.0 + 0.5 * venom)
 	_bond().manticore().on_venom(main, self)  # (Toxin Build III: heavily poisoned, it staggers)
-
-
 
 
 ## Sets it burning (of Embers): `dmg` every half second for `seconds`.

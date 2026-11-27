@@ -136,13 +136,6 @@ static func flavour(profile) -> Dictionary:
 	return TITLE_STOCK.get(id, {}) if Renown.TITLES.has(id) else {}
 
 
-## The title's name ("the Contender") when it flavours the stock, else "".
-static func flavour_title(profile) -> String:
-	if flavour(profile).is_empty():
-		return ""
-	return Renown.title_name(String(Renown.state(profile).get("worn", "")))
-
-
 ## The line said on the rail for the worn title ("" when it has none).
 static func title_line(profile) -> String:
 	return String(flavour(profile).get("line", ""))

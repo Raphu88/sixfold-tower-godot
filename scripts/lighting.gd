@@ -74,7 +74,6 @@ const QUALITY := {
 	"medium": {"shadows": true, "glow": true, "cast_ms": 1.5, "rekey": 0.25, "soften": false, "climber": false, "climber_rekey": 0.0},
 	"high": {"shadows": true, "glow": true, "cast_ms": 4.0, "rekey": 0.08, "soften": true, "climber": true, "climber_rekey": 0.05},
 }
-const QUALITY_ORDER := ["low", "medium", "high"]
 
 ## Shadows: world pixels per cell of a light's shadow square (half a tile),
 ## the square's side in cells, and how the squares sit in the atlas.
@@ -379,10 +378,6 @@ func set_quality(q: String) -> void:
 	blooms.clear()
 
 
-func shadows_on() -> bool:
-	return _q["shadows"]
-
-
 # --- the registry ------------------------------------------------------------
 
 ## Adds a lasting light; returns its id (for move_light and remove_light).
@@ -429,11 +424,6 @@ func move_light(id: int, pos: Vector2) -> void:
 
 func remove_light(id: int) -> void:
 	lights.erase(id)
-
-
-func clear_lights() -> void:
-	lights.clear()
-	flashes.clear()
 
 
 ## A brief burst of light: lightning, parries, crits, burns. It fades out over `dur`.

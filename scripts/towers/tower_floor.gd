@@ -60,7 +60,7 @@ extends Node2D
 ##   task_tick(ob, delta, p, hurt) / task_strike(ob, from, dir, reach, arc)
 ##                                        the tower's own task kind
 ##   scenario_begin(s, host) / scenario_tick(s, delta, p, host) (calls
-##   host._finish) / scenario_title(s) / scenario_status(s) / scenario_goal(s)
+##   host._finish) / scenario_title(s) / scenario_status(s)
 ##                                        the tower's own scenario
 ## THE FLOOR BOT (tests/floor_bot_driver.gd):
 ##   bot_step(bot) -> {}                  a step before anything else (a crank)
@@ -175,10 +175,6 @@ func scenario_title(_s: Dictionary) -> String:
 
 func scenario_status(_s: Dictionary) -> Dictionary:
 	return {}
-
-
-func scenario_goal(_s: Dictionary) -> Vector2:
-	return Vector2.INF
 
 
 func bot_step(_bot) -> Dictionary:

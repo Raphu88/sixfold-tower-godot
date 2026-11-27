@@ -491,21 +491,6 @@ class Batch:
 		else:
 			cols.append_array([c0, c1, c1, c0, c1, c0])
 
-	## A polygon shaded from `lit` (its end toward the light) to `dark`.
-	func grad_poly(points: PackedVector2Array, lit: Color, dark: Color) -> void:
-		var idx := Geometry2D.triangulate_polygon(points)
-		if idx.is_empty():
-			return
-		var l := light.normalized()
-		var mn := INF
-		var mx := -INF
-		for p in points:
-			mn = minf(mn, p.dot(l))
-			mx = maxf(mx, p.dot(l))
-		var span := maxf(mx - mn, 0.001)
-		for i in idx:
-			pts.append(points[i])
-			cols.append(dark.lerp(lit, (points[i].dot(l) - mn) / span))
 
 	## A thin highlight just inside the edges of `points` that face the
 	## light (stronger the more squarely they face it).

@@ -384,12 +384,6 @@ static func finish_lesson(profile, id: String, how: int) -> Array:
 	return lines
 
 
-static func skip_lesson(profile, id: String) -> Array:
-	if not Training.can_skip(profile):
-		return [Training.TEXT["no_skip"]]  # (basic training is required for the Noble's Grace)
-	return finish_lesson(profile, id, 2)
-
-
 # --- drills ---------------------------------------------------------------------------
 
 static func drill_unlocked(profile, id: String) -> bool:
@@ -740,14 +734,6 @@ static func give_relic(profile, kind: String) -> String:
 		return TEXT["relic_full"] % (TEXT["crystals"] % [worth, Essence.display(kind)])
 	profile.chest.append(rec)
 	return TEXT["relic_won"] % Gear.display(rec)
-
-
-static func foe_name(k: String) -> String:
-	if k == "mirror":
-		return TEXT["mirror"]
-	if k.ends_with("*"):
-		return k.trim_suffix("*").capitalize()
-	return k.capitalize()
 
 
 ## "Won once", "Won 3 times".

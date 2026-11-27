@@ -39,13 +39,6 @@ const PROTECTION_CAP := 0.5
 const HEAVY_ROLL := 0.03
 ## A blow this light (before protection) can't knock you back in Hobnail Boots.
 const LIGHT_BLOW := 14.0
-## The pack: spare pieces carried besides what you wear. How many it holds
-## comes from the bag in your backpack slot (its "bag" number: a Satchel 4,
-## a Pack 6, a Great Pack 8), else BAG["none"]; a charm can add a space
-## ("pack"). Survive a climb (or read a recall scroll) and the pack comes
-## home to the train, to sell or keep in your stash; fall and it's lost.
-## (PACK_SIZE is what the pack held before bags had sizes: old saves.)
-const PACK_SIZE := 4
 ## Bags (the backpack slot): with no bag the pack holds "none" pieces. A big
 ## bag (a piece with "slow") weighs on you only once it's nearly full: at
 ## "heavy_at" of its spaces or more you walk slower and roll less far, by
@@ -1093,10 +1086,6 @@ static func noticed(g) -> bool:
 	return rarity_rank(rarity(g)) >= rarity_rank(NOTICE_FROM)
 
 
-static func is_armor(id) -> bool:
-	return ARMOR.has(base_id(id))
-
-
 static func is_piece(id) -> bool:
 	return PIECES.has(base_id(id))
 
@@ -1225,12 +1214,6 @@ static func color(id) -> Color:
 	if Weapons.is_ranged(b):
 		return Color(0.85, 0.66, 0.42)
 	return Color(0.82, 0.85, 0.92)
-
-
-static func is_heavy(id) -> bool:
-	if NAMED.has(named_id(id)) and PIECES.has(base_id(id)):
-		return false  # (a named piece's own numbers replace its base's)
-	return bool(PIECES.get(base_id(id), {}).get("heavy", false))
 
 
 # --- wear ---------------------------------------------------------------------------

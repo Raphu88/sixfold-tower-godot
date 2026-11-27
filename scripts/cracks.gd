@@ -417,11 +417,6 @@ func _take(c: Dictionary) -> void:
 	queue_redraw()
 
 
-## What a test or the bot needs: the cracks not yet broken.
-func intact() -> Array:
-	return list.filter(func(c): return not c["broken"])
-
-
 func _draw() -> void:
 	if list.is_empty():
 		return

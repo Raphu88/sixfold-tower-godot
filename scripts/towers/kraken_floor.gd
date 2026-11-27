@@ -974,10 +974,6 @@ func scenario_status(s: Dictionary) -> Dictionary:
 	return {"title": S.TEXT["flood"], "line": S.TEXT["flood_line"] % [int(lvl * 100.0), int(k * 100.0)]}
 
 
-func scenario_goal(s: Dictionary) -> Vector2:
-	return s["wheel"]
-
-
 # --- drawing --------------------------------------------------------------------------
 
 ## How far a room's tide has spread across it (0..1 of its outline).

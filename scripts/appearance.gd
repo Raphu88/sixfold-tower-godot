@@ -506,14 +506,6 @@ static func is_blank(key: String, id: String) -> bool:
 	return (key == "trim" and id == "none") or ((key == "trousers" or key == "beard_color") and id == "match")
 
 
-## The tab a row is on.
-static func tab_of(key: String) -> String:
-	for t in TABS:
-		if key in t[2]:
-			return t[0]
-	return String(TABS[0][0])
-
-
 ## A random look (the name and pronouns are kept).
 static func random(keep: Dictionary, rng: RandomNumberGenerator = null) -> Dictionary:
 	var out := normalized(keep)

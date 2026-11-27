@@ -160,7 +160,6 @@ const TUNE_COST := 6.0
 ## train, from depth 1: all the path's flow resets and flows out of the
 ## shadow, and a new path starts from nothing. Costs crystal essence.
 const PATH_CHANGE_COST := 20.0
-const PATH_CHANGE_DEPTH := 1
 
 ## The Developer's Edit (depth 3, on the train): each spell's numbers are
 ## grouped in ASPECTS; a point raises one by EDIT_POINT (a share) and must be

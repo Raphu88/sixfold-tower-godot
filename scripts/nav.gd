@@ -90,11 +90,6 @@ static func mouse_moved(event: InputEvent) -> bool:
 	return event is InputEventMouseMotion and event.relative.length() >= 1.0
 
 
-## A right-click or the mouse's back button: back one level.
-static func is_back_click(event: InputEvent) -> bool:
-	return event is InputEventMouseButton and event.pressed and (event.button_index == MOUSE_BUTTON_RIGHT or event.button_index == MOUSE_BUTTON_XBUTTON1)
-
-
 ## "Press again" or "Tap again", by what was used last.
 static func again(main) -> String:
 	return AGAIN["touch"] if main != null and main.touch_active else AGAIN["other"]

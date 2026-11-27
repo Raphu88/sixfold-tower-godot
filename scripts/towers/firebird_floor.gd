@@ -618,10 +618,6 @@ func scenario_status(s: Dictionary) -> Dictionary:
 	return TowerScenarios.status(null, s)
 
 
-func scenario_goal(s: Dictionary) -> Vector2:
-	return TowerScenarios.goal(null, s)
-
-
 ## A scenario that ended: the bridge knits back.
 func _tidy_scenarios() -> void:
 	if main.scenarios == null:

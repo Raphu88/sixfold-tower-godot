@@ -68,8 +68,6 @@ const OVERDRAW_POWER := 0.7
 const TEAR_HEALTH := 1.0
 
 
-
-
 func _init(bond_id: String, body_part: String) -> void:
 	id = bond_id
 	part = body_part
@@ -195,14 +193,6 @@ func spell_name() -> String:
 
 func spell_desc() -> String:
 	return spell()["desc"]
-
-
-func body_name() -> String:
-	return data()["body"]["name"]
-
-
-func passive_name() -> String:
-	return data()["passive"]["name"]
 
 
 ## The passive's rank at this mark's step (1; II from step 3; III at step 5).

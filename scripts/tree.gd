@@ -43,9 +43,8 @@ extends RefCounted
 ## tab offers each of them one free re-pick (repick_offers, repick,
 ## repick_keep), until the climber chooses or keeps what they have.
 ##
-## Functions take the profile; TreeRules.new(prof) gives the same as methods
-## (available(node), choose(node, option), learn_skipped(node), owned(),
-## is_fork_ready()...). A node id is "mark:<bond>:<step>" or "unbound:<part>:<level>".
+## Functions take the profile (available(prof, node), choose(prof, node,
+## option), learn_skipped, owned, is_fork_ready...). A node id is "mark:<bond>:<step>" or "unbound:<part>:<level>".
 
 const Library := preload("res://scripts/library.gd")
 const Bonds := preload("res://scripts/bonds.gd")
@@ -100,13 +99,6 @@ static var TEXT := {
 	"repick_keep": "Keep %s",
 	"repick_done": "%s: %s is yours.",
 }
-
-
-var prof
-
-
-func _init(p = null) -> void:
-	prof = p
 
 
 # --- the climber's state -------------------------------------------------------------
@@ -747,33 +739,3 @@ static func note_echo(p, t: Dictionary) -> bool:
 		return false
 	list.append(e["spell"])
 	return true
-
-
-# --- the same, as methods on a climber -------------------------------------------------------
-
-func get_nodes(part: String) -> Array:
-	return nodes(prof, part)
-
-
-func get_node(node_id: String) -> Dictionary:
-	return node(prof, node_id)
-
-
-func options_now(node_id: String) -> Array:
-	return available(prof, node_id)
-
-
-func choose_now(node_id: String, option_id: String) -> bool:
-	return choose(prof, node_id, option_id)
-
-
-func learn_now(node_id: String, option_id: String) -> Dictionary:
-	return learn_skipped(prof, node_id, option_id)
-
-
-func owned_now() -> Array:
-	return owned(prof)
-
-
-func fork_ready(part := "") -> bool:
-	return is_fork_ready(prof, part)

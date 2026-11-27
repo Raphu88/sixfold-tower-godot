@@ -306,11 +306,6 @@ static func _sentence(t: String) -> String:
 
 # --- the short words in play -------------------------------------------------------
 
-## A bond's (or technique's) one line for a toast or a card: "Ember Bolt: a
-## bolt thrown where you aim; it burns what it hits".
-static func toast_line(bd) -> String:
-	return "%s: %s" % [spell_name(bd), short_does(bd)]
-
 
 ## The spell its button casts now (a technique: its name).
 static func spell_name(bd) -> String:
