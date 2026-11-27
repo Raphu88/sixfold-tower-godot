@@ -5,7 +5,7 @@ extends RefCounted
 ## to the name; later launches go straight to the title, and the title's
 ## "The opening" plays it again; each of the six screens draws its scene
 ## and shows its words; Skip, Back and Esc; Next by Enter, A, a tap and a
-## click on the picture; one toll of the story track for each screen; it
+## click on the picture; one gong as each screen comes up (over the story track's pads); it
 ## fits a phone and a big screen; the Entity explains it; no banned words.
 ## Run by smoke_test.gd (_part_tests); `t` is the smoke test.
 
@@ -15,6 +15,7 @@ const Slots := preload("res://scripts/slots.gd")
 const Help := preload("res://scripts/entity_help.gd")
 const Entity := preload("res://scripts/entity.gd")
 const Music := preload("res://scripts/music.gd")
+const Bank := preload("res://scripts/sound_bank.gd")
 const Pronouns := preload("res://scripts/pronouns.gd")
 const Particles := preload("res://scripts/particles.gd")
 
@@ -279,21 +280,17 @@ func _music() -> void:
 	await t._frames(2)
 	var p: AudioStreamPlayer = A.tracks["story"]["player"] if A.tracks.has("story") else null
 	_check(A.mood == "story" and A.track_playing() == "story", "the opening plays the story track (%s)" % A.track_playing())
-	_check(p != null and A.toll_at == 0 and p.get_playback_position() < A.TOLL_EVERY, "...the first screen on the first toll")
+	_check(p != null and A.toll_at == 0 and p.get_playback_position() >= A.STORY_PADS - 0.5, "...the first screen rings a gong, over the story track's pads (its own tolls skipped: %.1f s)" % (p.get_playback_position() if p != null else -1.0))
 	if p != null:
-		p.seek(A.TOLL_EVERY - 0.03)
-		await t._frames(2)
-		_check(p.stream_paused, "...and it waits there once the toll has rung, before the next")
+		var before := p.get_playback_position()
 		StartPages._intro_next(menu)
 		await t._frames(2)
-		var at := p.get_playback_position()
-		_check(A.toll_at == 1 and not p.stream_paused and at >= A.TOLL_EVERY - 0.05 and at < A.TOLL_EVERY * 2.0, "the next screen rings the second toll (%.1f s)" % at)
+		_check(A.toll_at == 1 and not p.stream_paused and p.get_playback_position() >= before, "the next screen rings the next gong; the music runs on, never seeking back to its tolls")
 		StartPages.line = 5
 		menu.open("intro")
 		await t._frames(2)
-		p.seek(A.TOLL_EVERY * 6.0 - 0.03)
-		await t._frames(2)
-		_check(A.toll_at == 5 and not p.stream_paused, "the sixth screen's toll carries on into the music")
+		_check(A.toll_at == 5 and not p.stream_paused and p.get_playback_position() >= A.STORY_PADS - 0.5, "the sixth screen too: one gong a screen, only as it changes")
+	_check(Bank.SFX.has("gong"), "the gong is a sound of its own (sfx/gong_0.wav)")
 	menu.open("title")
 	await t._frames(1)
 	A.set_mood(A.director.update(main, 0.5), 0.0)
