@@ -212,7 +212,7 @@ static func _go_back(menu) -> void:
 	else:
 		menu.toast = Unbound.TEXT["back_none"]
 	menu.toast_t = 4.0
-	main.sfx("crit", 0.5, -4.0, 0.0)
+	main.sfx("mark_form", 0.9, -4.0, 0.0)
 	menu.open("climber", menu.opened_direct)
 
 

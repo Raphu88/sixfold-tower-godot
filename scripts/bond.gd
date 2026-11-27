@@ -1168,7 +1168,7 @@ func _shot(p) -> void:
 # Reveal every foe and where it is heading.
 func _track(p) -> void:
 	p.main.track_t = stat("duration")
-	p.main.sfx("glint", 0.8, -4.0)
+	p.main.sfx("spell_rune", 0.8, -4.0)
 	p.main.fx_ring(p.global_position, color(), 160.0, 0.6, 2.0)
 
 

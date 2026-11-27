@@ -1350,7 +1350,7 @@ func greed(enc: Dictionary) -> void:
 		lines.append("-%d renown" % lost)
 	main.banner = {"title": TEXT["greed_title"], "lines": lines, "t": 3.0}
 	main.note_event("rival", lines[0], color_of(rec))
-	main.sfx("glint", 0.8, -3.0)
+	main.sfx("denied", 0.9, 0.0, 0.0)  # (robbing a rival is noticed: a dull knock, not a reward)
 
 
 ## What an owed rival's gift holds.

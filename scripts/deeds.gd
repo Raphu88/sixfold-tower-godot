@@ -272,7 +272,7 @@ static func check(main) -> Array:
 	prof.save()
 	if main.get("player") != null and is_instance_valid(main.player) and main.has_method("fx_text"):
 		main.fx_text(main.player.global_position + Vector2(0, -58), TEXT["notice"] % DEEDS[fresh[0]]["name"], kind_color(String(DEEDS[fresh[0]]["kind"])))
-		main.sfx("glint", 1.2, -6.0, 0.0)
+		main.sfx("chime", 1.2, -6.0, 0.0)
 	if main.has_method("tip"):
 		main.tip("deeds")
 	return fresh

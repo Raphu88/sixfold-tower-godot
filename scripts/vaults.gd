@@ -208,7 +208,7 @@ func open_chest(s: Dictionary, c: Dictionary) -> void:
 	if bool(s.get("lead", false)) and c["kind"] in ["crystals", "small", "gear"] and s["chests"].all(func(x): return x["taken"] or x["kind"] == "mimic"):
 		give_lead(s)
 	main.fx_ring(at, Color(1.0, 0.85, 0.5), 50.0, 0.4, 3.0)
-	main.sfx("glint", 1.25, -3.0)
+	main.sfx("chime", 1.25, -3.0)
 
 
 ## A lead to the tower's Summit Blade (another part of the game finds the

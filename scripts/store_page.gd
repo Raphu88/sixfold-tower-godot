@@ -592,7 +592,7 @@ func buy_node(id: String) -> void:
 		m.inv_sel = "tree:" + id
 		tp._done(Outfitter.TEXT["bought_toast"] % Outfitter.node_name(id), Outfitter.line(id), "buy")
 	else:
-		tp._done(Outfitter.TEXT["cant"] % why, Train.line("poor") if why.begins_with("needs") else "", "ui_back")
+		tp._done(Outfitter.TEXT["cant"] % why, Train.line("poor") if why.begins_with("needs") else "", "denied")
 
 
 ## The flat arrow on the Upgrades sign: pointing down while the tree is

@@ -11,6 +11,7 @@ const Lost := preload("res://scripts/lost.gd")
 const Mirror := preload("res://scripts/mirror.gd")
 const Holes := preload("res://scripts/holes.gd")
 const Particles := preload("res://scripts/particles.gd")
+const UI := preload("res://scripts/ui.gd")
 
 const TILE := 40.0
 const WALL_FACE := 46.0  # height of the north wall's visible front
@@ -28,6 +29,7 @@ var hole_tower := ""  # whose holes they are (holes.gd: the haze over the floor 
 var hole_spots: Array = []  # each hole tile's centre (the Firebird's embers rise from them)
 var stair_pos := Vector2.ZERO
 var stair_open := false
+var stair_barred := false  # a gate or ward stands before it (climb_shape.gd): no chain drawn under it
 var torch_color := Palette.TORCH
 # A floor of rooms: which tiles are solid (walls between rooms).
 var grid := Vector2i.ZERO
@@ -393,11 +395,19 @@ func _draw() -> void:
 func _draw_features() -> void:
 	var c := Draw.Batch.new()  # everything in one draw call
 	for pd in puddles:
-		# Standing water: dark, with a lighter rim and a glint.
-		c.circle(pd["pos"], pd["r"], Color(0.1, 0.22, 0.28, 0.75))
-		c.circle(pd["pos"], pd["r"] * 0.8, Color(0.14, 0.3, 0.36, 0.6))
-		c.arc(pd["pos"], pd["r"], 0.0, TAU, 40, Color(0.5, 0.75, 0.8, 0.35), 2.0)
-		c.arc(pd["pos"] + Vector2(-pd["r"] * 0.2, -pd["r"] * 0.25), pd["r"] * 0.35, PI * 1.1, PI * 1.6, 10, Color(0.8, 0.95, 1.0, 0.35), 2.0)
+		# Standing water, lit from the top-left like the rest of the room: wet,
+		# darkened stone round it; deep at the top-left where the bank shades
+		# it, shallower and catching the light toward the bottom-right; the
+		# bank's lit lip along the lower-right edge, and a glint.
+		var pp: Vector2 = pd["pos"]
+		var pr: float = pd["r"]
+		c.soft(pp, Vector2.ONE * pr * 1.2, Color(0, 0, 0, 0.22))
+		c.circle(pp, pr, Color(0.07, 0.16, 0.21, 0.8))
+		c.soft(pp + Vector2(pr * 0.12, pr * 0.15), Vector2.ONE * pr * 0.8, Color(0.2, 0.42, 0.48, 0.55))
+		c.arc(pp, pr - 1.0, PI * 0.95, PI * 1.75, 24, Color(0.02, 0.05, 0.07, 0.5), 3.0)
+		c.arc(pp, pr - 1.0, -PI * 0.15, PI * 0.7, 24, Color(0.55, 0.8, 0.85, 0.4), 2.0)
+		c.arc(pp + Vector2(-pr * 0.2, -pr * 0.25), pr * 0.35, PI * 1.1, PI * 1.6, 10, Color(0.8, 0.95, 1.0, 0.3), 2.0)
+		c.arc(pp + Vector2(pr * 0.25, pr * 0.1), pr * 0.18, PI * 1.15, PI * 1.55, 6, Color(0.8, 0.95, 1.0, 0.2), 1.5)
 	_draw_holes(c)
 	for p in pillars:
 		_draw_pillar(c, p["pos"], p["r"])
@@ -573,18 +583,18 @@ func _draw_camp(c: CanvasItem, pos: Vector2) -> void:
 	b.circle(pos, 17.0, Color(0.08, 0.07, 0.07, 0.8))  # ash
 	for i in 9:
 		var a := TAU * i / 9.0
-		b.circle(pos + Vector2.from_angle(a) * 19.0, 5.5, Palette.OUTLINE)
-		b.circle(pos + Vector2.from_angle(a) * 19.0, 4.2, Palette.WALL_FACE.lightened(0.15 * _hash(i, int(pos.x), 63)))
+		b.contact(pos + Vector2.from_angle(a) * 19.0 + Vector2(1.5, 2.5), 4.5, 0.3)
+		b.ball(pos + Vector2.from_angle(a) * 19.0, 4.2, Palette.WALL_FACE.lightened(0.15 * _hash(i, int(pos.x), 63)))
 	for a in [0.5, -0.6, 1.9]:
 		var d := Vector2.from_angle(a)
-		b.line(pos - d * 12.0, pos + d * 12.0, Palette.OUTLINE, 6.0)
-		b.line(pos - d * 11.0, pos + d * 11.0, Color(0.16, 0.11, 0.08), 4.0)
+		b.stroke(pos - d * 11.0, pos + d * 11.0, Color(0.16, 0.11, 0.08), 3.6, Draw.Shade.WOOD)
 	b.circle(pos + Vector2(2, -1), 2.0, Color(0.9, 0.45, 0.2, 0.6))  # the last ember
 	# The bedroll, unrolled to one side.
 	var roll := Rect2(pos + Vector2(-58, -14), Vector2(26, 44))
+	b.contact(roll.get_center() + Vector2(2, 4), 16.0, 0.3, 1.2)
 	b.rect(roll.grow(1.5), Palette.OUTLINE)
-	b.rect(roll, Color(0.36, 0.3, 0.22))
-	b.rect(Rect2(roll.position, Vector2(roll.size.x, 10)), Color(0.45, 0.38, 0.28))
+	b.box(roll, Color(0.36, 0.3, 0.22), Draw.Shade.CLOTH)
+	b.box(Rect2(roll.position, Vector2(roll.size.x, 10)), Color(0.45, 0.38, 0.28), Draw.Shade.CLOTH)
 	b.flush(c)
 
 
@@ -727,6 +737,8 @@ func _draw_stair(c, t: float) -> void:
 	# Stone steps leading up into the north wall. Sealed until the floor is clear.
 	var w := 68.0
 	var base := stair_pos + Vector2(0, 16)
+	# A soft shadow where the bottom step meets the floor.
+	c.contact(base + Vector2(2, 1), w * 0.42, 0.4, 0.22)
 	for i in 5:
 		var k := float(i) / 5.0
 		var step_w := w * (1.0 - k * 0.35)
@@ -735,20 +747,44 @@ func _draw_stair(c, t: float) -> void:
 		var col := Palette.WALL_FACE.lightened(0.05 + k * 0.1)
 		if not stair_open:
 			col = col.darkened(0.35)
-		c.draw_rect(rect, Palette.OUTLINE)
-		c.draw_rect(rect.grow(-1.0), col)
-		c.draw_line(rect.position + Vector2(1, 1), Vector2(rect.end.x - 1, rect.position.y + 1), col.lightened(0.15), 1.0)
+		# Each step: a lit tread on top, its riser in shade below (the
+		# shading toolkit, lit from the top-left like the rest of the room).
+		c.rect(rect, Palette.OUTLINE)
+		var inner := rect.grow(-1.0)
+		c.box(Rect2(inner.position, Vector2(inner.size.x, inner.size.y * 0.55)), col.lightened(0.06))
+		c.box(Rect2(inner.position + Vector2(0, inner.size.y * 0.55), Vector2(inner.size.x, inner.size.y * 0.45)), col.darkened(0.28))
+		c.line(inner.position + Vector2(0, 0.5), Vector2(inner.end.x, inner.position.y + 0.5), Color(col.lightened(0.3), 0.7), 1.0)
 	if stair_open:
 		var pulse := 0.5 + 0.5 * sin(t * 3.0)
 		c.draw_arc(stair_pos, 30.0 + pulse * 6.0, 0.0, TAU, 40, Color(1.0, 0.85, 0.5, 0.35 + 0.3 * pulse), 2.5)
 		# A chevron pointing up the steps.
 		var tip := stair_pos + Vector2(0, -26 - pulse * 4.0)
 		c.draw_polyline(PackedVector2Array([tip + Vector2(-9, 7), tip, tip + Vector2(9, 7)]), Color(1.0, 0.9, 0.6, 0.9), 2.5)
-	else:
-		# Sealed: a chain across the steps.
-		for i in 7:
-			var x := stair_pos.x - 33.0 + i * 11.0
-			c.draw_arc(Vector2(x, base.y - 18.0), 4.0, 0.0, TAU, 10, Color(0.35, 0.33, 0.36), 2.0)
+	elif not stair_barred:
+		# Sealed: an iron chain sagging across the steps between two rings,
+		# its links alternately face-on and edge-on, a padlock in the middle.
+		var iron := Color(0.5, 0.48, 0.52)
+		var y0 := base.y - 22.0
+		var a := Vector2(stair_pos.x - 36.0, y0)
+		var e := Vector2(stair_pos.x + 36.0, y0)
+		for end in [a, e]:
+			c.disc(end, 3.6, Palette.OUTLINE)
+			c.disc(end, 2.6, iron.darkened(0.25), Draw.Shade.METAL)
+		var links := 9
+		for i in links:
+			var k := (float(i) + 0.5) / float(links)
+			var p := a.lerp(e, k) + Vector2(0, sin(k * PI) * 6.0)
+			var slope := cos(k * PI) * 6.0 * PI / 72.0  # (the sag's slope here)
+			var rot := atan(slope)
+			if i % 2 == 0:
+				c.oval(p, Vector2(4.6, 3.0), rot, Palette.OUTLINE)
+				c.oval(p, Vector2(3.6, 2.1), rot, iron, Draw.Shade.METAL)
+				c.oval(p, Vector2(1.9, 0.8), rot, Color(0.08, 0.07, 0.09))
+			else:
+				var d := Vector2.from_angle(rot) * 3.6
+				c.line(p - d, p + d, Palette.OUTLINE, 3.0)
+				c.bar(p - d, p + d, iron.darkened(0.1), 1.6)
+		UI.lock_into(c, a.lerp(e, 0.5) + Vector2(0, 11.0), 7.0, Color(0.62, 0.5, 0.3))
 
 
 func _draw_ambient() -> void:

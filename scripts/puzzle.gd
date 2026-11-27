@@ -362,7 +362,7 @@ func _physics_process(delta: float) -> void:
 			locked = false
 			cur.reset()
 			main.fx_text(room.get_center() + Vector2(0, -10), TEXT["again"], Color(0.85, 0.82, 0.9))
-			main.sfx("glint", 0.7, -6.0, 0.0)
+			main.sfx("denied", 0.7, -6.0, 0.0)
 	else:
 		_update_mode(delta, inside)
 		_update_seal()
@@ -389,7 +389,7 @@ func _update_mode(delta: float, inside: bool) -> void:
 				awake = true
 				if inside:
 					main.fx_text(room.get_center() + Vector2(0, -30), TEXT["wakes"], Color(1.0, 0.89, 0.63))
-					main.sfx("glint", 0.6, -4.0, 0.0)
+					main.sfx("chime", 0.6, -4.0, 0.0)
 	elif mode == "pressure" and inside:
 		press_t -= delta
 		if press_t <= 0.0:

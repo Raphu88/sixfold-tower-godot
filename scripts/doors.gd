@@ -583,8 +583,12 @@ func open_door(d: Dictionary, quiet := false) -> void:
 	var dust := Color(0.55, 0.45, 0.33)
 	main.fx_burst(d["rect"].get_center(), d["out"], dust, 10, 90.0)
 	main.fx_burst(d["rect"].get_center(), -d["out"], dust, 8, 70.0)
-	main.sfx("slam", 1.7, -10.0, 0.08)
-	main.sfx("step_plate", 0.6, -6.0, 0.05)
+	if _stone(d):
+		main.sfx("stone_slide", 1.1, -6.0, 0.06)  # (a slab grinds aside)
+	else:
+		main.sfx("door_open", 1.0, 0.0, 0.08)  # (wood and iron swinging; an iron plate rattles too)
+		if String(d.get("style", "")) in ["hazard", "chained", "crown"]:
+			main.sfx("step_plate", 0.6, -8.0, 0.05)
 	main.tip("doors")  # the Entity, the first time
 	_redraw()
 
@@ -673,9 +677,18 @@ func close_door(d: Dictionary, hold := 0.0) -> bool:
 	if main.fog != null:
 		main.fog.set("last_tile", Vector2i(-999, -999))
 	holding = list.filter(func(x): return float(x.get("held", 0.0)) > 0.0).size()
-	main.sfx("slam", 1.4, -8.0, 0.08)
+	main.sfx("slam" if _stone(d) else "door_close", 1.4 if _stone(d) else 1.0, -8.0 if _stone(d) else 0.0, 0.08)
 	_redraw()
 	return true
+
+
+## A stone slab rather than a wooden door (doors.gd's looks: the puzzle's,
+## a sealed wing's, the Proving's): it grinds instead of creaking.
+static func _stone(d: Dictionary) -> bool:
+	return String(d.get("style", "")) in STONE_STYLES
+
+
+const STONE_STYLES := ["puzzle", "sealed", "proving", "lethal", "shade"]
 
 
 func _tick_held(delta: float) -> void:

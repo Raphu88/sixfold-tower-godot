@@ -394,7 +394,7 @@ func setup_floor(plan: Dictionary) -> void:
 	bar = {"kind": k, "t": 0.0, "window": float(d["window"]), "hp": float(d["hp"]), "dmg": 0.0, "state": "forming",
 		"rect": Rect2(sp + Vector2(-40.0, -30.0), Vector2(80.0, 52.0)), "shudder": 0.0, "said": false}
 	if main.lighting != null:
-		_light = main.lighting.add_light(sp + Vector2(0, 10), 120.0, color(), 0.5, 0.25)
+		_light = main.lighting.add_light(sp + Vector2(0, 10), 120.0, color(), 0.5, 0.12)  # (a soft glow: with the stair's own light a stronger one washed the gate out)
 	queue_redraw()
 	over.queue_redraw()
 
@@ -414,6 +414,8 @@ func _clear() -> void:
 	if _light >= 0 and main.lighting != null:
 		main.lighting.remove_light(_light)
 	_light = -1
+	if main != null and main.room_view != null:
+		main.room_view.stair_barred = false
 	# Wipe the last floor's gate or ward off the screen at once. (It's only
 	# redrawn while a barrier stands, so on a floor with none, a camp, the
 	# practice room, the arena, the Proving or the summit, the old picture
@@ -481,7 +483,7 @@ func _physics_process(delta: float) -> void:
 			main.tip("barrier_" + String(bar["kind"]))
 		if float(bar["t"]) >= float(bar["window"]):
 			bar["state"] = "up"
-			main.sfx("slam", 0.8 if bar["kind"] == "gate" else 1.3, -2.0, 0.0)
+			_barrier_sound("up")
 			main.shake(2.0)
 			main.fx_text(main.stair_pos + Vector2(0, 54), String(TEXT["gate_up" if bar["kind"] == "gate" else "ward_up"]), color())
 			return
@@ -522,7 +524,7 @@ func try_slip() -> bool:
 	bar["state"] = "slipped"
 	main.player.global_position = main.stair_pos
 	main.player.reset_physics_interpolation()
-	main.sfx("slam", 0.6, 0.0, 0.0)
+	_barrier_sound("slip")
 	main.shake(6.0)
 	main.fx_burst(main.stair_pos + Vector2(0, 20), Vector2.UP, color(), 16, 160.0)
 	_breached("slipped")
@@ -598,13 +600,13 @@ func _hurt(amount: float, at: Vector2) -> void:
 	bar["shudder"] = 0.35
 	main.fx_burst(at, Vector2.UP, color(), 8, 160.0)
 	main.shake(3.0)
-	main.sfx("hit_heavy", 0.7 if bar["kind"] == "gate" else 1.4, -4.0)
+	_barrier_sound("hit")
 	if float(bar["dmg"]) >= float(bar["hp"]):
 		bar["state"] = "broken"
 		main.fx_burst(Rect2(bar["rect"]).get_center(), Vector2.ZERO, color(), 28, 260.0)
 		main.light_flash(Rect2(bar["rect"]).get_center(), color(), 1.8, 1.6, 0.4)
 		main.shake(7.0)
-		main.sfx("slam", 0.5, 0.0, 0.0)
+		_barrier_sound("broken")
 		_breached("broken")
 		return
 	main.fx_text(at + Vector2(0, -30), String(TEXT["crack"]), color())
@@ -730,7 +732,24 @@ func confront_answer(id: String) -> Dictionary:
 ## The stair opened the ordinary way (its task done): the barrier lifts.
 func _open() -> void:
 	bar["state"] = "open"
-	main.sfx("glint", 1.0, -6.0, 0.0)
+	main.sfx("chime", 1.0, -4.0, 0.0)
+
+
+## The barrier's sounds (`what`: "up", "hit", "broken", "slip"), by kind: the
+## iron gate clangs and its chains rattle; the ward is the tower's essence,
+## so it hums up, rings when struck and shatters like glass.
+const BARRIER_SOUNDS := {
+	"gate": {"up": [["slam", 0.8, -2.0], ["step_chain", 0.55, -4.0]], "hit": [["hit_heavy", 0.7, -4.0]],
+		"broken": [["slam", 0.5, 0.0], ["step_chain", 0.45, -2.0]], "slip": [["slam", 0.6, 0.0]]},
+	"ward": {"up": [["use_ward", 0.8, 0.0]], "hit": [["form_shell", 1.2, -4.0]],
+		"broken": [["glass_break", 0.6, 0.0], ["unmake", 0.8, -4.0]], "slip": [["use_ward", 1.2, -2.0], ["gust", 0.8, -6.0]]},
+}
+
+
+func _barrier_sound(what: String) -> void:
+	var kind := "gate" if String(bar.get("kind", "gate")) == "gate" else "ward"
+	for s in BARRIER_SOUNDS[kind].get(what, []):
+		main.sfx(String(s[0]), float(s[1]), float(s[2]), 0.0)
 
 
 # --- the ending --------------------------------------------------------------------------
@@ -764,7 +783,6 @@ func start_story(kind: String) -> void:
 		main.player.velocity = Vector2.ZERO
 	get_tree().paused = true
 	main.sfx("maker_meeting", 1.0, 0.0, 0.0)
-	main.sfx("glint", 0.3, -4.0, 0.0)
 
 
 ## The council over (story_view.gd finish): the Entity's word on the plea's
@@ -983,6 +1001,8 @@ func _draw_over() -> void:
 	var r: Rect2 = bar["rect"]
 	drawn = r
 	var st: String = bar["state"]
+	if main.room_view != null:
+		main.room_view.stair_barred = st in ["forming", "up"]  # (a standing gate or ward hides the stair's chain: one sign at a time)
 	var col := color()
 	var b := Draw.Batch.new()
 	var c := r.get_center()
@@ -1016,6 +1036,10 @@ func _draw_over() -> void:
 	if st == "forming":
 		var left := maxf(0.0, float(bar["window"]) - float(bar["t"]))
 		var at := Vector2(c.x, r.position.y - 26.0)
+		# (near the top of the screen it would sit under the HUD's banner and
+		# task line: then it goes just below the barrier instead)
+		if (over.get_global_transform_with_canvas() * at).y < 110.0:
+			at = Vector2(c.x, r.end.y + 24.0)
 		var urgent := clampf(1.0 - left / 10.0, 0.0, 1.0)
 		var rc := UI.GOLD.lerp(Color(1.0, 0.3, 0.25), urgent)
 		over.draw_circle(at, 15.0, Color(0.03, 0.025, 0.05, 0.85))
@@ -1036,18 +1060,22 @@ func _gate_into(b, r: Rect2, k: float, st: String, t: float) -> void:
 	var iron := Color(0.5, 0.48, 0.54)
 	var dark := Color(0.06, 0.05, 0.07)
 	# Posts and lintel.
+	# (shaded iron, lit from the top-left: the shading toolkit's METAL and TUBE)
+	b.contact(Vector2(r.get_center().x, r.end.y + 2.0), r.size.x * 0.5, 0.3, 0.18)
 	for x in [r.position.x, r.end.x - 8.0]:
 		b.rect(Rect2(Vector2(x, r.position.y - 6.0), Vector2(8.0, r.size.y + 6.0)), dark)
-		b.rect(Rect2(Vector2(x + 1.0, r.position.y - 5.0), Vector2(6.0, r.size.y + 4.0)), post)
+		b.box(Rect2(Vector2(x + 1.0, r.position.y - 5.0), Vector2(6.0, r.size.y + 4.0)), post, Draw.Shade.METAL)
 	b.rect(Rect2(Vector2(r.position.x - 4.0, r.position.y - 12.0), Vector2(r.size.x + 8.0, 9.0)), dark)
-	b.rect(Rect2(Vector2(r.position.x - 3.0, r.position.y - 11.0), Vector2(r.size.x + 6.0, 7.0)), post.lightened(0.1))
+	b.box(Rect2(Vector2(r.position.x - 3.0, r.position.y - 11.0), Vector2(r.size.x + 6.0, 7.0)), post.lightened(0.1), Draw.Shade.METAL)
+	for x in [r.position.x + 4.0, r.end.x - 4.0]:
+		b.disc(Vector2(x, r.position.y - 7.5), 1.6, iron.lightened(0.2))  # (rivets)
 	if st == "broken":
 		# Bent bars on the ground before the stair.
 		for i in 6:
 			var x0 := r.position.x + 12.0 + i * 11.0
 			var y0 := r.end.y + 4.0 + float(i % 3) * 4.0
 			b.line(Vector2(x0, y0), Vector2(x0 + 14.0, y0 - 3.0 + float(i % 2) * 6.0), dark, 4.0)
-			b.line(Vector2(x0, y0), Vector2(x0 + 14.0, y0 - 3.0 + float(i % 2) * 6.0), iron, 2.0)
+			b.bar(Vector2(x0, y0), Vector2(x0 + 14.0, y0 - 3.0 + float(i % 2) * 6.0), iron, 2.2)
 		return
 	var bottom := r.position.y - 4.0 + (r.size.y + 2.0) * k
 	if st == "open":
@@ -1056,8 +1084,7 @@ func _gate_into(b, r: Rect2, k: float, st: String, t: float) -> void:
 	for i in bars:
 		var x := r.position.x + 12.0 + float(i) * (r.size.x - 24.0) / float(bars - 1)
 		b.line(Vector2(x, r.position.y - 4.0), Vector2(x, bottom), dark, 6.0)
-		b.line(Vector2(x, r.position.y - 4.0), Vector2(x, bottom), iron, 3.4)
-		b.line(Vector2(x - 0.8, r.position.y - 4.0), Vector2(x - 0.8, bottom), iron.lightened(0.3), 1.0)
+		b.bar(Vector2(x, r.position.y - 4.0), Vector2(x, bottom), iron, 3.6)
 		# Spiked feet.
 		if bottom > r.position.y + 4.0:
 			b.line(Vector2(x - 3.0, bottom - 3.0), Vector2(x, bottom + 4.0), dark, 3.0)
@@ -1068,7 +1095,7 @@ func _gate_into(b, r: Rect2, k: float, st: String, t: float) -> void:
 		var y: float = r.position.y - 4.0 + (bottom - r.position.y + 4.0) * float(yy)
 		if bottom - r.position.y > 10.0:
 			b.line(Vector2(r.position.x + 8.0, y), Vector2(r.end.x - 8.0, y), dark, 6.0)
-			b.line(Vector2(r.position.x + 8.0, y), Vector2(r.end.x - 8.0, y), iron.darkened(0.1), 3.0)
+			b.bar(Vector2(r.position.x + 8.0, y), Vector2(r.end.x - 8.0, y), iron.darkened(0.1), 3.2)
 	if st == "forming":
 		# The gap under it: where a roll goes. A glint along its lowest edge.
 		var glint := 0.5 + 0.5 * sin(t * 6.0)

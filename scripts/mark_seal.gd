@@ -155,12 +155,12 @@ static func _do_break(menu) -> void:
 	var prof = main.profile
 	var got := break_seal(prof, bool(main.on_train))
 	if bool(got["ok"]):
-		main.sfx("crit", 0.5, -2.0, 0.0)
+		main.sfx("mark_form", 0.75, -2.0, 0.0)  # (the body turns: deeper, for the Unbound's road)
 		prof.save()
 		main._give_bonds()
 		menu.set_meta("seal_told", main.tip_now("mark_seal_broken"))  # (said at the top of the Body tab that opens now: node_seal.gd)
 	else:
-		main.sfx("ui_back", 1.0, -6.0, 0.0)
+		main.sfx("denied", 1.0, -6.0, 0.0)
 	menu.toast = String(got["line"])
 	menu.toast_t = 4.0
 	load("res://scripts/body_move.gd")._redraw(menu, "ub_seal" if bool(got["ok"]) else "mark_seal_break")

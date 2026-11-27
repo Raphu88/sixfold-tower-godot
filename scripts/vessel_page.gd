@@ -94,7 +94,7 @@ static func _toggle(tp, i: int) -> void:
 	if why == "":
 		tp._done(V["took"], "", "ui_confirm")
 	else:
-		tp._done(Train.TEXT["cant"] % why, "", "ui_back")
+		tp._done(Train.TEXT["cant"] % why, "", "denied")
 
 
 # --- the bench's Vessel counter --------------------------------------------------------------
@@ -194,7 +194,7 @@ static func _brew(tp) -> void:
 	if why == "":
 		tp._done(V["brewed"], "", "brew")
 	else:
-		tp._done(Bench.TEXT["cant"] % why, "", "ui_back")
+		tp._done(Bench.TEXT["cant"] % why, "", "denied")
 
 
 ## Does a vessel choice on a piece (asked twice, from train_page.gd

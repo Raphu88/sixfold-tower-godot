@@ -142,7 +142,11 @@ SOUNDS = {
         v((SN + "impact.6.ogg", 0, 0, 1.0), (P + "#34", -4, 0, 0.85), ("synth:thump", -5, 0, 0.9)),
         v((SN + "impact.1.ogg", 0, 0, 1.0), (P + "#20", -4, 0, 0.85), ("synth:thump", -5, 0, 0.9)),
     ], "level": -3, "lp": 5000},
-    "crit": {"variants": [v((S + "slam_02.ogg", 0, 0, 0.8), (S + "metal_07.ogg", -8, 0, 0.9), (P + "#18", -2, 0, 0.75), ("synth:thump", 0, 0, 0.7))], "level": 0, "verb": -11},
+    # (two takes: a crit lands often, and big casts borrow it)
+    "crit": {"variants": [
+        v((S + "slam_02.ogg", 0, 0, 0.8), (S + "metal_07.ogg", -8, 0, 0.9), (P + "#18", -2, 0, 0.75), ("synth:thump", 0, 0, 0.7)),
+        v((S + "slam_03.ogg", 0, 0, 0.84), (S + "metal_07.ogg", -9, 0, 0.96), (P + "#34", -2, 0, 0.78), ("synth:thump", 0, 0, 0.72)),
+    ], "level": 0, "vtrim": [0, -1.5], "verb": -11},
     "parry": {"variants": [
         v((S + "metal_09.ogg", 0, 0, 1.0), (A + "inventory/metal-ringing.wav", -8, 15, 1.0)),
         v((S + "metal_09.ogg", 0, 0, 1.08), (A + "inventory/metal-ringing.wav", -8, 15, 1.1)),
@@ -208,7 +212,8 @@ SOUNDS = {
         v((A + "inventory/armor-light.wav@0.08+0.22", 0, 0, 0.85)),
     ], "level": -19, "lp": 6000, "verb": -30},
     # --- bonds -------------------------------------------------------------
-    "charge": {"variants": [v((R + "spell_01.ogg", 0, 0, 0.9))], "level": -9},
+    # (two takes: every cast starts with it)
+    "charge": {"variants": [v((R + "spell_01.ogg", 0, 0, 0.9)), v((R + "spell_01.ogg", 0, 0, 0.84), (MG + "5.ogg@0+0.5", -14, 0, 1.3))], "level": -9},
     "zap": {"variants": [v((R + "spell_02.ogg", 0, 0, 1.2), (A + "battle/magic1.wav", -6, 0, 1.4)), v((R + "spell_02.ogg", 0, 0, 1.35), (A + "battle/magic1.wav", -6, 0, 1.5))], "level": -5, "lp": 9000},
     "gust": {"variants": [v(("synth:wind", 0, 0, 1.0), (W + "swish-7.wav", -4, 0, 0.6))], "level": -6},
     # Fire catching and burning: a soft crackle of a real fire (short takes
@@ -231,7 +236,9 @@ SOUNDS = {
         v((T + "compressed-air-spray-02.wav@0.9+0.9", 0, 0, 0.55)),
     ], "level": -13, "lp": 3500, "hp": 300},
     # --- monsters ----------------------------------------------------------
-    # The glint before a monster's blow: a bright, short metallic ting.
+    # The glint before a monster's blow: a bright, short metallic ting. It's
+    # kept for warnings (a monster's or a trap's wind-up) so it always means
+    # danger; good things ring the "chime" below instead.
     "glint": {"variants": [v((S + "metal_11.ogg", 0, 0, 1.25), (A + "inventory/metal-ringing.wav", -14, 0, 1.6))], "level": -7, "verb": -14, "lp": 7000},
     "warn_knight": {"variants": [v((A + "inventory/chainmail1.wav", 0, 0, 0.9), (A + "battle/sword-unsheathe2.wav", -6, 120, 0.85))], "level": -5, "lp": 8000},
     # An archer drawing: the same bow creak as yours, shorter.
@@ -263,6 +270,29 @@ SOUNDS = {
     "trap_spikes": {"variants": [v((S + "metal_03.ogg", 0, 0, 0.9), (T + "metal-knife-scrape-01.wav@0.07+0.25", -8, 0, 1.0), (S + "slam_04.ogg", -8, 0, 0.8))], "level": -5, "lp": 7000},
     # --- the room ----------------------------------------------------------
     "clear": {"variants": [v((S + "gong_02.ogg", 0, 0, 1.0))], "level": -6, "verb": -8},
+    # Something good: a find, a choice made, a puzzle's step, a crystal's
+    # worth, the stair opening. Small high bells with a sparkle, three takes
+    # (it rings often), and nothing like the glint (danger) or the Entity's
+    # tip chime (one bell, lower).
+    "chime": {"variants": [
+        v((BELL + "1.wav", 0, 0, 2.0), (MG + "6.ogg@0+0.6", -12, 0, 1.3)),
+        v((BELL + "3.wav", 0, 0, 1.9), (MG + "5.ogg@0+0.6", -12, 0, 1.25)),
+        v((BELL + "4.wav", 0, 0, 1.75), (MG + "6.ogg@0+0.6", -12, 0, 1.4)),
+    ], "level": -10, "verb": -14, "lp": 8000, "hp": 300},
+    # A crystal: glass tapping glass (eaten, traded at the Exchange).
+    "crystal": {"variants": [
+        v((KI + "glass_001.ogg", 0, 0, 1.0), (KI + "glass_003.ogg", -6, 70, 1.1)),
+        v((KI + "glass_002.ogg", 0, 0, 0.95), (KI + "glass_005.ogg", -6, 60, 1.05)),
+        v((KI + "glass_006.ogg", 0, 0, 1.0), (KI + "glass_002.ogg", -6, 80, 1.15)),
+    ], "level": -11, "vtrim": [-3, 0, 1], "verb": -20, "lp": 9000, "hp": 250},
+    # Doors in a floor's doorways (doors.gd): wood swinging, a dull knock as
+    # one shuts (they open often: kept soft).
+    "door_open": {"variants": [
+        v((K + "doorOpen_1.ogg", 0, 0, 0.85), ("synth:thump", -14, 0, 1.4)),
+        v((K + "doorOpen_2.ogg@0+0.9", 0, 0, 0.85), ("synth:thump", -14, 0, 1.4)),
+    ], "level": -12, "lp": 6000, "verb": -18},
+    "door_close": {"variants": [v((K + "doorClose_1.ogg", 0, 0, 0.85), ("synth:thump", -8, 0, 1.0)), v((K + "doorClose_4.ogg", 0, 0, 0.8), ("synth:thump", -8, 0, 1.0))],
+                   "level": -10, "lp": 5000, "verb": -18},
     # --- menus (dry and soft, like the pages of a journal) -----------------
     "ui_move": {"variants": [v(KI + "click_001.ogg")], "level": -9, "lp": 6000, "verb": -60},
     "ui_confirm": {"variants": [v((K + "bookFlip2.ogg", 0, 0, 1.0), (KI + "select_002.ogg", -8, 0, 1.0))], "level": -10, "lp": 7000, "verb": -60},
@@ -270,6 +300,10 @@ SOUNDS = {
     "ui_open": {"variants": [v(K + "bookOpen.ogg")], "level": -16, "lp": 7000, "verb": -60},
     "ui_close": {"variants": [v(K + "bookClose.ogg")], "level": -10.5, "lp": 7000, "verb": -60},
     "ui_bag": {"variants": [v((T + "cloth-pouch-shake-02.wav", 0, 0, 1.0), (K + "handleSmallLeather.ogg", -4, 0, 1.0))], "level": -15, "lp": 7000, "verb": -60},
+    # Not allowed (can't afford it, no essence to power it, no part can take
+    # it): a book set down, dull and short, so it never reads as going back.
+    "denied": {"variants": [v((K + "bookPlace1.ogg", 0, 0, 0.8), (KI + "error_004.ogg", -16, 0, 0.7)), v((K + "bookPlace3.ogg", 0, 0, 0.78), (KI + "error_004.ogg", -16, 0, 0.65))],
+               "level": -12, "lp": 3500, "verb": -60},
 
     # --- the six beasts ------------------------------------------------------
     # Each has a roar (on its floor, and before its biggest blow), a warning
@@ -409,6 +443,11 @@ SOUNDS = {
     # --- big moments ----------------------------------------------------------
     # The Regard: a deep gong, the beast's breath far off, a heartbeat.
     "regard": {"variants": [v((S + "gong_01.ogg", 0, 0, 0.6), ("deeproar/monster_roar.wav@0.18+3.0", -6, 300, 0.7), (GH + "1.mp3.flac@4+3.0", -8, 0, 1.0), ("heartbeat/heartbeat_slow_0.wav", -4, 600, 1.0))], "level": 0, "verb": -6, "lp": 6000},
+    # A mark forming in the body (and the body's big turns: a secret path, the
+    # Unbound's road): a low gong, essence swelling in, a heartbeat's thud and
+    # a bell ringing out over it. Pitched up and soft when a mark grows a step.
+    "mark_form": {"variants": [v((S + "gong_01.ogg", 0, 0, 0.55), (MG + "3.ogg", -4, 120, 0.8), ("heartbeat/heartbeat_slow_0.wav@0+0.9", -5, 0, 0.9),
+                                 (BELL + "4.wav", -9, 380, 0.9), ("synth:thump", -3, 0, 0.5))], "level": -3, "verb": -7, "lp": 7000},
     # A summit won: bells in a rising chord over a gong.
     "summit_win": {"variants": [v((BELL + "1.wav", 0, 0, 1.0), (BELL + "2.wav", -2, 140, 1.26), (BELL + "3.wav", -3, 280, 1.5), (S + "gong_02.ogg", -4, 0, 0.8))], "level": -2, "verb": -8, "lp": 9000},
     # The Proving's shadow rising.
@@ -459,7 +498,6 @@ SOUNDS = {
     "spell_rune": {"variants": [v((MG + "3.ogg@0+1.0", 0, 0, 1.0), (BELL + "4.wav", -12, 0, 1.2))], "level": -7, "lp": 8000},
     "spell_poison": {"variants": [v((RW + "slime_06.ogg", 0, 0, 1.0), (STEAM + "2.wav@0+0.6", -10, 0, 0.8), (RW + "bubble_02.ogg", -8, 0, 1.0))], "level": -6, "lp": 6000},
     "spell_life": {"variants": [v(CB + "Healing Spell Impact 6_s08.wav@0+1.2"), v(CB + "Healing Spell Impact 15_s08.wav@0+1.2")], "level": -7, "lp": 8000},
-    "spell_unmaking": {"variants": [v(("darkmagic/dark_magic/fout-03.flac@0+1.2", 0, 0, 1.0), ("drain/qubodup-PowerDrain.ogg@0+1.0", -8, 0, 1.0))], "level": -5, "lp": 7000},
     "beast_call": {"variants": [v((SNARLS + "0.18+1.5", 0, 0, 1.0), (C1 + "howl.ogg", -6, 100, 1.0))], "level": -4, "lp": 6000},
     "form_bolt": {"variants": [v((CB + "EnergyZap_s01.wav", 0, 0, 1.0), (CB + "ElectroZap_s01.wav", -6, 0, 1.0))], "level": -6, "lp": 8000},
     "form_beam": {"variants": [v(("elec/charge.wav@0+1.0", 0, 0, 1.0), (MG + "7.ogg@0+1.0", -8, 0, 1.0))], "level": -7, "lp": 8000},
@@ -467,6 +505,11 @@ SOUNDS = {
     "form_shell": {"variants": [v((CB + "Healing Spell Impact 1_s08.wav@0+1.0", 0, 0, 0.7), (S + "metal_09.ogg", -10, 0, 0.6))], "level": -7, "lp": 7000},
     "heartbeat": {"variants": [v(("heartbeat/heartbeat_slow_0.wav@0+0.9", 0, 0, 1.0), ("synth:thump", -6, 0, 0.8))], "level": -4, "lp": 3000},
 }
+
+# Sounds made by hand, not built here: a full rebuild keeps their files and
+# their place in the bank. The gong is one of the story track's own tolls,
+# cut from story.ogg (audio.gd rings it as a story scene changes).
+HAND_MADE = {"gong": ["res://assets/audio/sfx/gong_0.wav"]}
 
 # Each tower's ambience (and the train's), built as a seamless loop under
 # the music: "beds" run the whole length (looped if short), "scatter" drops
@@ -1007,9 +1050,9 @@ def main():
     os.makedirs(OUT_SFX, exist_ok=True)
     os.makedirs(OUT_MUSIC, exist_ok=True)
     for f in os.listdir(OUT_SFX):
-        if f.endswith(".wav"):
+        if f.endswith(".wav") and not any(f == p.split("/")[-1] for paths in HAND_MADE.values() for p in paths):
             os.remove(os.path.join(OUT_SFX, f))
-    bank = {}
+    bank = dict(HAND_MADE)
     for name, spec in SOUNDS.items():
         paths = []
         for i, layers in enumerate(spec["variants"]):

@@ -319,7 +319,7 @@ func use(id: String, target = null) -> bool:
 		shown = target
 		show_t = SHOW_TIME
 		main.tip(String(info.get("tip", "")))
-		main.sfx("glint", 0.7, -6.0, 0.02)
+		main.sfx("chime", 0.7, -6.0, 0.02)
 		return true
 	var free: bool = info.get("lasts", "") == "floor" and paid.has(id)
 	if not free and not pay(info["cost"]):
@@ -330,7 +330,7 @@ func use(id: String, target = null) -> bool:
 	show_t = SHOW_TIME
 	shown = target
 	main.tip(String(info.get("tip", "")))
-	main.sfx("glint", 0.7, -6.0, 0.02)
+	main.sfx("chime", 0.7, -6.0, 0.02)
 	queue_redraw()
 	screen.queue_redraw()
 	if ring_screen != null:

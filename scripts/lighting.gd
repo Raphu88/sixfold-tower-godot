@@ -199,6 +199,11 @@ void fragment() {
 	float a = 1.0 - (1.0 - dark) * (1.0 - fog) * (1.0 - vig);
 	// Out of sight reads as the fog's own near-black; elsewhere the tower's colour.
 	vec3 col = mix(dark_color.rgb, fog_color, clamp(fog / max(a, 0.001), 0.0, 1.0));
+	// Where several lights overlap (a sunlit court, a portal, the stair), their
+	// glow rolls off softly instead of adding up to a blown-out white patch:
+	// one light's glow is untouched, a pile of them never passes ~0.95.
+	vec3 over = max(glow - vec3(0.35), vec3(0.0));
+	glow = min(glow, vec3(0.35)) + over / (vec3(1.0) + over * 1.6);
 	COLOR = vec4(col * a + glow * (1.0 - fog), a);
 }
 """

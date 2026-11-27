@@ -1604,14 +1604,14 @@ func pop_closed() -> void:
 static var FEEDBACK := {
 	"buy": {"sound": "buy", "pitch": 1.0, "db": -2.0, "col": "gilt"},
 	"sell": {"sound": "sell", "pitch": 1.0, "db": -2.0, "col": "gilt"},
-	"choose": {"sound": "glint", "pitch": 1.2, "db": -6.0, "col": "good"},
+	"choose": {"sound": "chime", "pitch": 1.1, "db": -4.0, "col": "good"},
 	"make": {"sound": "craft", "pitch": 1.0, "db": -4.0, "col": "gilt"},
 	"back": {"sound": "ui_back", "pitch": 1.0, "db": -4.0, "col": "dim"},
 }
 ## The train's and the Loadout's answers (train_page.gd / loadout_page.gd
 ## _done) name a sound: the kind of feedback it is ("make" for the rest:
 ## the bench's work).
-static var DONE_KINDS := {"buy": "buy", "sell": "sell", "ui_confirm": "choose", "armor_on": "choose", "clear": "choose", "ui_back": "back"}
+static var DONE_KINDS := {"buy": "buy", "sell": "sell", "ui_confirm": "choose", "armor_on": "choose", "clear": "choose", "ui_back": "back", "denied": "back", "chime": "choose"}
 var feedback_log: Array = []  # the kinds answered (tests)
 
 
@@ -1933,7 +1933,7 @@ func _page_pause() -> void:
 	elif practicing:
 		_header(main.practice.TEXT["paused"], main.practice.TEXT["pause_note"], "Paused")
 	else:
-		_header("Paused", "", "%s  ·  floor %d" % [main.tower_data()["name"], main.floor_num])
+		_header("Paused", "")  # (the tower and floor: the rows just below, and the rail's header)
 	var g := _grid(2, 10, 4 if compact() else 6)
 	if _on_train():
 		var nt: Dictionary = Towers.TOWERS.get(train_tower, {})

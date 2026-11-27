@@ -297,7 +297,7 @@ func _ride(to: String) -> void:
 	if not bool(res["ok"]):
 		said = String(res["why"])
 		said_bad = true
-		m.main.sfx("ui_back", 0.8, -4.0, 0.0)
+		m.main.sfx("denied", 0.8, -4.0, 0.0)
 		m.open("train")
 		return
 	said = String(res["line"])

@@ -26,7 +26,10 @@ const MAX_SAME := 4  # copies of one sound at once; a fifth replaces the oldest
 const GAP_MS := {"burn": 250}
 
 ## Per-sound trim in dB, on top of the levels baked in by the build tool.
-const TRIM := {}
+## Menus: opening a page was 6 dB under closing it and going back was the
+## loudest page sound, so they're evened out (all soft). The summit's bells
+## were quieter than a crit: a climb won is the biggest moment there is.
+const TRIM := {"ui_open": 3.0, "ui_close": -1.5, "ui_back": -2.0, "summit_win": 4.0}
 
 var streams := {}  # name -> Array of AudioStream
 var players: Array = []

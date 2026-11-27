@@ -194,7 +194,7 @@ func watch(_delta: float) -> void:
 		if p.global_position.distance_to(m["pos"]) < SEE and main.clear_line(p.global_position, m["pos"] + Vector2(0, 30)):
 			m["seen"] = true
 			main.fx_text(m["pos"] + Vector2(0, 40), TEXT["seen"] % [found(), murals.size()], Color(1.0, 0.85, 0.6))
-			main.sfx("glint", 0.9, -6.0, 0.0)
+			main.sfx("chime", 0.9, -6.0, 0.0)
 			main.tip("puzzle_memory")  # (it may be found before the hall)
 
 
