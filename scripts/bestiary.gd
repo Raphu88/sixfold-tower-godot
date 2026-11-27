@@ -794,16 +794,8 @@ class Tile extends Button:
 		UI.draw_text(self, UI.font("body"), Vector2(r.position.x + 3.0, r.end.y - 6.0), label, HORIZONTAL_ALIGNMENT_CENTER, r.size.x - 6.0, fs, col)
 		if met and level >= B.top_level(kind):
 			draw_circle(r.position + Vector2(r.size.x - 8.0, 8.0), 3.0, UI.GILT_HI)  # (everything known)
-		if has_focus() and not _touching():
+		if has_focus() and not UI.touch_above(self):
 			draw_style_box(UI.focus_box(), r.grow(2.0))
-
-	func _touching() -> bool:
-		var n := get_parent()
-		while n != null:
-			if n.has_method("rail_showing"):
-				return n.main != null and n.main.touch_active
-			n = n.get_parent()
-		return false
 
 
 ## A monster's picture, as big as fits.

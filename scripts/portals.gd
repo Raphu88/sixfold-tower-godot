@@ -253,16 +253,6 @@ func travel_block() -> String:
 	return ""
 
 
-## The portal the climber stands on (-1 if none).
-func portal_here() -> int:
-	if main.player == null:
-		return -1
-	for i in list.size():
-		if main.player.global_position.distance_to(list[i]["pos"]) < float(RULES["step_on"]) + main.player.radius:
-			return i
-	return -1
-
-
 ## Travel from one woken portal to another (the floor map calls it).
 func travel(to: int) -> bool:
 	if to < 0 or to >= list.size() or travel_block() != "" or not pocket.is_empty():

@@ -96,7 +96,7 @@ func _idle_state() -> String:
 ## A see-through bell seen from above, floating a little off the floor: a
 ## glowing core, a frilled rim that pulses, and tendrils trailing behind it;
 ## the tendrils light up as it winds up to spark.
-func _draw_own(p, t: float, f: Vector2) -> void:
+func _draw_own(p, t: float, _f: Vector2) -> void:
 	var o := Vector2(0, -10.0 + sin(t * 2.2) * 2.5)
 	var pulse := 1.0 + 0.08 * sin(t * 3.0)
 	var spark := _ease("spark", _wk(float(RULES["spark_wind"])) if state == "wind_spark" else 0.0, 14.0)

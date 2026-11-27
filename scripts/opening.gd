@@ -69,7 +69,6 @@ var clock := 0.0  # seconds since it was made (for motion that carries on across
 var text_top := -1.0  # where the words begin (menu.gd _layout); -1: near the bottom
 var draws := 0  # how many times a whole screen has drawn (tests)
 var layers := 0  # how many layers the last screen drew (tests)
-var draw_us := 0  # how long the last screen took to build, in microseconds (tests)
 var _shown := -1
 var _last_us := 0
 var _redraw := 0.0
@@ -162,7 +161,6 @@ func stage_height(s := Vector2.ZERO) -> float:
 
 func _draw() -> void:
 	var s := _view()
-	var t0 := Time.get_ticks_usec()
 	var h := stage_height(s)
 	_u = clampf(minf(h / 430.0, s.x / 760.0), 0.45, 1.8)
 	layers = 0
@@ -191,7 +189,6 @@ func _draw() -> void:
 	if dark > 0.0:
 		draw_rect(Rect2(Vector2.ZERO, s), Color(0, 0, 0, dark))
 	draws += 1  # (counted once the whole screen has drawn: tests)
-	draw_us = Time.get_ticks_usec() - t0
 
 
 # --- the camera, the layers and the kept ones -----------------------------------------

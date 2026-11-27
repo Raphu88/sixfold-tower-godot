@@ -691,13 +691,6 @@ static func ids_on_screen(m) -> Array:
 	return out
 
 
-## The element `id` holds (it moves with it), for snapping.
-static func is_inside(id: String, other: String) -> bool:
-	var a := node(id)
-	var b := node(other)
-	return a != null and b != null and a != b and a.is_ancestor_of(b)
-
-
 # --- the menu ------------------------------------------------------------------------
 
 ## The page's key: the page, and its tab where tabs change it.

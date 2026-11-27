@@ -995,7 +995,7 @@ func _glyph(c: Vector2, g: String, col: Color) -> void:
 			draw_line(c + Vector2(0, 6), c + Vector2(4, 6), col, 2.0)
 
 
-func _draw_lever(pc: Dictionary, t: float) -> void:
+func _draw_lever(pc: Dictionary, _t: float) -> void:
 	var c: Vector2 = pc["pos"]
 	var up: bool = pc["state"] == "done"
 	var b := Draw.Batch.new()

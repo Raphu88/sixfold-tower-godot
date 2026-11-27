@@ -32,8 +32,6 @@ const UI := preload("res://scripts/ui.gd")
 
 static var TEXT := {
 	"warded": "The stair is warded. Solve the beast's test to lift it.",
-	"lifted_title": "THE WARD LIFTS",
-	"lifted": "The beast takes note.",
 	"solved": "%s: solved",
 	"sealed": "The way behind you grinds shut. This room will not let you go until its question is answered.",
 	"quiet": "The test sleeps while its guards still stand.",

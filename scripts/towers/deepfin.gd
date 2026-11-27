@@ -75,7 +75,6 @@ static func _own_act(e, delta: float, dir: Vector2, dist: float, p) -> void:
 				e.state = "lunge"
 				e.state_t = clampf((dist + 30.0) / float(D["leap_speed"]), 0.2, 0.55)
 				e.lunge_hit = false
-				e.attack_from = pos
 				main.sfx("spell_water", 1.1, -6.0)
 				main.fx_burst(pos, e.lunge_dir, Color(0.6, 0.85, 0.95), 10, 160.0)
 		"lunge":

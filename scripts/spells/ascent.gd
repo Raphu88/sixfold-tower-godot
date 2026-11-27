@@ -218,8 +218,8 @@ static func _strike(p, b, fx: Dictionary, power: float, col: Color) -> void:
 	var main = p.main
 	var from: Vector2 = p.global_position
 	var foes := _near(main, from, float(fx.get("range", 300.0)))
-	if bool(fx.get("skip_aim", false)) and b.has_method("_target_in_aim"):
-		var aimed = b._target_in_aim(p, float(fx.get("range", 300.0)))
+	if bool(fx.get("skip_aim", false)) and b.has_method("target_in_aim"):
+		var aimed = b.target_in_aim(p, float(fx.get("range", 300.0)))
 		foes.erase(aimed)
 	foes.sort_custom(func(x, y): return x.global_position.distance_squared_to(from) < y.global_position.distance_squared_to(from))
 	if String(fx.get("prefer", "")) == "quarry":

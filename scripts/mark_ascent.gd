@@ -50,7 +50,6 @@ static var TEXT := {
 	"transform": "a second Transformation to choose on your tree: %s or %s",
 	"apex": "%s: %s",
 	"zenith": "the Zenith, %s: %s",
-	"zenith_word": "Zenith",
 }
 
 ## Seconds a mark's surge (fx "surge") is shown over the climber, and the

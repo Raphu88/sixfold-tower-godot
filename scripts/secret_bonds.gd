@@ -160,7 +160,6 @@ const TUNE_COST := 6.0
 ## train, from depth 1: all the path's flow resets and flows out of the
 ## shadow, and a new path starts from nothing. Costs crystal essence.
 const PATH_CHANGE_COST := 20.0
-const PATH_CHANGE_DEPTH := 1
 
 ## The Developer's Edit (depth 3, on the train): each spell's numbers are
 ## grouped in ASPECTS; a point raises one by EDIT_POINT (a share) and must be
@@ -392,11 +391,9 @@ const STRIKING := ["pounce", "lunge", "swoop", "dive", "charge"]
 
 ## Every other word.
 static var TEXT := {
-	"ring_title": "TOOLS",
 	"train_only": "between climbs",
 	"no_tools": "No tools yet",
 	"short": "Needs %s",
-	"you_carry": "you carry %s",
 	"paid": "-%s",
 	"no_target": "Nothing to aim at",
 	"resists": "A great foe: it won't answer",
@@ -409,7 +406,6 @@ static var TEXT := {
 	"door_shut": "Door shut",
 	"door_blocked": "Something stands in the doorway",
 	"locked": "Locked: the tool can't open it",
-	"inspected": "%s: inspected",
 	"panel_close": "%s again to close",
 	"plan_title": "THE FLOOR'S PLAN",
 	"spells_title": "YOUR SPELLS' REAL NUMBERS",
@@ -420,7 +416,6 @@ static var TEXT := {
 	"hidden_room": "a hidden room",
 	"trap_timed": "%s  ·  every %ss: warns %ss, fires %ss",
 	"trap_plate": "%s  ·  plate: warns %ss, fires %ss, rests %ss",
-	"trap_next": "fires in %ss",
 	"trap_off": "%s  ·  OFF",
 	"door_to": "→ %s",
 	"held": "held shut %ds",

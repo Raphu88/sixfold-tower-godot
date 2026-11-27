@@ -68,8 +68,6 @@ const OVERDRAW_POWER := 0.7
 const TEAR_HEALTH := 1.0
 
 
-
-
 func _init(bond_id: String, body_part: String) -> void:
 	id = bond_id
 	part = body_part
@@ -195,14 +193,6 @@ func spell_name() -> String:
 
 func spell_desc() -> String:
 	return spell()["desc"]
-
-
-func body_name() -> String:
-	return data()["body"]["name"]
-
-
-func passive_name() -> String:
-	return data()["passive"]["name"]
 
 
 ## The passive's rank at this mark's step (1; II from step 3; III at step 5).
@@ -570,7 +560,7 @@ func _chain(p) -> void:
 # or Living Bolt).
 func _call_lightning(p) -> void:
 	var main = p.main
-	var target = _target_in_aim(p, float(stat("reach")) if stat("reach") != null else 320.0)
+	var target = target_in_aim(p, float(stat("reach")) if stat("reach") != null else 320.0)
 	if target == null:
 		main.fx_text(p.global_position + Vector2(0, -34), "no target", color())
 		return
@@ -701,8 +691,9 @@ func _thunderhead(p) -> void:
 	main.shake(4.0)
 
 
-## The foe nearest to where you're aiming, within reach (or null).
-func _target_in_aim(p, reach: float):
+## The foe nearest to where you're aiming, within reach (or null). The
+## spells' own scripts (spells/*.gd) pick with it too.
+func target_in_aim(p, reach: float):
 	var best = null
 	var best_score := INF
 	for e in p.main.targets():
@@ -1014,7 +1005,7 @@ func _drain(p) -> void:
 
 # Tether a foe so it cannot move away from you.
 func _anchor(p) -> void:
-	var target = _target_in_aim(p, stat("reach"))
+	var target = target_in_aim(p, stat("reach"))
 	if target == null:
 		p.main.fx_text(p.global_position + Vector2(0, -34), "no target", color())
 		return
@@ -1045,7 +1036,7 @@ func _siphon(p) -> void:
 
 # Channel a drain on one foe; it grows stronger every second it holds.
 func _drink(p) -> void:
-	var target = _target_in_aim(p, stat("reach"))
+	var target = target_in_aim(p, stat("reach"))
 	if target == null:
 		p.main.fx_text(p.global_position + Vector2(0, -34), "no target", color())
 		return
@@ -1391,7 +1382,7 @@ func _sandwall(p) -> void:
 
 func _sinkhole(p) -> void:
 	var main = p.main
-	var target = _target_in_aim(p, 280.0)
+	var target = target_in_aim(p, 280.0)
 	var at: Vector2 = target.global_position if target != null else p.global_position + p.aim * 140.0
 	main.pits.append({"pos": at, "r": 30.0, "t": 2.5})
 	main.fx_ring(at, color(), 36.0, 0.4, 4.0)
@@ -1544,7 +1535,7 @@ func _firewall(p) -> void:
 
 
 func _meteor(p) -> void:
-	var target = _target_in_aim(p, 300.0)
+	var target = target_in_aim(p, 300.0)
 	var at: Vector2 = target.global_position if target != null else p.global_position + p.aim * 180.0
 	p.main.meteors.append({"pos": at, "r": stat("radius"), "dmg": damage(), "t": 0.6, "color": color()})
 	p.main.sfx("charge", 0.4)
@@ -1639,7 +1630,6 @@ func _rekindle(p) -> void:
 	p.rekindle_total = dur
 	p.rekindle_loss = p.max_hp * float(stat("loss"))
 	p.rekindle_lost = 0.0
-	p.rekindle_fought = false
 	p.rekindle_spread = bool(stat("spread"))
 	p.rekindle_burn = float(stat("burn")) * power() if stat("burn") != null else 3.0
 	p.rekindle_r = float(stat("radius")) if stat("radius") != null else 60.0
@@ -1691,7 +1681,7 @@ const MAX_OUT := 3  # never more than three creatures out at once
 ## you've bound one).
 func _call(p) -> void:
 	var main = p.main
-	var target = _target_in_aim(p, 240.0)
+	var target = target_in_aim(p, 240.0)
 	if target != null and target.hp < target.max_hp * 0.25 and not target.is_boss() and not target.mirror:  # (a mirror image can't be bound)
 		if not target.kind in main.profile.pacts:
 			main.profile.pacts.append(target.kind)
@@ -1717,7 +1707,7 @@ func _call(p) -> void:
 
 func _command(p) -> void:
 	var main = p.main
-	var target = _target_in_aim(p, 320.0)
+	var target = target_in_aim(p, 320.0)
 	for a in main.allies():
 		a.ally_target = target
 		a.ally_guard = target == null
@@ -1832,7 +1822,7 @@ func _mimic(p) -> void:
 		part = main.graft_order[-1]
 		kind = main.grafts[part]
 	else:
-		var t = _target_in_aim(p, float(stat("reach")))
+		var t = target_in_aim(p, float(stat("reach")))
 		if t == null:
 			main.fx_text(p.global_position + Vector2(0, -40), "nothing to mimic", color())
 			return
@@ -1867,7 +1857,7 @@ func _mimic(p) -> void:
 				if to2.length() < 120.0 + e.radius:
 					e.take_hit(dmg * 0.8, to2.normalized(), 180.0)
 		"back":  # slip behind the foe you aim at
-			var t = _target_in_aim(p, 220.0)
+			var t = target_in_aim(p, 220.0)
 			if t != null:
 				p.global_position = main.walkable_point(t.global_position, t.global_position - t.face * (t.radius + p.radius + 6.0), 14.0)
 				p.aim = t.face
@@ -1907,7 +1897,7 @@ func _chimera_form(p) -> void:
 
 func _sever(p) -> void:
 	var main = p.main
-	var t = _target_in_aim(p, 130.0)
+	var t = target_in_aim(p, 130.0)
 	if t == null:
 		main.fx_text(p.global_position + Vector2(0, -40), "no one in reach", color())
 		return
@@ -1974,7 +1964,7 @@ func _mend(p) -> void:
 
 func _transfer(p) -> void:
 	var main = p.main
-	var t = _target_in_aim(p, 260.0)
+	var t = target_in_aim(p, 260.0)
 	if t == null:
 		main.fx_text(p.global_position + Vector2(0, -40), "no one to take it", color())
 		return
@@ -2006,7 +1996,7 @@ func _transfer(p) -> void:
 
 func _amputate(p) -> void:
 	var main = p.main
-	var t = _target_in_aim(p, 130.0)
+	var t = target_in_aim(p, 130.0)
 	var below: float = float(stat("below")) if stat("below") != null else 0.5  # (its Apex: up to three quarters)
 	if t != null and damage() > 0.0:
 		t.take_hit(damage(), (t.global_position - p.global_position).normalized(), 80.0)  # (a deep cut first: it may be what leaves the foe wounded enough)

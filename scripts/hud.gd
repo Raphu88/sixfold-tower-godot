@@ -81,7 +81,6 @@ var main
 var vignette: GradientTexture2D  # (the hurt flash)
 var panel: StyleBoxFlat
 var slot: StyleBoxFlat
-var slot_on: StyleBoxFlat
 var hp_trail := 1.0  # the lagging "damage taken" chunk
 var sta_trail := 1.0
 var show_help := false  # the keyboard controls panel (a setting)
@@ -130,7 +129,6 @@ func _ready() -> void:
 	vignette.height = 128
 	panel = UI.panel()
 	slot = UI.slot()
-	slot_on = UI.slot(true)
 	card_box = UI.card()
 	card_box_on = UI.card(UI.GOLD)
 	# The tooltip: a small ornate card, a gilt hairline inside its edge.
@@ -161,16 +159,6 @@ func _ready() -> void:
 	rings.z_index = RING_Z
 	rings.draw.connect(_draw_rings)
 	add_child(rings)
-
-
-func _box(bg: Color, border: Color, radius: int) -> StyleBoxFlat:
-	var b := StyleBoxFlat.new()
-	b.bg_color = bg
-	b.border_color = border
-	b.set_border_width_all(1)
-	b.set_corner_radius_all(radius)
-	b.anti_aliasing = true
-	return b
 
 
 func _process(delta: float) -> void:
@@ -275,12 +263,14 @@ func _core_signature() -> Array:
 	var p = main.player
 	if p == null or main.title_showing():
 		return [false]
+	var wk: String = p.wkind()  # (asked once each: this runs every frame)
+	var sel: String = p.selected_item()
 	var s := [true, hud_scale, get_viewport_rect().size, Layout.version, main.touch_active, main.pad_active, main.pad_ps,
 		int(ceil(p.hp)), int(round(p.max_health())), p.max_hp, int(p.sta), p.max_sta, int(p.fatigue), p.poison_t > 0.0,
 		snappedf(hp_trail, 0.004), snappedf(sta_trail, 0.01), int(ceil(p.barrier_hp)),
-		p.weapon, Gear.base_id(p.gear.get("offhand", {})), snappedf(p.reload_t, 0.05) if p.wkind() in ["crossbow", "gun"] else 0.0, p.ammo_left() if p.wkind() == "gun" else -1,
-		ItemPool.left(p.weapon_rec()) if p.weapon != "fists" else -1, p.item_power.duplicate(), p.gun_magic() if p.wkind() == "gun" else "",
-		p.selected_item(), p.item_count(p.selected_item()) if p.selected_item() != "" else 0,
+		p.weapon, Gear.base_id(p.gear.get("offhand", {})), snappedf(p.reload_t, 0.05) if wk in ["crossbow", "gun"] else 0.0, p.ammo_left() if wk == "gun" else -1,
+		ItemPool.left(p.weapon_rec()) if p.weapon != "fists" else -1, p.item_power.duplicate(), p.gun_magic() if wk == "gun" else "",
+		sel, p.item_count(sel) if sel != "" else 0,
 		main.profile.path, main.profile.flow_step(), int(main.profile.flow),
 		int(p.vessel.get("amount", 0.0)) if p.item_count("vessel") > 0 else -1]  # (the vessel's gauge)
 	for part in BondScript.Bonds.PARTS:
@@ -767,7 +757,7 @@ func _draw_force(p, size: Vector2, font: Font) -> void:
 
 ## Swapping weapons: the three slots for a moment, the one in hand lit and named.
 ## Returns its height.
-func _draw_swap(p, pos: Vector2, font: Font, a: float) -> float:
+func _draw_swap(p, pos: Vector2, _font: Font, a: float) -> float:
 	var have: Array = p.slots()
 	var r := Rect2(pos, Vector2(16.0 + 40.0 * have.size(), 62))
 	var b := Draw.Batch.new()
@@ -792,7 +782,7 @@ func _draw_swap(p, pos: Vector2, font: Font, a: float) -> float:
 
 
 ## Essence gathered since the last stair (lost if you fall before it): gems and counts.
-func _draw_essence(pos: Vector2, font: Font, a: float) -> void:
+func _draw_essence(pos: Vector2, _font: Font, a: float) -> void:
 	var held: Array = Essence.KINDS.keys().filter(func(k): return main.run_essence.get(k, 0.0) > 0.0)
 	# Your path's unbanked flow leads, once its gem shows (secret.gd).
 	var flow: bool = main.flow_shown() and main.run_flow >= 0.5
@@ -1382,7 +1372,7 @@ func _wheel_caption(ci: CanvasItem, title: String, text: String, col: Color, hin
 
 ## Hunter's Quarry: the last foe you struck is always marked, and an arrow at
 ## the screen edge points to it when it's out of sight.
-func _draw_quarry(p, size: Vector2, font: Font) -> void:
+func _draw_quarry(p, size: Vector2, _font: Font) -> void:
 	if not p.has_bond("hunter") or p.quarry == null or not is_instance_valid(p.quarry) or p.quarry.dead:
 		return
 	var at: Vector2 = p.quarry.get_global_transform_with_canvas().origin
@@ -1427,7 +1417,7 @@ func arrow_goal() -> Array:
 
 ## Rooms floors are bigger than the screen: an arrow at the screen edge
 ## points the way to the task's next piece, then to the open stair.
-func _draw_stair_arrow(size: Vector2, font: Font) -> void:
+func _draw_stair_arrow(size: Vector2, _font: Font) -> void:
 	var goal := arrow_goal()
 	if goal.is_empty():
 		return

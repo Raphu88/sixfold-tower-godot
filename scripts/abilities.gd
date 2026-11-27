@@ -59,8 +59,6 @@ const TEXT := {
 	# The button to press: [keys, controller, touch].
 	"press": ["%s", "%s + %s", "tap"],
 	"hold": ["hold %s", "hold %s + %s", "hold, slide"],
-	"press_caption": "to cast",
-	"hold_caption": "to pick it",
 	"ring_note": "hold for the wheel",
 	"selected": "on the button",
 	"learned": "learned  ·  step %d",
@@ -305,11 +303,6 @@ static func _sentence(t: String) -> String:
 
 
 # --- the short words in play -------------------------------------------------------
-
-## A bond's (or technique's) one line for a toast or a card: "Ember Bolt: a
-## bolt thrown where you aim; it burns what it hits".
-static func toast_line(bd) -> String:
-	return "%s: %s" % [spell_name(bd), short_does(bd)]
 
 
 ## The spell its button casts now (a technique: its name).

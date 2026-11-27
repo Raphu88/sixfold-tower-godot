@@ -83,10 +83,6 @@ func _can_show() -> bool:
 	return main.player != null and not main.menu_open() and not main.title_showing() and not main.choosing_tower and main.fade < 0.05
 
 
-func _practicing() -> bool:
-	return main.practice != null and main.practice.on
-
-
 # --- ready labels ------------------------------------------------------------------
 
 ## A mark or technique that has just filled enough to cast: its name, under

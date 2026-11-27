@@ -56,18 +56,9 @@ static var STAMINA := Color(0.45, 0.72, 0.38)
 static var ENTITY_BG := Color(0.11, 0.09, 0.19)
 static var ENTITY_EDGE := Color(0.79, 0.75, 1.0, 0.42)
 
-## The train between climbs (train_view.gd draws it behind its pages):
-## brass trim and rivets, oxblood cars, a bottle-green engine, warm windows.
+## The train between climbs: brass trim and rivets, dark iron.
 const TRAIN_BRASS := Color(0.86, 0.64, 0.3)
-const TRAIN_COPPER := Color(0.72, 0.4, 0.24)
-const TRAIN_CAR := Color(0.33, 0.13, 0.12)
-const TRAIN_ENGINE := Color(0.14, 0.27, 0.23)
 const TRAIN_IRON := Color(0.12, 0.11, 0.13)
-const TRAIN_ROOF := Color(0.2, 0.17, 0.19)
-const TRAIN_WINDOW := Color(1.0, 0.76, 0.42)
-const TRAIN_SMOKE := Color(0.72, 0.68, 0.74)
-const TRAIN_SKY := [Color(0.05, 0.04, 0.09), Color(0.17, 0.1, 0.17), Color(0.46, 0.25, 0.2)]
-const TRAIN_GROUND := Color(0.07, 0.06, 0.07)
 ## The outfitter's upgrade tree (outfit_tree.gd): each branch's colour, and the trunk's.
 const OUTFIT_TREE := {
 	"prices": Color(0.95, 0.76, 0.36), "stock": Color(0.74, 0.6, 1.0), "gifts": Color(0.93, 0.45, 0.38),
@@ -245,6 +236,17 @@ static func theme() -> Theme:
 		t.set_stylebox("grabber_highlight", bar, box(Color(GILT, 0.6), Color(0, 0, 0, 0), 3))
 		t.set_stylebox("grabber_pressed", bar, box(Color(GILT, 0.85), Color(0, 0, 0, 0), 3))
 	return t
+
+
+## True if the menu above `n` (the node with the rail) is on a touch screen:
+## a focused button then draws no focus ring (book.gd, bestiary.gd, train_view.gd).
+static func touch_above(n: Node) -> bool:
+	var at := n.get_parent()
+	while at != null:
+		if at.has_method("rail_showing"):
+			return at.main != null and at.main.touch_active
+		at = at.get_parent()
+	return false
 
 
 # --- panels, buttons, slots ---------------------------------------------------------
@@ -439,7 +441,6 @@ const OUTLINE := Color(0.03, 0.025, 0.04)
 ## HUD sizes (a setting): how much bigger or smaller the HUD is drawn, on
 ## top of the Interface size.
 const HUD_SCALES := {"small": 0.85, "normal": 1.0, "large": 1.2}
-const HUD_SCALE_ORDER := ["small", "normal", "large"]
 ## Interface sizes (a setting, shared by every climber): how big the whole
 ## interface is drawn (menus, the rail, the train's interface, the HUD and
 ## the touch buttons), as [on a computer, on a phone]. The phone draws

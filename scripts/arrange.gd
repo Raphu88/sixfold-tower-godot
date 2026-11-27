@@ -88,7 +88,6 @@ const TEXT := {
 	"cant_move": "It can't be dragged from its place",
 	"nothing_inside": "%s has nothing inside to arrange",
 	"at_top": "This is the top level",
-	"entered": "Inside %s",
 	"hint_short": "Drag a block to move it · corners: size · double-click: go inside · Esc: back out",
 	"hint_keys": "Drag a block to move it · corners: size · double-click or Enter: go inside · Esc: back out · arrows: nudge · Shift: no snapping",
 	"hint_pad": "D-pad or {lb} {rb}: next · {a}: go inside · {b}: back out · left stick: move · right stick: size · {x}: undo · {y}: save · {start}: done",

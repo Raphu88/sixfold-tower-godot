@@ -422,7 +422,7 @@ static func _chasm_rank(theme: String) -> int:
 
 ## Turns the placed rooms into the floor: walkable areas, corridors, the
 ## rooms' features, the themes' set pieces, monsters and doors.
-static func _build(infos: Array, themes: Array, floor_num: int, tower: Dictionary, cfg: Dictionary, wings: Array, secrets: Array, loops: Array = [], obj := {}) -> Dictionary:
+static func _build(infos: Array, themes: Array, floor_num: int, tower: Dictionary, _cfg: Dictionary, wings: Array, secrets: Array, loops: Array = [], obj := {}) -> Dictionary:
 	var rooms: Array = []
 	var walk: Array = []
 	var corridors: Array = []
@@ -816,7 +816,7 @@ static func _adjacency(infos: Array, loops: Array) -> Array:
 ## Chests for the rooms that would pay nothing otherwise (the start room
 ## aside): danger rooms' spoils, opened once the monsters that wait in the
 ## room are down (or straight away if none do). [{pos, room, rich}]
-static func _chests(infos: Array, monsters: Array, objective: Dictionary, scenarios: Array) -> Array:
+static func _chests(infos: Array, monsters: Array, _objective: Dictionary, scenarios: Array) -> Array:
 	var out: Array = []
 	var scn_rooms: Array = scenarios.map(func(s): return int(s["room"]))
 	for i in infos.size():
@@ -1522,7 +1522,7 @@ static func _carve_kept(infos: Array, wings: Array, secrets: Array, walk: Array,
 		made_w.append(w)
 	var made_s: Array = []
 	for k in secrets:
-		var content := _weighted(SECRET_CONTENTS)
+		var content := Objectives.weighted(SECRET_CONTENTS)
 		var s := _carve_one(infos, k, SECRET_SIZE, false, 1, taken)
 		if s.is_empty():
 			continue
@@ -1790,7 +1790,7 @@ static func _locks(infos: Array, themes: Array, doors: Array, monsters: Array, w
 			monsters.append_array(kept)
 			if not infos[ri].has("vault_at"):
 				infos[ri]["vault_at"] = Objectives._spot(infos[ri], monsters, 1, true)
-		var kind := _weighted(LOCKS["kinds"])
+		var kind := Objectives.weighted(LOCKS["kinds"])
 		var lock := {"kind": kind, "id": out.size() + 1}
 		if kind == "carried":
 			var carriers: Array = []
@@ -1845,18 +1845,6 @@ static func _tiles_rect(tiles: Array) -> Rect2:
 	for t in tiles:
 		r = r.merge(Rect2(ORIGIN + Vector2(t) * CELL, Vector2(CELL, CELL)))
 	return r
-
-
-static func _weighted(table: Dictionary) -> String:
-	var total := 0.0
-	for k in table:
-		total += float(table[k])
-	var roll := randf() * total
-	for k in table:
-		roll -= float(table[k])
-		if roll <= 0.0:
-			return k
-	return table.keys()[0]
 
 
 ## Which tiles of the floor's grid a rect covers (the same way main.gd

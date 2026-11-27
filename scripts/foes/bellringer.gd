@@ -36,7 +36,7 @@ func setup(k: String, room) -> void:
 	ring_t = float(RULES["first"])
 
 
-func _act(delta: float, dir: Vector2, dist: float, p) -> void:
+func _act(delta: float, dir: Vector2, dist: float, _p) -> void:
 	if not _told and dist < 360.0:
 		_told = true
 		main.tip("bellringer")

@@ -249,7 +249,6 @@ var bleed_dps := 0.0
 var bleed_tick := 0.0
 var wade_t := 0.0  # how long it has stood in water (a moment soaks it)
 var flash := 0.0
-var contact_cd := 0.0
 var aim_dir := Vector2.ZERO
 var lunge_dir := Vector2.RIGHT
 var lunge_hit := false
@@ -269,7 +268,6 @@ var overcharge_r := 0.0
 var flinch := 0.0  # knocked off balance by a hit (not open to ripostes)
 var glint := 0.0  # the white flash before a hit, for drawing
 var glinted := false
-var attack_from := Vector2.ZERO  # where a pounce or lunge started
 var face := Vector2.LEFT  # where it's looking, eased toward the climber
 var _venom := 0
 var venom: int:  # Venomist's poison stacks
@@ -419,7 +417,7 @@ func make_champion() -> void:
 
 ## A champion's slam: every few seconds when the climber is near, a ring
 ## closes in around it for a moment (roll out of it), then the ground breaks.
-func _champion_slam(delta: float, _dist: float, p) -> void:
+func _champion_slam(delta: float, _dist: float, _p) -> void:
 	var pl = main.player
 	if pl == null:
 		return
@@ -797,7 +795,6 @@ func _slime(delta: float, dir: Vector2, dist: float, p) -> void:
 			if _wind(delta, maxf(0.0, dist - (radius + p.radius + 6.0)) / POUNCE_SPEED):
 				state = "pounce"
 				state_t = 0.3
-				attack_from = global_position
 				aim_dir = dir
 				lunge_hit = false
 				main.sfx("slime_hop", randf_range(0.9, 1.15))
@@ -873,7 +870,6 @@ func _knight(delta: float, dir: Vector2, dist: float, p) -> void:
 				state = "lunge"
 				state_t = 0.18
 				lunge_hit = false
-				attack_from = global_position
 		"lunge":
 			state_t -= delta
 			velocity = lunge_dir * LUNGE_SPEED
@@ -965,7 +961,6 @@ func _thunderling(delta: float, dir: Vector2, dist: float, p) -> void:
 			velocity = Vector2.ZERO
 			if _wind(delta):
 				main.fx_ring(global_position, color, SPARK_RADIUS, 0.3, 4.0)
-				var pts: Array = []
 				for i in 6:
 					var a := TAU * i / 6.0 + randf()
 					main.fx_bolt([global_position, global_position + Vector2.from_angle(a) * SPARK_RADIUS], color)
@@ -1556,7 +1551,7 @@ func _wisp(delta: float, dir: Vector2, dist: float, p) -> void:
 # Bloomcaps: rooted fire-fungi. They glint, lock onto where you stand, and
 # lob burning spores that land a moment later (can't be parried: step out of
 # the circle). The ground they hit keeps burning.
-func _bloomcap(delta: float, dir: Vector2, dist: float, p) -> void:
+func _bloomcap(delta: float, _dir: Vector2, dist: float, p) -> void:
 	velocity = Vector2.ZERO
 	match state:
 		"wind_lob":
@@ -1974,8 +1969,6 @@ func add_venom(stacks: int) -> void:
 	venom = mini(venom + stacks, 12)
 	venom_t = maxf(venom_t, 3.0 + 0.5 * venom)
 	_bond().manticore().on_venom(main, self)  # (Toxin Build III: heavily poisoned, it staggers)
-
-
 
 
 ## Sets it burning (of Embers): `dmg` every half second for `seconds`.

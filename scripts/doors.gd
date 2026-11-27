@@ -204,7 +204,7 @@ func _hang(def: Dictionary, themes: Array) -> Dictionary:
 			item["light"] = main.lighting.add_light(item["pos"], 70.0, Color(0.8, 0.85, 1.0), 0.4, 0.1)
 			levers.append(item)
 	for t in tiles:
-		_set_tile(t, true)
+		main.set_tile_solid(t, true)
 		if main.room_view != null:
 			main.room_view.door_tiles[t] = true  # (the floor is still painted under it: room.gd _paint_map)
 	var body := StaticBody2D.new()
@@ -285,15 +285,6 @@ func _style(d: Dictionary, themes: Array) -> void:
 	d["style"] = th.get("door", "plank")
 	d["sigil"] = th.get("sigil", "")
 	d["emblem"] = th.get("emblem", "")
-
-
-func _set_tile(t: Vector2i, closed: bool) -> void:
-	var gs: Vector2i = main.grid_size
-	if t.x < 0 or t.y < 0 or t.x >= gs.x or t.y >= gs.y:
-		return
-	main.solid[t.y * gs.x + t.x] = 1 if closed else 0
-	if main.astar != null:
-		main.astar.set_point_solid(t, closed)
 
 
 func closed_count() -> int:
@@ -510,7 +501,7 @@ func _shut(lr: Dictionary, mobs: Array) -> void:
 		if not dd.is_empty() and not dd["open"]:
 			open_door(dd, true)
 		for t in g:
-			_set_tile(t, true)
+			main.set_tile_solid(t, true)
 		var rect := _tiles_rect(g)
 		var body := StaticBody2D.new()
 		body.collision_layer = 1
@@ -541,7 +532,7 @@ func _reopen(lr: Dictionary) -> void:
 	lr["bodies"] = []
 	for g in lr["gates"]:
 		for t in g:
-			_set_tile(t, false)
+			main.set_tile_solid(t, false)
 		main.fx_burst(_tiles_rect(g).get_center(), Vector2.ZERO, KEY_GOLD, 8, 90.0)
 	if main.fog != null:
 		main.fog.set("last_tile", Vector2i(-999, -999))
@@ -567,7 +558,7 @@ func open_door(d: Dictionary, quiet := false) -> void:
 	d["t"] = 0.0
 	_drop_light(d)
 	for t in d["tiles"]:
-		_set_tile(t, false)
+		main.set_tile_solid(t, false)
 	if is_instance_valid(d["body"]):
 		d["body"].queue_free()
 	d["body"] = null
@@ -661,7 +652,7 @@ func close_door(d: Dictionary, hold := 0.0) -> bool:
 	d["t"] = 0.0
 	d["held"] = hold
 	for t in d["tiles"]:
-		_set_tile(t, true)
+		main.set_tile_solid(t, true)
 	var body := StaticBody2D.new()
 	body.collision_layer = 1
 	body.collision_mask = 0

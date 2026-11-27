@@ -59,7 +59,6 @@ const FADE := 0.25
 const WIDTH := 330.0
 const WIDTH_TOUCH := 300.0
 const TOP := 46.0
-const TOP_TOUCH := 64.0
 
 ## What the Entity remembers, saved in the "guide" section: on (tips on, in
 ## the shared settings file), known (Archive entries unlocked) and told (tips

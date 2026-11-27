@@ -20,7 +20,6 @@ const ChestArt := preload("res://scripts/chest_art.gd")
 
 static var TEXT := {
 	"chest": "Spoils: +%d essence",
-	"chest_shut": "Shut fast while its guards stand",
 	"vault_title": "STRONGROOM",
 	"vault_sub": "Locked away, and worth the trouble.",
 	"trader_title": "WANDERING TRADER",
@@ -31,7 +30,6 @@ static var TEXT := {
 	"leave_name": "Walk on",
 	"leave_desc": "Keep your essence.",
 	"bought": "Bought: %s",
-	"rested": "Rested",
 }
 ## chest: essence (base, per floor, a dead end's times); item chance (seldom:
 ## one with no item holds "no_item" times the essence) and gear chance;

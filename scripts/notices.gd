@@ -70,7 +70,6 @@ const LANE_SHARE := 0.36
 const NOTE_W := 520.0  # (a note, words to read, may be this wide)
 ## Type sizes: a banner's title and line, a chip, a feed line.
 const TITLE_SIZE := 20
-const TITLE_MIN := 15
 const LINE_SIZE := 13
 const LINE_H := 15.0
 const CHIP_SIZE := 14

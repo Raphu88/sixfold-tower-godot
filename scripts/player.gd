@@ -257,7 +257,6 @@ var off_flash := 0.0  # the off-hand piece flashes (a block, a cast)
 var off_hold_t := -1.0  # the off-hand button held this long (-1: not held): a tap casts a wand, a hold powers (item_pool.gd)
 var off_hold_done := false  # this hold already powered (or said why not): letting go does nothing more
 var item_power := {}  # an essence item primed by a hold: {slot, code, kind} (item_pool.gd POWER)
-var guard_on := false  # guarding with a shield (parry held past its window)
 var guard_force := false  # (tests: hold the guard without the parry button)
 var blade_cd := 0.0  # the carried Summit Blade's power: until it can fire again (summit_blades.gd)
 ## The flow (secret.gd): the path's essence banked, which lives in your
@@ -2075,7 +2074,6 @@ func _strike(e, dmg: float, dir: Vector2, force: float, heavy: bool, hit_sound :
 		dmg *= 3.0
 		main.fx_text(e.global_position + Vector2(0, -e.radius - 52.0), "Unseen", Color(0.85, 0.6, 0.5))
 	vanish_t = 0.0  # striking ends Vanish
-	rekindle_fought = true
 	# Rekindler's Bonfire: while you burn, the foes you strike catch fire too, and each grows the payback.
 	if rekindle_t > 0.0 and rekindle_per > 0.0 and not e.dead:
 		Reactions.apply(main, e, "burning", float(Reactions.STATES["burning"]["seconds"]), "rekindle")
@@ -2487,7 +2485,6 @@ var rekindle_t := 0.0  # Rekindle: burning now, paid back later
 var rekindle_total := 5.0
 var rekindle_loss := 0.0
 var rekindle_lost := 0.0
-var rekindle_fought := false
 var rekindle_spread := false
 var rekindle_tick := 0.0
 var rekindle_per := 0.0  # Bonfire: the payback grows this much for each foe you set burning
@@ -2764,7 +2761,6 @@ func _tick_fire_bonds(delta: float) -> void:
 				for e in main.targets():
 					if e.global_position.distance_to(global_position) < rekindle_r + e.radius:
 						e.take_hit(rekindle_burn, Vector2.ZERO, 0.0)
-						rekindle_fought = true
 						if not e.dead:
 							Reactions.apply(main, e, "burning", float(Reactions.STATES["burning"]["seconds"]), "rekindle", maxf(1.0, rekindle_burn * 0.25))
 		if rekindle_t <= 0.0:

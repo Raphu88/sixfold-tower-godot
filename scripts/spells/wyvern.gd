@@ -247,7 +247,7 @@ static func _falling_swords(bond, p) -> void:
 	var r := float(bond.stat("radius"))
 	var count := maxi(1, int(bond.stat("count")))
 	var delay := float(bond.stat("delay"))
-	var target = _aimed(p, float(bond.stat("range")) + 110.0)
+	var target = bond.target_in_aim(p, float(bond.stat("range")) + 110.0)
 	var center: Vector2 = target.global_position if target != null else p.global_position + p.aim * float(bond.stat("range"))
 	center = main.walkable_point(p.global_position, center, 10.0)
 	for i in count:
@@ -404,7 +404,7 @@ static func _blazing_lunge(bond, p) -> void:
 static func _rune_brand(bond, p) -> void:
 	var main = p.main
 	var col: Color = bond.color()
-	var target = _aimed(p, float(bond.stat("range")))
+	var target = bond.target_in_aim(p, float(bond.stat("range")))
 	if target == null:
 		main.fx_text(p.global_position + Vector2(0, -34), TEXT["no_target"], col)
 		return
@@ -977,20 +977,6 @@ static func sigil_pulse(bond, p, sig: Dictionary) -> void:
 
 
 # --- helpers ------------------------------------------------------------------------------
-
-## The foe nearest where you aim, within reach (or null), as bond.gd picks one.
-static func _aimed(p, reach: float):
-	var best = null
-	var best_score := INF
-	for e in p.main.targets():
-		var to: Vector2 = e.global_position - p.global_position
-		if to.length() > reach:
-			continue
-		var score: float = to.length() * (1.0 + 2.0 * absf(p.aim.angle_to(to)))
-		if score < best_score:
-			best_score = score
-			best = e
-	return best
 
 
 ## A soft oval shadow, into a batch.

@@ -1240,7 +1240,7 @@ Every tower with floors of its own (today all six: the Gryphon, the Kraken, the 
    - the dev tool: `open_gates()` (Open all doors opens its gates too)
    - swings: `strike(from, dir, reach, arc)` (every melee swing); bursts: `blast(pos, r)` (`main.explode`: bombs, exploding spells)
    - its task: `task_tick(ob, delta, p, hurt)`, `task_strike(ob, from, dir, reach, arc)`; it draws its own pieces
-   - its scenario: `scenario_begin(s, host)`, `scenario_tick(s, delta, p, host)` (calls `host._finish(s, grade)`), `scenario_title(s)`, `scenario_status(s)`, `scenario_goal(s)`; it draws it too
+   - its scenario: `scenario_begin(s, host)`, `scenario_tick(s, delta, p, host)` (calls `host._finish(s, grade)`), `scenario_title(s)`, `scenario_status(s)`; it draws it too
 7. **Floor bot hooks** (`tests/floor_bot_driver.gd`):
    - `bot_step(bot)`: a step before anything else (a crank)
    - `bot_task(bot)`: its own task's next step

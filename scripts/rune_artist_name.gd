@@ -14,8 +14,6 @@ extends RefCounted
 
 const NAME := "Rayne"
 const KEY := "{rune_artist}"
-## Her role, written after her name where it reads better.
-const ROLE := "the Rune Artist"
 
 
 ## `v` with every "{rune_artist}" in its words (in nested dictionaries and

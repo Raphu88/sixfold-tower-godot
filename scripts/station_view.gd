@@ -168,7 +168,7 @@ static func _near_tower(b, base: Vector2, th: float, id: String, t: float) -> vo
 
 
 ## The stop's things on the walls at both edges (the page covers the middle).
-func _dress(b, w: float, h: float, roof: float, deck: float, t: float) -> void:
+func _dress(b, w: float, h: float, roof: float, deck: float, _t: float) -> void:
 	var spots := [Vector2(70.0, h * 0.42), Vector2(w - 70.0, h * 0.42)]
 	for k in spots.size():
 		var c: Vector2 = spots[k]

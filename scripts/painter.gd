@@ -131,7 +131,6 @@ const TEXT := {
 	"try_title": "TRYING YOUR ROOM",
 	"try_back": "%s goes back to the painter (so does the stair).",
 	"try_fail": "This room can't be tried: no side has room for a doorway.",
-	"try_draft": "This room is a draft: it can be tried, but it won't be used in climbs until the checks pass.",
 	# Help and tips.
 	"help_title": "How the room painter works",
 	"got_it": "Got it",

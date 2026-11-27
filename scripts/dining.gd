@@ -223,11 +223,8 @@ static var TEXT := {
 	"result_draw": "A draw",
 	"arena_banner": "THE ARENA CAR",
 	"arena_line": "A duel with %s: the first to yield loses",
-	"rumor_tag": "A rumor",
 	"heard": "Heard tonight",
 }
-
-static var _rng_seed := 0
 
 
 # --- the climber's record (profile.gd `dining`) ----------------------------------------
@@ -448,7 +445,7 @@ static func greeting(prof, rec: Dictionary, chance := -1.0) -> String:
 
 ## The greeting itself: `aura` (the aura's line, or "") in place of the
 ## plain words for a new face or an old acquaintance.
-static func _greeting(prof, rec: Dictionary, aura: String) -> String:
+static func _greeting(_prof, rec: Dictionary, aura: String) -> String:
 	var fill := mark_fill(rec)
 	if int(rec.get("met", 0)) <= 0:
 		return aura if aura != "" else say("first", fill)

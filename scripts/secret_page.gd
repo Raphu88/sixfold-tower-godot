@@ -195,7 +195,7 @@ static func _edit_clear(menu, spell_id: String) -> void:
 
 
 ## Write on the train: each mark with a button for every other body part.
-static func _marks_section(menu, col: Color, train: bool) -> void:
+static func _marks_section(menu, _col: Color, train: bool) -> void:
 	var main = menu.main
 	var prof = main.profile
 	var B = main.BondScript

@@ -39,7 +39,6 @@ const F_ADD := 1
 const F_STREAK := 2
 const F_SHARD := 4
 const F_GRIT := 8
-const F_SHRINK := 16
 
 ## Settings -> Effects. "count": how many a burst makes (a share of its
 ## preset); "cap": most particles alive; "rate": how many a stream makes
@@ -55,7 +54,6 @@ const LEVEL_ORDER := ["low", "medium", "high"]
 static var level := "medium"
 
 static var TEXT := {
-	"wield": "Enchanted: it shows its essence, and lights a little of the dark.",
 	"setting": "Effects",
 }
 
@@ -248,7 +246,6 @@ const ZONE_FX := {"maelstroms": "zone_swirl", "cyclones": "zone_swirl", "clouds"
 	"rains": "wind", "flames": "state_burning", "smokes": "smoke", "meteors": "ember"}
 
 var main
-var level_cache := {}
 var cost_us := 0  # microseconds the last frame took (updates and drawing), for tests
 var cost_avg := 0.0  # ...and a running average
 var spawned := 0  # particles made since the floor began (tests)
@@ -1122,5 +1119,3 @@ func _scan_every() -> float:
 	return float(SCAN["every"])
 
 
-func _on_new_floor() -> void:
-	reset()

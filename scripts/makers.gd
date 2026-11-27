@@ -264,7 +264,6 @@ var glimpses_climb := 0
 var meetings_climb := 0
 var pending := ""  # a Maker waiting to show itself (after the stair's fade)
 var pending_t := 0.0
-var pending_dev := false
 var view  # the meeting (maker_view.gd) while it shows
 var seen_spells := {}  # spells cast this climb (variety)
 var over: Node2D  # drawn over the darkness: the fragment's words while they show
@@ -747,7 +746,6 @@ func on_arrive() -> void:
 	if m != "" and meetings_climb < int(REVEAL["per_climb"]):
 		pending = m
 		pending_t = float(REVEAL["delay"])
-		pending_dev = false
 		return
 	_maybe_glimpse()
 
@@ -1032,7 +1030,6 @@ func dev_meet() -> String:
 	if m != "":
 		pending = m
 		pending_t = 0.3
-		pending_dev = true
 	return m
 
 

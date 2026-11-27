@@ -223,17 +223,11 @@ static var TEXT := {
 	"enter": "Enter the bracket",
 	"lesson_begin": "Begin the lesson",
 	"lesson_again": "Try it again",
-	"lesson_skip": "Skip it: I know this",
 	"lesson_done": "Done",
-	"lesson_skipped": "Skipped",
 	"lesson_todo": "Not done yet",
 	"lessons": "The basics",
-	"lessons_note": "Short lessons with the Entity. Each is remembered once done. Finish them all: +%d renown.",
-	"lessons_count": "%d of %d done",
-	"lessons_all": "The basics are done. Come back any time.",
 	"lessons_paid": "The basics, done: +%d renown",
 	"drills": "Medal drills",
-	"drills_note": "A goal and a medal. First medals earn renown.",
 	"drill_rewards": "Still to earn",
 	"extra": "An extra drill: a worn title with a Training benefit opens it",
 	"extra_open": "An extra drill, open to your title",
@@ -275,10 +269,8 @@ static var TEXT := {
 	"relic_won": "A relic for your stash: %s",
 	"relic_full": "Your stash is full: the relic becomes %s",
 	"paid": "+%s",
-	"fee_paid": "Entry fee paid: %s",
 	"cant": "Can't: %s",
 	"needs_fee": "needs %d more essence, of any kind",
-	"rank_now": "Rank: %s",
 	"deeds": "Recent deeds",
 	"no_deeds": "Nothing yet. Climb, train and fight: the climbers will talk.",
 	"ranks": "Ranks and what they open",
@@ -286,7 +278,6 @@ static var TEXT := {
 	"next_opens": "%s opens:",
 	"top_rank": "You hold the highest rank.",
 	"rank_reached": "Reached",
-	"rank_up_now": "You rose to %s. It opens: %s",
 	"deed_drill": "%s at %s",
 	"deed_bracket": "Won the %s",
 	"deed_rounds": "Reached round %d of the %s",
@@ -382,12 +373,6 @@ static func finish_lesson(profile, id: String, how: int) -> Array:
 		_rank_lines(got, lines)
 	profile.save()
 	return lines
-
-
-static func skip_lesson(profile, id: String) -> Array:
-	if not Training.can_skip(profile):
-		return [Training.TEXT["no_skip"]]  # (basic training is required for the Noble's Grace)
-	return finish_lesson(profile, id, 2)
 
 
 # --- drills ---------------------------------------------------------------------------
@@ -740,14 +725,6 @@ static func give_relic(profile, kind: String) -> String:
 		return TEXT["relic_full"] % (TEXT["crystals"] % [worth, Essence.display(kind)])
 	profile.chest.append(rec)
 	return TEXT["relic_won"] % Gear.display(rec)
-
-
-static func foe_name(k: String) -> String:
-	if k == "mirror":
-		return TEXT["mirror"]
-	if k.ends_with("*"):
-		return k.trim_suffix("*").capitalize()
-	return k.capitalize()
 
 
 ## "Won once", "Won 3 times".

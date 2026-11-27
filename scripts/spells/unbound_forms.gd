@@ -104,7 +104,6 @@ static var TEXT := {
 	"omen": "Omen",
 	"second_heart": "Second Heart",
 	"rally": "Rally",
-	"gaze": "Marked",
 	"blink": "Blink",
 }
 

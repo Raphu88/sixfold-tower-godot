@@ -124,7 +124,6 @@ static var TEXT := {
 	"done_title": "THE STAIR IS UNSEALED",
 	"done": "Gold light rises on the stair. Take your pick before you climb.",
 	"announce": "%s: %s",  # the task in the arrival banner: its name, and how
-	"reliquary": "Reliquary",
 	"reliquary_title": "THE RELIQUARY",
 	"reliquary_sub": "One of three, for unsealing the stair.",
 	"sealed": "Sealed: %s",
@@ -207,7 +206,7 @@ static func display_name(kind: String, tid: String) -> String:
 
 ## The kind for a floor: never one used this climb if another is left;
 ## the tower's own puzzle likelier.
-static func pick(floor_num: int, tid: String) -> String:
+static func pick(_floor_num: int, tid: String) -> String:
 	if forced != "" and (KINDS.has(forced) or is_puzzle(forced)) and allowed(forced, tid):
 		return forced
 	if Catalog.forced != "" and is_puzzle(Catalog.forced):
@@ -226,10 +225,12 @@ static func pick(floor_num: int, tid: String) -> String:
 		for k in table:
 			if climb_used.is_empty() or k != climb_used[-1]:
 				fresh[k] = table[k]
-	return _weighted(fresh)
+	return weighted(fresh)
 
 
-static func _weighted(table: Dictionary) -> String:
+## A key of `table` picked at random, each as likely as its weight (floors.gd
+## and cracks.gd pick with it too).
+static func weighted(table: Dictionary) -> String:
 	var total := 0.0
 	for k in table:
 		total += float(table[k])

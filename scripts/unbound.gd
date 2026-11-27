@@ -1171,11 +1171,6 @@ static func kinds_for(prof) -> Array:
 	return out
 
 
-## (Every kind is in a part's mix now: a technique takes all of them.)
-static func max_kinds(_prof, _part: String) -> int:
-	return MAX_KINDS
-
-
 # --- techniques from the parts ------------------------------------------------------------
 
 ## A part's technique essences: what leads it, then its modifiers (the core

@@ -146,7 +146,6 @@ static var TEXT := {
 	"skip": "Skip",
 	"go_on": "to go on",
 	"ending_go_on": "to go on",
-	"ending_last": "to keep climbing",
 	"ending_skip": "Skip",
 }
 
