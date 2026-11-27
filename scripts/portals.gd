@@ -30,6 +30,7 @@ extends Node2D
 ## Words and numbers: TEXT, RULES, WAKE, LOOK (the Data editor).
 
 const Palette := preload("res://scripts/palette.gd")
+const Draw := preload("res://scripts/draw_util.gd")
 const UI := preload("res://scripts/ui.gd")
 const Floors := preload("res://scripts/floors.gd")
 
@@ -521,8 +522,10 @@ static func draw_portal(ci: CanvasItem, c: Vector2, r: float, t: float, is_awake
 	var squash := 0.62  # (seen from above and a little in front: an oval on the floor)
 	# Its glow on the floor, and its shadow.
 	if is_awake:
-		for i in 4:
-			ci.draw_colored_polygon(_ring(c, r * (1.5 + 0.18 * i), squash, 28), Color(swirl, 0.05 * a))
+		# (one soft falloff, not four stacked hard-edged ovals that banded)
+		var gb := Draw.Batch.new()
+		gb.soft(c, Vector2(r * 2.3, r * 2.3 * squash), Color(swirl, 0.3 * a))
+		gb.flush(ci)
 	ci.draw_colored_polygon(_ring(c, r * 1.18, squash, 28), Color(0, 0, 0, 0.35 * a))
 	# The stone ring.
 	ci.draw_colored_polygon(_ring(c, r * 1.12, squash, 28), Color(Palette.OUTLINE, a))
