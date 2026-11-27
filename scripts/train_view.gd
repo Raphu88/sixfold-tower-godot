@@ -2063,7 +2063,7 @@ func paint_ambience(r: Room) -> void:
 
 ## A soft band of light crossing a window's glass (`k` 0 to 1: left to
 ## right), clipped to the glass's shape.
-func _pass_light(b, r: Room, win: Dictionary, k: float) -> void:
+func _pass_light(b, _r: Room, win: Dictionary, k: float) -> void:
 	var rect: Rect2 = win["rect"]
 	var bw := rect.size.x * 0.32
 	var cx := lerpf(rect.position.x - bw, rect.end.x + bw, k)

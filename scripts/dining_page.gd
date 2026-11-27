@@ -528,7 +528,6 @@ class Diner extends Button:
 		var pr := Rect2(4.0, s.y - plate_h - 2.0, s.x - 8.0, plate_h)
 		t.rect(pr.grow(1.0), Art.OUTLINE)
 		Art.vgrad(t, pr, Art.GILT.darkened(0.15) if lit else Art.GILT.darkened(0.45), Art.GILT.darkened(0.6))
-		var gr := plate_h * 0.16
 		if lit:
 			var edge := Rect2(Vector2.ZERO, s).grow(-1.0)
 			t.path(PackedVector2Array([edge.position, Vector2(edge.end.x, edge.position.y), edge.end, Vector2(edge.position.x, edge.end.y)]), Color(UI.GILT, 0.9 if on else 0.55), 1.6, true)

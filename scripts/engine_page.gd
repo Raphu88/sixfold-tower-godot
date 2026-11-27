@@ -366,8 +366,6 @@ class LoopMap extends Container:
 	func _draw() -> void:
 		var sp := spots()
 		var n := sp.size()
-		var loop := Travel.loop()
-		var hi := loop.find(here)
 		var b := UI.Draw.Batch.new()
 		for i in n:
 			var a: Vector2 = sp[i]

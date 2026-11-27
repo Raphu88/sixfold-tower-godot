@@ -52,7 +52,7 @@ var broken_count := 0
 ## `walk` is what's walkable already (rooms, corridors, kept cells), `kept`
 ## the wings and secrets, `arena` the floor's area. `avoid`: rock that must
 ## stay whole (Rect2s), e.g. the wall a Hall of Pedestals' mural hangs on.
-static func plan(infos: Array, loops: Array, walk: Array, kept: Array, arena: Rect2, floor_num: int, style: Dictionary, doors: Array, avoid: Array = []) -> Array:
+static func plan(infos: Array, loops: Array, walk: Array, _kept: Array, arena: Rect2, floor_num: int, style: Dictionary, _doors: Array, avoid: Array = []) -> Array:
 	var out: Array = []
 	if floor_num < 2:
 		return out

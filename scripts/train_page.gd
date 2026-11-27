@@ -2493,7 +2493,6 @@ class Purse extends Control:
 		DrawnParts.add(self, parts)
 
 	func _draw() -> void:
-		var font := ThemeDB.fallback_font
 		var kinds: Array = Essence.KINDS.keys()
 		var w := size.x / kinds.size()
 		for i in kinds.size():

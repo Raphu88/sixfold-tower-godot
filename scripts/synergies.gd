@@ -294,7 +294,7 @@ static func cast(main, p, b) -> void:
 
 
 ## The casting traits: Guard, Heat, Rune and Kin.
-static func _once(main, p, b, from: Array, rec: Dictionary) -> void:
+static func _once(main, p, _b, from: Array, rec: Dictionary) -> void:
 	var first = null
 	for e in rec["struck"]:
 		if _live(e):
@@ -412,7 +412,7 @@ static func _weak(p, e) -> bool:
 
 
 ## Shards: a small conjured blade flies from the struck foe to the nearest other.
-static func _shard(main, p, e, at: Vector2, id: String) -> void:
+static func _shard(main, _p, e, at: Vector2, id: String) -> void:
 	var best = null
 	var best_d := _num(id, "reach")
 	for o in main.targets():

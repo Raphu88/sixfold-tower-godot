@@ -601,7 +601,7 @@ static func warded(p, state: String) -> bool:
 	return ward != "" and p.has_method("gfx") and float(p.gfx(ward)) > 0.0
 
 
-static func _apply_climber(main, p, state: String, seconds: float, source) -> Array:
+static func _apply_climber(main, p, state: String, seconds: float, _source) -> Array:
 	if not bool(CLIMBER["enabled"]) or p.dead or bool(STATES[state].get("event", false)):
 		return []
 	if warded(p, state):

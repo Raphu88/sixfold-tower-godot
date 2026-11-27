@@ -994,7 +994,6 @@ static func _winding_path(ctx: Dictionary, R: Dictionary) -> Array:
 	var doors: Array = R["doors"]
 	if doors.is_empty():
 		return []
-	var gs: Vector2i = ctx["gs"]
 	# The room's own tiles, each with a random cost.
 	var cost := {}
 	for a in R["L"]:

@@ -601,7 +601,6 @@ func set_feud(a, b) -> void:
 func _draw() -> void:
 	if not _active():
 		return
-	var p = main.player
 	var col := SB.color(bond())
 	var font := ThemeDB.fallback_font
 	var b := Draw.Batch.new()
@@ -864,7 +863,7 @@ func _draw_ring_screen() -> void:
 
 
 ## The ring: each tool with its cost in gems, the highlighted one described below.
-func _draw_ring(font: Font, view: Vector2) -> void:
+func _draw_ring(_font: Font, view: Vector2) -> void:
 	var p = main.player
 	var list := tools()
 	if list.is_empty():
@@ -1104,7 +1103,6 @@ func _trap_groups() -> Array:
 ## The Developer's panel: every spell you carry, its real numbers and what each step adds.
 func _draw_spells(font: Font, view: Vector2) -> void:
 	var p = main.player
-	var col := SB.color(bond())
 	var w := minf(view.x - 32.0, 760.0)
 	var rows: Array = []  # [text, colour, size]
 	var steady: float = 0.7 if p.has_bond("rune_artist") else 1.0

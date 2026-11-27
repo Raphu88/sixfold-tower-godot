@@ -202,7 +202,7 @@ func take_hit(amount: float, dir: Vector2, force := 140.0, heavy := false, pierc
 
 # --- drawing ---------------------------------------------------------------------------
 
-func _draw_own(p, t: float, f: Vector2) -> void:
+func _draw_own(p, t: float, _f: Vector2) -> void:
 	var size := radius / maxf(moth_r, 1.0)
 	var tight := _ease("tight", _wk(float(FLAMEMOTH["dart_wind"])) if state == "wind" else (1.0 if state == "dive" else 0.0), 10.0)
 	var n := 9 + grown * 3

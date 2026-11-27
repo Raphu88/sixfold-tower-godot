@@ -628,7 +628,7 @@ static func _tower_facts(m, id: String, f: Dictionary) -> void:
 
 ## The piece a card's button acts on: from its tag ("pack:2", "outfit:0",
 ## "today:chest", "helm:pack") or the slot whose card shows.
-static func _subject(m, b: Control, key: String):
+static func _subject(m, b: Control, _key: String):
 	if m == null or m.main == null or m.main.profile == null:
 		return null
 	var prof = m.main.profile

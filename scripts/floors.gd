@@ -422,7 +422,7 @@ static func _chasm_rank(theme: String) -> int:
 
 ## Turns the placed rooms into the floor: walkable areas, corridors, the
 ## rooms' features, the themes' set pieces, monsters and doors.
-static func _build(infos: Array, themes: Array, floor_num: int, tower: Dictionary, cfg: Dictionary, wings: Array, secrets: Array, loops: Array = [], obj := {}) -> Dictionary:
+static func _build(infos: Array, themes: Array, floor_num: int, tower: Dictionary, _cfg: Dictionary, wings: Array, secrets: Array, loops: Array = [], obj := {}) -> Dictionary:
 	var rooms: Array = []
 	var walk: Array = []
 	var corridors: Array = []
@@ -816,7 +816,7 @@ static func _adjacency(infos: Array, loops: Array) -> Array:
 ## Chests for the rooms that would pay nothing otherwise (the start room
 ## aside): danger rooms' spoils, opened once the monsters that wait in the
 ## room are down (or straight away if none do). [{pos, room, rich}]
-static func _chests(infos: Array, monsters: Array, objective: Dictionary, scenarios: Array) -> Array:
+static func _chests(infos: Array, monsters: Array, _objective: Dictionary, scenarios: Array) -> Array:
 	var out: Array = []
 	var scn_rooms: Array = scenarios.map(func(s): return int(s["room"]))
 	for i in infos.size():

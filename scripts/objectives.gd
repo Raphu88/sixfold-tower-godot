@@ -206,7 +206,7 @@ static func display_name(kind: String, tid: String) -> String:
 
 ## The kind for a floor: never one used this climb if another is left;
 ## the tower's own puzzle likelier.
-static func pick(floor_num: int, tid: String) -> String:
+static func pick(_floor_num: int, tid: String) -> String:
 	if forced != "" and (KINDS.has(forced) or is_puzzle(forced)) and allowed(forced, tid):
 		return forced
 	if Catalog.forced != "" and is_puzzle(Catalog.forced):

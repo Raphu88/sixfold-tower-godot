@@ -126,7 +126,7 @@ const C_HARRIER_BEAK := Color(0.96, 0.78, 0.3)
 ## Seen from above: broad wings spread on the soar, folded back in the dive,
 ## a fanned tail, a pale breast and a hooked beak; high up it's drawn above
 ## its shadow (enemy.gd draws the shadow where it is).
-static func _own_draw(e, p, glow, t: float, f: Vector2) -> void:
+static func _own_draw(e, p, glow, _t: float, f: Vector2) -> void:
 	var h: float = e.get_meta("h", 40.0)
 	var o := Vector2(0, -h)
 	var s := f.orthogonal()

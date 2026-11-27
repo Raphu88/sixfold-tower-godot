@@ -78,7 +78,7 @@ func is_attacking() -> bool:
 
 
 ## Takes the hit and shows it; never falls.
-func take_hit(amount: float, dir: Vector2, force := 140.0, heavy := false, pierce := false) -> void:
+func take_hit(amount: float, dir: Vector2, force := 140.0, heavy := false, _pierce := false) -> void:
 	if dead:
 		return
 	if main.counting_hits:

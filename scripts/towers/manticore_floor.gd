@@ -341,7 +341,6 @@ static func _drift(info: Dictionary, sand: Dictionary, n: int, seed: Vector2i) -
 static func _clear_tile(info: Dictionary, links: Array, i: int, keep: int) -> Vector2i:
 	var rows: Array = info["rows"]
 	var res: Dictionary = info["reserved"]
-	var size: Vector2i = info["size"]
 	var at0: Vector2i = info["pos"]
 	var doors: Array = []
 	for l in links:

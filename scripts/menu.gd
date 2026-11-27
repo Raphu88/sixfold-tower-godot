@@ -1085,7 +1085,6 @@ func open(which: String, direct := false) -> void:
 	if which == "inventory" and _on_train():
 		which = "loadout"  # (on the train your gear is the Loadout: the pack and stash are the train's)
 	var was_closed := page == ""
-	var prev := page
 	# The same page (and tab) built again after a press: every scroll on it
 	# stays where it was (scroller.gd keep_from); another page starts at its top.
 	var view := _view_key(which)

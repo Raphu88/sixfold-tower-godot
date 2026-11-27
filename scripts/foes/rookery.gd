@@ -108,7 +108,7 @@ func _hatch() -> void:
 
 
 ## It never moves: a blow shakes it but doesn't shift it.
-func take_hit(amount: float, dir: Vector2, force := 140.0, heavy := false, pierce := false) -> void:
+func take_hit(amount: float, dir: Vector2, _force := 140.0, heavy := false, pierce := false) -> void:
 	super.take_hit(amount, dir, 0.0, heavy, pierce)
 	knock = Vector2.ZERO
 	flinch = 0.0
@@ -127,7 +127,7 @@ func _idle_state() -> String:
 ## A stone ledge jutting from the wall, a ring of woven twigs on it, eggs in
 ## the nest (one rocking and cracking before it hatches); the wall side is
 ## `wall_dir` (drawn on the floor if it has no wall).
-func _draw_own(p, t: float, f: Vector2) -> void:
+func _draw_own(p, t: float, _f: Vector2) -> void:
 	var w := wall_dir if wall_dir != Vector2.ZERO else Vector2.UP
 	var s := w.orthogonal()
 	if wall_dir != Vector2.ZERO:

@@ -417,7 +417,7 @@ func make_champion() -> void:
 
 ## A champion's slam: every few seconds when the climber is near, a ring
 ## closes in around it for a moment (roll out of it), then the ground breaks.
-func _champion_slam(delta: float, _dist: float, p) -> void:
+func _champion_slam(delta: float, _dist: float, _p) -> void:
 	var pl = main.player
 	if pl == null:
 		return
@@ -961,7 +961,6 @@ func _thunderling(delta: float, dir: Vector2, dist: float, p) -> void:
 			velocity = Vector2.ZERO
 			if _wind(delta):
 				main.fx_ring(global_position, color, SPARK_RADIUS, 0.3, 4.0)
-				var pts: Array = []
 				for i in 6:
 					var a := TAU * i / 6.0 + randf()
 					main.fx_bolt([global_position, global_position + Vector2.from_angle(a) * SPARK_RADIUS], color)
@@ -1552,7 +1551,7 @@ func _wisp(delta: float, dir: Vector2, dist: float, p) -> void:
 # Bloomcaps: rooted fire-fungi. They glint, lock onto where you stand, and
 # lob burning spores that land a moment later (can't be parried: step out of
 # the circle). The ground they hit keeps burning.
-func _bloomcap(delta: float, dir: Vector2, dist: float, p) -> void:
+func _bloomcap(delta: float, _dir: Vector2, dist: float, p) -> void:
 	velocity = Vector2.ZERO
 	match state:
 		"wind_lob":

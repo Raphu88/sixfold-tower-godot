@@ -36,7 +36,7 @@ func setup(k: String, room) -> void:
 	state = "build"
 
 
-func _act(delta: float, _dir: Vector2, dist: float, p) -> void:
+func _act(delta: float, _dir: Vector2, dist: float, _p) -> void:
 	velocity = Vector2.ZERO
 	if not _told and dist < 400.0:
 		_told = true
@@ -108,7 +108,7 @@ func _discharge() -> void:
 
 
 ## It never moves.
-func take_hit(amount: float, dir: Vector2, force := 140.0, heavy := false, pierce := false) -> void:
+func take_hit(amount: float, dir: Vector2, _force := 140.0, heavy := false, pierce := false) -> void:
 	super.take_hit(amount, dir, 0.0, heavy, pierce)
 	knock = Vector2.ZERO
 	flinch = 0.0

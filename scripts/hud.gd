@@ -755,7 +755,7 @@ func _draw_force(p, size: Vector2, font: Font) -> void:
 
 ## Swapping weapons: the three slots for a moment, the one in hand lit and named.
 ## Returns its height.
-func _draw_swap(p, pos: Vector2, font: Font, a: float) -> float:
+func _draw_swap(p, pos: Vector2, _font: Font, a: float) -> float:
 	var have: Array = p.slots()
 	var r := Rect2(pos, Vector2(16.0 + 40.0 * have.size(), 62))
 	var b := Draw.Batch.new()
@@ -780,7 +780,7 @@ func _draw_swap(p, pos: Vector2, font: Font, a: float) -> float:
 
 
 ## Essence gathered since the last stair (lost if you fall before it): gems and counts.
-func _draw_essence(pos: Vector2, font: Font, a: float) -> void:
+func _draw_essence(pos: Vector2, _font: Font, a: float) -> void:
 	var held: Array = Essence.KINDS.keys().filter(func(k): return main.run_essence.get(k, 0.0) > 0.0)
 	# Your path's unbanked flow leads, once its gem shows (secret.gd).
 	var flow: bool = main.flow_shown() and main.run_flow >= 0.5
@@ -1370,7 +1370,7 @@ func _wheel_caption(ci: CanvasItem, title: String, text: String, col: Color, hin
 
 ## Hunter's Quarry: the last foe you struck is always marked, and an arrow at
 ## the screen edge points to it when it's out of sight.
-func _draw_quarry(p, size: Vector2, font: Font) -> void:
+func _draw_quarry(p, size: Vector2, _font: Font) -> void:
 	if not p.has_bond("hunter") or p.quarry == null or not is_instance_valid(p.quarry) or p.quarry.dead:
 		return
 	var at: Vector2 = p.quarry.get_global_transform_with_canvas().origin
@@ -1415,7 +1415,7 @@ func arrow_goal() -> Array:
 
 ## Rooms floors are bigger than the screen: an arrow at the screen edge
 ## points the way to the task's next piece, then to the open stair.
-func _draw_stair_arrow(size: Vector2, font: Font) -> void:
+func _draw_stair_arrow(size: Vector2, _font: Font) -> void:
 	var goal := arrow_goal()
 	if goal.is_empty():
 		return

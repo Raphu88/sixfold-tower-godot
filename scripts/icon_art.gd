@@ -197,7 +197,7 @@ static func bounce(b, pts: PackedVector2Array, s: float, kind := "") -> void:
 
 ## Polished metal's sheen: a soft pale band across `pts`, square to the
 ## light, a little above its middle (cut to the shape).
-static func sheen(b, pts: PackedVector2Array, s: float, col: Color) -> void:
+static func sheen(b, pts: PackedVector2Array, _s: float, col: Color) -> void:
 	var l := -LIGHT.normalized()
 	var mn := INF
 	var mx := -INF

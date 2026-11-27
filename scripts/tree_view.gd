@@ -424,7 +424,7 @@ static func card_entry(main, prof, part: String, node: Dictionary, opt: Dictiona
 ## The small drawing for a tree option, from its data (grimoire_card.gd
 ## glyph_for): a form's, a variation's, a spell's, or the node's kind's.
 ## A step-3 change without a library variation reads its own words.
-static func bud_glyph(node: Dictionary, opt: Dictionary) -> String:
+static func bud_glyph(_node: Dictionary, opt: Dictionary) -> String:
 	var kind := String(opt.get("kind", ""))
 	if kind == "later":
 		return ""
@@ -1217,7 +1217,6 @@ class TreeMap extends Control:
 		var fc: Vector2 = lay["fc"]
 		var font: Font = UI.font("display")
 		var body: Font = UI.font("body")
-		var t := 0.0
 		for pt in BV.ORDER:
 			var info: Dictionary = prof.bonds.get(pt, {})
 			var side := -1.0 if pt in BV.LEFT else 1.0
