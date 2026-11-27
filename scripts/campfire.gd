@@ -3,6 +3,9 @@ extends Node2D
 ## flickering flames and sparks rising. It is solid, so you walk around it.
 ## Its warm light is cast by the darkness layer (lighting.gd).
 
+const Draw := preload("res://scripts/draw_util.gd")
+const Shade := preload("res://scripts/shade.gd")
+
 var sparks: Array = []  # {pos, vel, t}
 const R := 20.0
 
@@ -32,19 +35,26 @@ func _process(delta: float) -> void:
 
 func _draw() -> void:
 	var t := Time.get_ticks_msec() * 0.001
-	# Warm glow on the floor.
-	draw_circle(Vector2(0, 4), R * 2.4, Color(1.0, 0.55, 0.25, 0.08))
-	# Ring of stones.
+	# (stones and logs in the shading toolkit, lit from the top-left like the
+	# room; the fire itself glows, so it stays flat and bright)
+	var b := Draw.Batch.new()
+	# Warm glow on the floor, and the soot-dark ash under it.
+	b.soft(Vector2(0, 4), Vector2(R * 2.8, R * 2.0), Color(1.0, 0.55, 0.25, 0.24))
+	b.contact(Vector2(0, 6), R * 1.05, 0.45, 0.6)
+	# Ring of stones, the far ones drawn first.
+	var order: Array = []
 	for i in 9:
-		var a := TAU * i / 9.0
+		order.append(i)
+	order.sort_custom(func(x, y): return sin(TAU * x / 9.0) < sin(TAU * y / 9.0))
+	for i in order:
+		var a := TAU * float(i) / 9.0
 		var at := Vector2(cos(a) * R, sin(a) * R * 0.6 + 4.0)
-		draw_circle(at, 5.5, Color(0.05, 0.04, 0.05))
-		draw_circle(at, 4.5, Color(0.42, 0.4, 0.42))
-		draw_circle(at + Vector2(-1, -1.5), 1.8, Color(0.6, 0.58, 0.6))
+		b.contact(at + Vector2(1.5, 2.5), 4.5, 0.35)
+		b.ball(at, 4.4, Color(0.44, 0.42, 0.44).lightened(0.06 * float(int(i) % 3)))
 	# Crossed logs.
 	for d in [Vector2(14, 5), Vector2(-14, 5)]:
-		draw_line(-d + Vector2(0, 4), d + Vector2(0, 4) - Vector2(0, 10), Color(0.08, 0.05, 0.03), 7.0)
-		draw_line(-d + Vector2(0, 4), d + Vector2(0, 4) - Vector2(0, 10), Color(0.45, 0.28, 0.15), 5.0)
+		b.stroke(-d + Vector2(0, 4), d + Vector2(0, 4) - Vector2(0, 10), Color(0.45, 0.28, 0.15), 4.6, Shade.WOOD)
+	b.flush(self)
 	draw_circle(Vector2(0, 2), 7.0, Color(1.0, 0.45, 0.15, 0.9))  # embers in the middle
 	# Flames: a few tongues that lick up and sway.
 	var tongues := [[0.0, 26.0, 9.0, Color(1.0, 0.45, 0.15)], [-6.0, 18.0, 6.0, Color(1.0, 0.55, 0.2)], [6.0, 20.0, 6.0, Color(1.0, 0.5, 0.18)], [0.0, 15.0, 5.0, Color(1.0, 0.85, 0.45)]]

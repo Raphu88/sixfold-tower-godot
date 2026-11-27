@@ -583,18 +583,18 @@ func _draw_camp(c: CanvasItem, pos: Vector2) -> void:
 	b.circle(pos, 17.0, Color(0.08, 0.07, 0.07, 0.8))  # ash
 	for i in 9:
 		var a := TAU * i / 9.0
-		b.circle(pos + Vector2.from_angle(a) * 19.0, 5.5, Palette.OUTLINE)
-		b.circle(pos + Vector2.from_angle(a) * 19.0, 4.2, Palette.WALL_FACE.lightened(0.15 * _hash(i, int(pos.x), 63)))
+		b.contact(pos + Vector2.from_angle(a) * 19.0 + Vector2(1.5, 2.5), 4.5, 0.3)
+		b.ball(pos + Vector2.from_angle(a) * 19.0, 4.2, Palette.WALL_FACE.lightened(0.15 * _hash(i, int(pos.x), 63)))
 	for a in [0.5, -0.6, 1.9]:
 		var d := Vector2.from_angle(a)
-		b.line(pos - d * 12.0, pos + d * 12.0, Palette.OUTLINE, 6.0)
-		b.line(pos - d * 11.0, pos + d * 11.0, Color(0.16, 0.11, 0.08), 4.0)
+		b.stroke(pos - d * 11.0, pos + d * 11.0, Color(0.16, 0.11, 0.08), 3.6, Draw.Shade.WOOD)
 	b.circle(pos + Vector2(2, -1), 2.0, Color(0.9, 0.45, 0.2, 0.6))  # the last ember
 	# The bedroll, unrolled to one side.
 	var roll := Rect2(pos + Vector2(-58, -14), Vector2(26, 44))
+	b.contact(roll.get_center() + Vector2(2, 4), 16.0, 0.3, 1.2)
 	b.rect(roll.grow(1.5), Palette.OUTLINE)
-	b.rect(roll, Color(0.36, 0.3, 0.22))
-	b.rect(Rect2(roll.position, Vector2(roll.size.x, 10)), Color(0.45, 0.38, 0.28))
+	b.box(roll, Color(0.36, 0.3, 0.22), Draw.Shade.CLOTH)
+	b.box(Rect2(roll.position, Vector2(roll.size.x, 10)), Color(0.45, 0.38, 0.28), Draw.Shade.CLOTH)
 	b.flush(c)
 
 
